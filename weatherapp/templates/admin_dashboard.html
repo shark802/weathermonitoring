@@ -1,0 +1,568 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather Monitoring Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="{% static 'css/logout.css' %}">
+</head>
+<body class="bg-gray-200 font-sans min-h-auto">
+
+  {% include "weather/header.html" %}
+
+  <div class="flex pt-16">
+
+    {% include "weather/aside.html" %}
+
+    <main class="transition-margin duration-300 ml-0 md:ml-64 flex-1 p-6 space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="bg-white p-4 rounded shadow flex flex-col justify-between h-full">
+          <div>
+            <h2 class="text-xl font-semibold mb-2 flex items-center justify-between">
+              <div class="flex items-center">
+                Live Data – 
+                <form method="get" class="ml-2" id="sensorForm">
+                  <select name="sensor_id" id="sensorSelect" 
+                          class="border rounded px-2 py-1 text-sm"
+                          onchange="this.form.submit()">
+                    {% for sensor in available_sensors %}
+                      <option value="{{ sensor.sensor_id }}" 
+                              {% if sensor.sensor_id == current_sensor_id %}selected{% endif %}>
+                        {{ sensor.name }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                  <noscript>
+                    <button type="submit" class="ml-2 bg-blue-500 text-white px-2 py-1 rounded text-sm">
+                      Apply
+                    </button>
+                  </noscript>
+                </form>
+              </div>
+              <a href="?sensor_id={{ current_sensor_id }}" class="text-blue-600 hover:underline text-sm">
+                <i class="fas fa-sync-alt"></i>
+              </a>
+            </h2>
+
+            <div id="weatherDataContainer" class="mt-4">
+              {% if weather.error %}
+                <p class="text-red-600">Error: {{ weather.error }}</p>
+              {% else %}
+                <ul class="space-y-2 mr-2 list-none text-left">
+                  <li><i class="fas fa-thermometer-half text-red-700 ml-2"></i> Temperature: {{ weather.temperature }}°C</li>
+                  <li><i class="fas fa-tint text-blue-700 ml-2"></i> Humidity: {{ weather.humidity }}%</li>
+                  <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: {{ weather.dew_point }}°C</li>
+                  <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: {{ weather.wind_speed|default:"N/A" }} km/h</li>
+                  <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: {{ weather.rain_rate|default:"N/A" }} mm/h</li>
+                </ul>
+              {% endif %}
+            </div>
+          </div>
+          <p class="text-gray-600 text-center mt-4">
+            Last Updated: {{ weather.date_time }}<br>
+            <span class="text-sm text-gray-500">Location: {{ weather.location }}</span>
+          </p>
+        </div>
+
+
+        <div class="bg-white p-4 rounded shadow">
+          <h2 class="text-xl font-semibold mb-4">Day/Night Temp Forecast</h2>
+          {% if forecast %}
+            <div class="space-y-3 text-medium">
+              {% for day in forecast %}
+                <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                  <span class="font-medium text-gray-700">{{ day.date }}</span>
+                  <span class="text-right text-gray-600">{{ day.temp_day }}°C / {{ day.temp_night }}°C</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-gray-500 text-medium">No forecast data available.</p>
+          {% endif %}
+        </div>
+
+        <div class="bg-white p-4 rounded shadow">
+          <h2 class="text-xl font-semibold mb-2">Temperature Trends</h2>
+          <canvas id="tempChart" height="150"></canvas>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded shadow">
+        <h2 class="text-xl font-semibold mb-2">Interactive Map</h2>
+        <div id="map" class="h-96 w-full relative z-10"></div>
+      </div>
+
+      <div class="alert-container bg-white p-4 rounded shadow">
+        <h2 class="text-xl font-semibold mb-4">Alerts & Notifications</h2>
+        {% if alerts %}
+          <ul class="space-y-1">
+            {% for alert in alerts %}
+              <li class="
+                {% if 'Torrential' in alert %}text-red-700 font-bold animate-pulse
+                {% elif 'Intense' in alert %}text-orange-600 font-semibold
+                {% elif 'Heavy' in alert %}text-yellow-600
+                {% elif 'Wind Advisory' in alert %}text-blue-500
+                {% else %}text-gray-700{% endif %}">
+                ⚠️ {{ alert }}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-green-600">✅ No active alerts at this time.</p>
+        {% endif %}
+      </div>
+    </main>
+  </div>
+
+
+  <div id="logoutModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen p-4">
+      <!-- Backdrop -->
+      <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" aria-hidden="true"></div>
+      
+      <!-- Modal container -->
+      <div class="relative bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md transform transition-all">
+        <!-- Modal content -->
+        <div class="p-6">
+          <div class="flex items-start">
+            <!-- Icon -->
+            <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-50">
+              <i class="fas fa-sign-out-alt text-red-600 text-xl"></i>
+            </div>
+            
+            <!-- Text content -->
+            <div class="ml-4">
+              <h3 class="text-xl font-semibold text-gray-900">Log out of your account?</h3>
+              <div class="mt-2">
+                <p class="text-gray-600">You'll need to log in again to access your dashboard.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Action buttons -->
+        <div class="bg-gray-50 px-6 py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+          <button type="button" onclick="hideLogoutModal()" 
+                  class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button type="button" onclick="performLogout()" 
+                  class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+            Log Out
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="sendAlertModal" tabindex="-1" aria-labelledby="sendAlertModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <form method="POST" action="{% url 'send_alert' %}" id="sendAlertForm">
+        {% csrf_token %}
+        <div class="modal-header bg-blue-600 text-white rounded-t-lg">
+          <div class="w-full text-center">
+            <h5 class="modal-title text-xl font-bold" id="sendAlertModalLabel">SEND ALERT NOTIFICATION</h5>
+          </div>
+          <button type="button" class="btn-close btn-close-white absolute right-4 top-4" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        
+        <div class="modal-body p-6 space-y-4">
+          <!-- Barangay Selection -->
+          <div class="space-y-3">
+            <h6 class="font-semibold text-gray-700 flex items-center">
+              <i class="fas fa-map-marker-alt mr-2 text-blue-500"></i>
+              Target Barangays
+            </h6>
+            <div id="barangay-container" class="space-y-3">
+              <!-- Barangay selects will be added here -->
+            </div>
+            <button type="button" 
+                    class="w-full flex items-center justify-center gap-2 bg-blue-50 text-blue-600 font-medium py-2 px-4 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200"
+                    onclick="addBarangaySelect()">
+              <i class="fas fa-plus"></i> Add Another Barangay
+            </button>
+          </div>
+
+          <div class="border-t border-gray-200 my-4"></div>
+
+          <!-- Alert Type -->
+          <div class="space-y-3">
+            <h6 class="font-semibold text-gray-700 flex items-center">
+              <i class="fas fa-exclamation-triangle mr-2 text-yellow-500"></i>
+              Alert Details
+            </h6>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="alert_type" class="block text-sm font-medium text-gray-700 mb-1">Alert Type</label>
+                <select class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 shadow-sm" 
+                        id="alert_type" name="alert_type" required>
+                  <option value="Rain">Rain Alert</option>
+                  <option value="Wind">Wind Alert</option>
+                </select>
+              </div>
+              
+              <div>
+                <label for="severity" class="block text-sm font-medium text-gray-700 mb-1">Severity Level</label>
+                <select class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 shadow-sm" 
+                        id="severity" name="severity" required>
+                  <option value="Heavy">Heavy - Rain</option>
+                  <option value="Torrential">Torrential - Rain</option>
+                  <option value="Intense">Intense - Rain</option>
+                  <option value="Gale">Gale - Wind</option>
+                  <option value="Storm">Storm - Wind</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div id="alert-status" class="mt-4 text-center font-medium text-sm"></div>
+        </div>
+        
+        <div class="modal-footer bg-gray-50 rounded-b-lg px-6 py-4 flex flex-col sm:flex-row-reverse gap-3">
+          <button type="submit" 
+                  class="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm flex items-center justify-center gap-2">
+            <i class="fas fa-paper-plane"></i> Send Alert
+          </button>
+          <button type="button" 
+                  class="w-full sm:w-auto px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm"
+                  data-bs-dismiss="modal">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+  <div id="loadingOverlay" class="hidden fixed inset-0 z-50 bg-white bg-opacity-80 flex flex-col items-center justify-center">
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+    <p class="mt-4 text-lg font-medium text-gray-700">Logging out...</p>
+  </div>
+
+  <audio id="alertSound" src="{% static 'sounds/alert.mp3' %}" preload="auto"></audio>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const bagoBarangays = [
+    "Abuanan", "Alianza", "Atipuluan", "Bacong-Montilla", "Bagroy", "Balingasag",
+    "Binubuhan", "Busay", "Calumangan", "Caridad", "Don Jorge L. Araneta",
+    "Dulao", "Ilijan", "Lag-asan", "Ma-ao", "Mailum", "Malingin", "Napoles",
+    "Pacol", "Poblacion", "Sagasa", "Tabunan", "Taloc", "Sampinit"
+  ];
+
+  function createBarangaySelectGroup() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "mb-3 d-flex align-items-center barangay-group";
+
+    const select = document.createElement("select");
+    select.name = "address";
+    select.className = "form-select";
+    select.required = true;
+
+    const defaultOption = document.createElement("option");
+    defaultOption.textContent = "-- Select Barangay --";
+    defaultOption.disabled = true;
+    defaultOption.selected = true;
+    select.appendChild(defaultOption);
+
+    bagoBarangays.forEach(brgy => {
+      const option = document.createElement("option");
+      option.value = brgy;
+      option.textContent = brgy;
+      select.appendChild(option);
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "╳";
+    removeBtn.className = "btn btn-sm btn-danger ms-2";
+    removeBtn.onclick = () => wrapper.remove();
+
+    wrapper.appendChild(select);
+    wrapper.appendChild(removeBtn);
+
+    return wrapper;
+  }
+
+  function addBarangaySelect() {
+    const container = document.getElementById("barangay-container");
+    const groups = container.querySelectorAll(".barangay-group");
+    
+    // Limit to 5 barangay selections
+    if (groups.length >= 5) {
+      alert("Maximum of 5 barangays allowed");
+      return;
+    }
+    
+    const group = createBarangaySelectGroup();
+    container.appendChild(group);
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    // Add initial barangay select
+    addBarangaySelect();
+    
+    // Form submission handler
+    const form = document.getElementById("sendAlertForm");
+    const statusDiv = document.getElementById("alert-status");
+
+    form.addEventListener("submit", function(e) {
+      e.preventDefault();
+      statusDiv.innerHTML = '<span class="text-info">⏳ Sending alert...</span>';
+      
+      const formData = new FormData(form);
+      
+      // Validate at least one barangay is selected
+      const barangaySelects = form.querySelectorAll('select[name="address"]');
+      let hasSelection = false;
+      
+      barangaySelects.forEach(select => {
+        if (select.value && !select.options[0].selected) {
+          hasSelection = true;
+        }
+      });
+      
+      if (!hasSelection) {
+        statusDiv.innerHTML = '<span class="text-danger">❌ Please select at least one barangay</span>';
+        return;
+      }
+
+      fetch(form.action, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": formData.get("csrfmiddlewaretoken"),
+        },
+        body: formData,
+      })
+      .then((response) => {
+        if (!response.ok) throw new Error("Network response was not ok");
+        return response.text();
+      })
+      .then((text) => {
+        if (text.includes("Alert sent successfully")) {
+          statusDiv.innerHTML = '<span class="text-success">✅ Alert sent successfully!</span>';
+          // Reset form after 2 seconds
+          setTimeout(() => {
+            form.reset();
+            const container = document.getElementById("barangay-container");
+            container.innerHTML = "";
+            addBarangaySelect();
+            statusDiv.innerHTML = "";
+          }, 2000);
+        } else {
+          statusDiv.innerHTML = '<span class="text-danger">❌ Failed to send alert.</span>';
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+        statusDiv.innerHTML = '<span class="text-danger">❌ An error occurred: ' + error.message + '</span>';
+      });
+    });
+  });
+
+    const ctx = document.getElementById('tempChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: {{ labels|safe }},
+        datasets: [{
+          label: 'Temperature (°C)',
+          data: {{ data|safe }},
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.2)',
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { beginAtZero: false }
+        }
+      }
+    });
+
+function showLogoutModal() {
+  document.getElementById('logoutModal').classList.remove('hidden');
+}
+
+function hideLogoutModal() {
+  document.getElementById('logoutModal').classList.add('hidden');
+}
+
+function performLogout() {
+  // Show loading overlay
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  
+  hideLogoutModal();
+  
+  const logoutBtn = document.querySelector('#logout-form button');
+  if (logoutBtn) {
+    logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Logging out...';
+    logoutBtn.disabled = true;
+  }
+  
+  // Submit the form
+  document.getElementById('logout-form').submit();
+}
+
+  function toggleRainfallDropdown() {
+    const menu = document.getElementById('rainfallMenu');
+    const arrow = document.getElementById('rainfallArrow');
+
+    menu.classList.toggle('hidden');
+
+    if (menu.classList.contains('hidden')) {
+      arrow.classList.remove('fa-chevron-down');
+      arrow.classList.add('fa-chevron-right');
+    } else {
+      arrow.classList.remove('fa-chevron-right');
+      arrow.classList.add('fa-chevron-down');
+    }
+  }
+
+  function toggleUserDropdown() {
+    const menu = document.getElementById('userMenu');
+    const arrow = document.getElementById('userArrow');
+
+    menu.classList.toggle('hidden');
+
+    if (menu.classList.contains('hidden')) {
+      arrow.classList.remove('fa-chevron-down');
+      arrow.classList.add('fa-chevron-right');
+    } else {
+      arrow.classList.remove('fa-chevron-right');
+      arrow.classList.add('fa-chevron-down');
+    }
+  }
+
+    const map = L.map('map').setView([10.508884, 122.957527], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const locations = [
+      {% if locations %}
+        {% for location in locations %}
+          {
+            name: "{{ location.name }}",
+            lat: {{ location.latitude }},
+            lon: {{ location.longitude }},
+            has_alert: {% if location.has_alert %}true{% else %}false{% endif %}
+          }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+      {% endif %}
+    ];
+
+    const alertSound = document.getElementById('alertSound');
+    let alertTriggered = false;
+
+    locations.forEach(loc => {
+      let marker;
+
+      if (loc.has_alert) {
+        const customHTMLIcon = L.divIcon({
+          className: '',
+          html: `<div class="custom-pin">
+                  🚨<span class="pin-label">${loc.name}</span>
+                </div>`,
+          iconSize: [32, 40],
+          iconAnchor: [16, 40],
+        });
+
+        marker = L.marker([loc.lat, loc.lon], { icon: customHTMLIcon }).addTo(map);
+
+        marker.bindPopup(`<div class="text-red-600 font-bold">⚠️ Strong wind or rain at ${loc.name}!</div>`).openPopup();
+
+        if (!sessionStorage.getItem('alertPlayed')) {
+          alertSound.play();
+          sessionStorage.setItem('alertPlayed', 'true');
+        }
+      } else {
+        marker = L.marker([loc.lat, loc.lon]).addTo(map);
+
+        marker.bindPopup(`<div>${loc.name}</div>`);
+      }
+    });
+
+    setTimeout(() => map.invalidateSize(), 100);
+
+    setTimeout(() => {
+    const alertBox = document.querySelector('.alert-container');
+    if (alertBox) alertBox.remove();
+  }, 300000);
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+      new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+    const mainContent = document.querySelector('main');
+
+    // Initialize state
+    const initSidebar = () => {
+        const isDesktop = window.innerWidth >= 768;
+        
+        if (isDesktop) {
+            sidebar.classList.remove('-translate-x-full');
+            mainContent.classList.add('md:ml-64');
+        } else {
+            sidebar.classList.add('-translate-x-full');
+            mainContent.classList.remove('md:ml-64');
+        }
+    };
+
+    // Toggle function
+    const toggleSidebar = () => {
+        const isDesktop = window.innerWidth >= 768;
+        
+        sidebar.classList.toggle('-translate-x-full');
+        
+        // Only adjust margin on desktop
+        if (isDesktop) {
+            mainContent.classList.toggle('md:ml-64');
+            mainContent.classList.toggle('md:ml-0');
+        }
+    };
+
+    // Handle window resize
+    const handleResize = () => {
+        const isDesktop = window.innerWidth >= 768;
+        
+        if (isDesktop) {
+            // If sidebar is open on desktop, ensure margin is applied
+            if (!sidebar.classList.contains('-translate-x-full')) {
+                mainContent.classList.add('md:ml-64');
+                mainContent.classList.remove('md:ml-0');
+            }
+        } else {
+            // On mobile, remove margin (sidebar will overlay)
+            mainContent.classList.remove('md:ml-64');
+            mainContent.classList.add('md:ml-0');
+        }
+    };
+
+    // Event listeners
+    sidebarToggleBtn.addEventListener('click', toggleSidebar);
+    window.addEventListener('resize', handleResize);
+    
+    // Initialize
+    initSidebar();
+});
+
+  </script>
+</body>
+</html>

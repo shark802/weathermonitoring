@@ -1,0 +1,254 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#2563EB">
+  <title>Weather Monitoring Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="{% static 'css/logout.css' %}">
+</head>
+<body class="bg-gray-200 font-sans">
+
+  <header class="bg-blue-600 text-white py-2 px-4 flex justify-between items-center shadow fixed w-full z-50">
+    <div class="flex items-center space-x-2">
+      <img src="{% static 'images/logo.png' %}" alt="Logo" class="h-8 w-8">
+      <h1 class="text-xl font-bold">Weather Monitoring Dashboard</h1>
+    </div>
+    <div class="relative inline-block text-left">
+      <div class="flex items-center gap-3 text-white relative" onclick="toggleDropdown()" role="button" aria-expanded="false" aria-haspopup="true" aria-controls="dropdownMenu">
+        <div class="text-right leading-tight hidden md:block">
+          <div class="font-bold">{{ user.name }}</div>
+          <div class="text-xs">USER</div>
+        </div>
+        <i class="fas fa-user-circle fa-2x text-white"></i>
+        <i id="dropdownArrow" class="fas fa-chevron-down text-white text-sm transition-transform duration-200"></i>
+      </div>
+      <ul id="dropdownMenu" class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50 hidden">
+        <li>
+          <a href="{% url 'user_profile' %}" class="block px-4 py-2 text-sm text-gray-700 no-underline hover:bg-gray-100">
+            <i class="fas fa-user mr-2"></i> Profile
+          </a>
+        </li>
+        <li>
+          <form id="logout-form" action="{% url 'logout' %}" method="POST">
+            {% csrf_token %}
+            <button type="button" onclick="showLogoutModal()" class="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+              <i class="fas fa-sign-out-alt mr-2"></i> Logout
+            </button>
+          </form>
+        </li>
+      </ul>
+    </div>
+  </header>
+
+  <div class="flex pt-16">
+
+
+    <main class="flex-1 p-6 space-y-6">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+
+          <div class="bg-white p-4 rounded shadow flex flex-col justify-between h-full">
+          <div>
+            <h2 class="text-xl font-semibold mb-2 flex items-center justify-between">
+              <div class="flex items-center">
+                Live Data – 
+                <form method="get" class="ml-2" id="sensorForm">
+                  <select name="sensor_id" id="sensorSelect" 
+                          class="border rounded px-2 py-1 text-sm"
+                          onchange="this.form.submit()">
+                    {% for sensor in available_sensors %}
+                      <option value="{{ sensor.sensor_id }}" 
+                              {% if sensor.sensor_id == current_sensor_id %}selected{% endif %}>
+                        {{ sensor.name }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                  <noscript>
+                    <button type="submit" class="ml-2 bg-blue-500 text-white px-2 py-1 rounded text-sm">
+                      Apply
+                    </button>
+                  </noscript>
+                </form>
+              </div>
+              <a href="?sensor_id={{ current_sensor_id }}" class="text-blue-600 hover:underline text-sm">
+                <i class="fas fa-sync-alt"></i>
+              </a>
+            </h2>
+
+            <div id="weatherDataContainer" class="mt-4">
+              {% if weather.error %}
+                <p class="text-red-600">Error: {{ weather.error }}</p>
+              {% else %}
+                <ul class="space-y-2 mr-2 list-none text-left">
+                  <li><i class="fas fa-thermometer-half text-red-700 ml-2"></i> Temperature: {{ weather.temperature }}°C</li>
+                  <li><i class="fas fa-tint text-blue-700 ml-2"></i> Humidity: {{ weather.humidity }}%</li>
+                  <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: {{ weather.dew_point }}°C</li>
+                  <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: {{ weather.wind_speed|default:"N/A" }} km/h</li>
+                  <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: {{ weather.rain_rate|default:"N/A" }} mm/h</li>
+                </ul>
+              {% endif %}
+            </div>
+          </div>
+          <p class="text-gray-600 text-center mt-4">
+            Last Updated: {{ weather.date_time }}<br>
+            <span class="text-sm text-gray-500">Location: {{ weather.location }}</span>
+          </p>
+        </div>
+
+        <div class="bg-white p-3 rounded shadow pb-6">
+            <h2 class="text-xl font-semibold mb-2">Day/Night Temperature Forecast</h2>
+            {% if forecast %}
+            <div class="space-y-2 text-lg">
+                {% for day in forecast %}
+                <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                    <span class="font-medium text-gray-700">{{ day.date }}</span>
+                    <span class="text-right text-gray-600">{{ day.temp_day }}°C / {{ day.temp_night }}°C</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-sm">No forecast data available.</p>
+            {% endif %}
+        </div>
+
+        </div>
+
+
+      <div class="bg-white p-3 rounded shadow pb-6">
+        <h2 class="text-xl font-semibold mb-2">Temperature Trends</h2>
+        <div class="relative h-64 w-full">
+            <canvas id="tempChart" class="absolute inset-0"></canvas>
+        </div>
+        </div>
+    </main>
+  </div>
+
+  <!--logout modal-->
+    <div id="logoutModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen p-4">
+      <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" aria-hidden="true"></div>
+      
+      <div class="relative bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md transform transition-all">
+        <div class="p-6">
+          <div class="flex items-start">
+            <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-50">
+              <i class="fas fa-sign-out-alt text-red-600 text-xl"></i>
+            </div>
+            
+            <div class="ml-4">
+              <h3 class="text-xl font-semibold text-gray-900">Log out of your account?</h3>
+              <div class="mt-2">
+                <p class="text-gray-600">You'll need to log in again to access your dashboard.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-gray-50 px-6 py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+          <button type="button" onclick="hideLogoutModal()" 
+                  class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button type="button" onclick="performLogout()" 
+                  class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+            Log Out
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!--logout loading-->
+  <div id="loadingOverlay" class="hidden fixed inset-0 z-50 bg-white bg-opacity-80 flex flex-col items-center justify-center">
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+    <p class="mt-4 text-lg font-medium text-gray-700">Logging out...</p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const ctx = document.getElementById('tempChart').getContext('2d');
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: {{ labels|safe }},
+    datasets: [{
+      label: 'Temperature (°C)',
+      data: {{ data|safe }},
+      borderColor: 'rgb(59, 130, 246)',
+      backgroundColor: 'rgba(59, 130, 246, 0.2)',
+      fill: true
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: {
+        beginAtZero: false
+      }
+    }
+  }
+});
+
+
+  function toggleDropdown() {
+    const menu = document.getElementById('dropdownMenu');
+    menu.classList.toggle('hidden');
+  }
+
+  function showLogoutModal() {
+    document.getElementById('logoutModal').classList.remove('hidden');
+  }
+
+  function hideLogoutModal() {
+    document.getElementById('logoutModal').classList.add('hidden');
+  }
+
+  function performLogout() {
+    // Show loading overlay
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+    
+    hideLogoutModal();
+    
+    const logoutBtn = document.querySelector('#logout-form button');
+    if (logoutBtn) {
+      logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Logging out...';
+      logoutBtn.disabled = true;
+    }
+    
+    // Submit the form
+    document.getElementById('logout-form').submit();
+  }
+
+  document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('dropdownMenu');
+    const trigger = event.target.closest('[onclick="toggleDropdown()"]');
+    if (!dropdown.contains(event.target) && !trigger) {
+      dropdown.classList.add('hidden');
+    }
+  });
+
+
+  function toggleDropdown() {
+    const menu = document.getElementById('dropdownMenu');
+    const arrow = document.getElementById('dropdownArrow');
+
+    menu.classList.toggle('hidden');
+
+    if (menu.classList.contains('hidden')) {
+      arrow.classList.remove('fa-chevron-up');
+      arrow.classList.add('fa-chevron-down');
+    } else {
+      arrow.classList.remove('fa-chevron-down');
+      arrow.classList.add('fa-chevron-up');
+    }
+  }
+  </script>
+</body>
+</html>

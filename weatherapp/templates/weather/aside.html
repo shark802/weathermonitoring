@@ -1,0 +1,133 @@
+{% load static %}
+<aside id="sidebar" class="transform transition-transform duration-300 ease-in-out -translate-x-full fixed top-14 w-64 bg-white shadow fixed top-14 left-0 bottom-0 p-6 flex flex-col justify-between overflow-y-auto z-40">
+  <div class="flex flex-col h-full">
+    <div class="flex-grow overflow-y-auto">
+      <div class="mb-0">
+        <div class="flex items-center gap-2">
+          <img src="{% static 'images/logo.png' %}" alt="WeatherAlert Logo" class="w-8 h-8">
+          <h2 class="text-xl font-bold text-gray-800">WeatherAlert</h2>
+        </div>
+        <div class="h-px bg-gray-400 my-4"></div>
+      </div>
+
+      <nav class="space-y-4">
+        <a href="{% url 'admin_dashboard' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'admin_dashboard' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}">
+          <i class="fas fa-chart-simple w-5 text-center"></i> Dashboard
+        </a>
+
+        {% with request.resolver_match.url_name as current_url %}
+        <div onclick="toggleRainfallDropdown()"
+            class="flex justify-between items-center cursor-pointer px-2 py-2 rounded-md font-medium
+                {% if current_url in 'weather_reports daily_reports monthly_reports' %}
+                  bg-blue-50 text-blue-600
+                {% else %}
+                  text-gray-700 hover:bg-blue-50 hover:text-blue-600
+                {% endif %}"
+            role="button" aria-expanded="true" aria-controls="rainfallMenu">
+          <span class="flex items-center gap-2">
+            <i class="fas fa-cloud-rain w-5 text-center"></i> Weather Reports
+          </span>
+          <i id="rainfallArrow"
+            class="fas text-sm transition-transform duration-200
+              {% if current_url in 'weather_reports daily_reports monthly_reports' %}
+                fa-chevron-down text-blue-600
+              {% else %}
+                fa-chevron-right text-gray-700
+              {% endif %}">
+          </i>
+        </div>
+        <div id="rainfallMenu"
+            class="{% if current_url in 'weather_reports daily_reports monthly_reports' %}block{% else %}hidden{% endif %}">
+          <ul class="nav flex-column ms-4 space-y-1 mt-1">
+            <li class="nav-item">
+              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'weather_reports' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}"
+                href="{% url 'weather_reports' %}">
+                <span class="text-xs">●</span> All Reports
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'daily_reports' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}"
+                href="{% url 'daily_reports' %}">
+                <span class="text-xs">●</span> Daily Report
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'monthly_reports' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}"
+                href="{% url 'monthly_reports' %}">
+                <span class="text-xs">●</span> Monthly Report
+              </a>
+            </li>
+          </ul>
+        </div>
+        {% endwith %}
+
+        <a href="{% url 'manage_admins' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'manage_admins' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}">
+          <i class="fas fa-user-shield w-5 text-center"></i> Manage Admins
+        </a>
+        <a href="{% url 'sensors' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'sensors' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}">
+          <i class="fas fa-broadcast-tower w-5 text-center"></i> Sensors
+        </a>
+
+        {% with request.resolver_match.url_name as current_url %}
+        <div onclick="toggleUserDropdown()"
+            class="flex justify-between items-center cursor-pointer px-2 py-2 rounded-md font-medium
+                {% if current_url in 'active_user pending_user' %}
+                  bg-blue-50 text-blue-600
+                {% else %}
+                  text-gray-700 hover:bg-blue-50 hover:text-blue-600
+                {% endif %}"
+            role="button" aria-expanded="true" aria-controls="userMenu">
+          <span class="flex items-center gap-2">
+            <i class="fas fa-user w-5 text-center"></i> Manage Users
+          </span>
+          <i id="userArrow"
+              class="fas text-sm transition-transform duration-200
+                {% if current_url in 'active_user pending_user' %}
+                  fa-chevron-down text-blue-600
+                {% else %}
+                  fa-chevron-right text-gray-700
+                {% endif %}">
+          </i>
+        </div>
+        <div id="userMenu"
+            class="{% if current_url in 'active_user pending_user' %}block{% else %}hidden{% endif %}">
+          <ul class="nav flex-column ms-4 space-y-1 mt-1">
+            <li class="nav-item">
+              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'active_user' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}"
+                href="{% url 'active_user' %}">
+                <span class="text-xs">●</span> Active Users
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'pending_user' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}"
+                href="{% url 'pending_user' %}">
+                <span class="text-xs">●</span> Pending Users
+              </a>
+            </li>
+          </ul>
+        </div>
+        {% endwith %}
+        
+        <!-- Send Alerts Button - Fixed position -->
+        <button type="button" 
+                class="w-full flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 text-gray-700"
+                data-bs-toggle="modal" 
+                data-bs-target="#sendAlertModal">
+          <i class="fas fa-bell w-5 text-center"></i> Send Alerts
+        </button>
+      </nav>
+    </div>
+
+    <!-- Logout Button - Fixed at bottom -->
+    <div class="mt-auto">
+      <div class="h-px bg-gray-400 my-4"></div>
+      <form id="logout-form" action="{% url 'logout' %}" method="POST">
+        {% csrf_token %}
+        <button type="button" onclick="showLogoutModal()"
+                class="w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm font-medium no-underline hover:bg-gray-100 text-gray-700">
+          <i class="fas fa-sign-out-alt w-5 text-center"></i> Logout
+        </button>
+      </form>
+    </div>
+  </div>
+</aside>

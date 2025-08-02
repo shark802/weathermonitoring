@@ -1,0 +1,746 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WeatherAlert</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{% static 'css/login.css' %}">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              200: '#bae6fd',
+              300: '#7dd3fc',
+              400: '#38bdf8',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              800: '#075985',
+              900: '#0c4a6e',
+            },
+            secondary: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              200: '#bbf7d0',
+              300: '#86efac',
+              400: '#4ade80',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-primary-50 font-sans antialiased">
+
+  <!-- Modern Navbar -->
+  <nav class="bg-white/50 backdrop-blur-md shadow-sm fixed w-full z-50 border-b border-gray-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <img src="{% static 'images/logo.png' %}" alt="Logo" class="h-8 w-8">
+            <h1 class="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent whitespace-nowrap">
+                WeatherAlert
+            </h1>
+        </div>
+        <div class="flex space-x-2 sm:space-x-3">
+            <button type="button" data-bs-toggle="modal" data-bs-target="#loginModal"
+                class="px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-all duration-200 shadow hover:shadow-md whitespace-nowrap">
+                Login
+            </button>
+            <button type="button" data-bs-toggle="modal" data-bs-target="#registerModal"
+                class="px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base bg-secondary-600 hover:bg-secondary-700 text-white rounded-lg transition-all duration-200 shadow hover:shadow-md whitespace-nowrap">
+                Register
+            </button>
+        </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="relative pt-32 pb-20 px-6 bg-gray-900">
+    <div class="absolute inset-0 overflow-hidden">
+      <div class="absolute inset-0 bg-gradient-to-br from-primary-100 to-primary-50 opacity-90"></div>
+      <div class="absolute inset-0 bg-[url('{% static 'images/background.jpg' %}')] bg-[length:100%] opacity-30"></div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto relative z-10 text-center">
+      <div class="inline-flex items-center bg-primary-100 text-primary-800 px-4 py-1.5 rounded-full text-sm font-medium mb-4">
+        <i class="fas fa-cloud-sun mr-2"></i> Real-time Weather Monitoring
+      </div>
+      
+      <h1 class="text-5xl font-extrabold text-gray-900 mb-6 leading-tight">
+        Advanced Weather Analytics <br>
+        <span class="bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent">
+          For Your Safety
+        </span>
+      </h1>
+      
+      <p class="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
+        Get accurate weather predictions and alerts to enhance disaster preparedness and response in your community.
+      </p>
+      
+      <div class="flex flex-col sm:flex-row justify-center gap-4">
+        <button data-bs-toggle="modal" data-bs-target="#registerModal" 
+          class="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white text-lg rounded-lg shadow-lg hover:shadow-xl transition-all duration-200">
+          Get Started <i class="fas fa-arrow-right ml-2"></i>
+        </button>
+        <button class="px-6 py-3 border border-primary-200 bg-white text-primary-700 text-lg rounded-lg hover:bg-primary-50 transition-all duration-200">
+          Learn More
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="py-20 px-6 bg-white">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl font-bold text-gray-900 mb-4">Why Choose WeatherAlert?</h2>
+        <div class="w-20 h-1 bg-primary-600 mx-auto"></div>
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Feature 1 -->
+        <div class="bg-gradient-to-b from-white to-primary-50 rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100">
+          <div class="w-14 h-14 bg-primary-100 rounded-lg flex items-center justify-center mb-4 text-primary-600">
+            <i class="fas fa-bolt text-2xl"></i>
+          </div>
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Real-time Alerts</h3>
+          <p class="text-gray-600">
+            Receive instant notifications about severe weather conditions in your area with our advanced monitoring system.
+          </p>
+        </div>
+        
+        <!-- Feature 2 -->
+        <div class="bg-gradient-to-b from-white to-primary-50 rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100">
+          <div class="w-14 h-14 bg-primary-100 rounded-lg flex items-center justify-center mb-4 text-primary-600">
+            <i class="fas fa-map-marked-alt text-2xl"></i>
+          </div>
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Localized Data</h3>
+          <p class="text-gray-600">
+            Hyper-local weather data from sensors placed throughout your community for the most accurate readings.
+          </p>
+        </div>
+        
+        <!-- Feature 3 -->
+        <div class="bg-gradient-to-b from-white to-primary-50 rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300 border border-gray-100">
+          <div class="w-14 h-14 bg-primary-100 rounded-lg flex items-center justify-center mb-4 text-primary-600">
+            <i class="fas fa-chart-line text-2xl"></i>
+          </div>
+          <h3 class="text-xl font-semibold text-gray-900 mb-3">Advanced Analytics</h3>
+          <p class="text-gray-600">
+            Historical data and predictive analytics to help with long-term planning and disaster preparedness.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats Section -->
+  <section class="py-16 px-6 bg-primary-700 text-white">
+    <div class="max-w-7xl mx-auto">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+        <div class="p-6">
+          <div class="text-4xl font-bold mb-2">24/7</div>
+          <div class="text-primary-200">Monitoring</div>
+        </div>
+        <div class="p-6">
+          <div class="text-4xl font-bold mb-2">99.9%</div>
+          <div class="text-primary-200">Accuracy</div>
+        </div>
+        <div class="p-6">
+          <div class="text-4xl font-bold mb-2">20+</div>
+          <div class="text-primary-200">Sensors</div>
+        </div>
+        <div class="p-6">
+          <div class="text-4xl font-bold mb-2">10k+</div>
+          <div class="text-primary-200">Users</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials -->
+  <section class="py-20 px-6 bg-white">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center mb-16">
+        <h2 class="text-3xl font-bold text-gray-900 mb-4">What Our Users Say</h2>
+        <div class="w-20 h-1 bg-primary-600 mx-auto"></div>
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <!-- Testimonial 1 -->
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <div class="flex items-center mb-4">
+            <div class="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 mr-4">
+              <i class="fas fa-user text-xl"></i>
+            </div>
+            <div>
+              <h4 class="font-semibold">Barangay Captain</h4>
+              <p class="text-sm text-gray-500">Bago City</p>
+            </div>
+          </div>
+          <p class="text-gray-600">
+            "WeatherAlert has transformed how we prepare for typhoons. The early warnings have saved lives in our community."
+          </p>
+        </div>
+        
+        <!-- Testimonial 2 -->
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <div class="flex items-center mb-4">
+            <div class="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 mr-4">
+              <i class="fas fa-user text-xl"></i>
+            </div>
+            <div>
+              <h4 class="font-semibold">Local Farmer</h4>
+              <p class="text-sm text-gray-500">Negros Occidental</p>
+            </div>
+          </div>
+          <p class="text-gray-600">
+            "The accurate rainfall predictions help me plan my planting and harvesting seasons better than ever before."
+          </p>
+        </div>
+        
+        <!-- Testimonial 3 -->
+        <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <div class="flex items-center mb-4">
+            <div class="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 mr-4">
+              <i class="fas fa-user text-xl"></i>
+            </div>
+            <div>
+              <h4 class="font-semibold">CDRRMO Officer</h4>
+              <p class="text-sm text-gray-500">Disaster Response</p>
+            </div>
+          </div>
+          <p class="text-gray-600">
+            "This system gives us the lead time we need to evacuate vulnerable areas before disasters strike."
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="py-16 px-6 bg-primary-600 text-white">
+    <div class="max-w-4xl mx-auto text-center">
+      <h2 class="text-3xl font-bold mb-6">Ready to Get Started?</h2>
+      <p class="text-xl text-primary-100 mb-8">
+        Join thousands of users who trust WeatherAlert for accurate weather monitoring and early warnings.
+      </p>
+      <div class="flex flex-col sm:flex-row justify-center gap-4">
+        <button data-bs-toggle="modal" data-bs-target="#registerModal" 
+          class="px-8 py-3 bg-white text-primary-700 font-medium rounded-lg shadow-lg hover:bg-gray-100 transition-all duration-200">
+          Sign Up Free
+        </button>
+        <button data-bs-toggle="modal" data-bs-target="#loginModal"
+          class="px-8 py-3 border border-white text-white font-medium rounded-lg hover:bg-primary-700 transition-all duration-200">
+          Login
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-white py-12 px-6">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div>
+        <div class="flex items-center space-x-3 mb-4">
+          <img src="{% static 'images/logo.png' %}" alt="Logo" class="h-8 w-8">
+          <h3 class="text-xl font-bold">WeatherAlert</h3>
+        </div>
+        <p class="text-gray-400">
+          Advanced weather monitoring and analytics for disaster preparedness and community safety.
+        </p>
+      </div>
+      
+      <div>
+        <h4 class="text-lg font-semibold mb-4">Quick Links</h4>
+        <ul class="space-y-2">
+          <li><a href="#" class="text-gray-400 hover:text-white transition">Home</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white transition">Features</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white transition">About</a></li>
+          <li><a href="#" class="text-gray-400 hover:text-white transition">Contact</a></li>
+        </ul>
+      </div>
+      
+      <div>
+        <h4 class="text-lg font-semibold mb-4">Contact Us</h4>
+        <ul class="space-y-2 text-gray-400">
+          <li class="flex items-start">
+            <i class="fas fa-map-marker-alt mt-1 mr-3 text-primary-400"></i>
+            <span>CDRRMO, Bago City, Negros Occidental</span>
+          </li>
+          <li class="flex items-start">
+            <i class="fas fa-envelope mt-1 mr-3 text-primary-400"></i>
+            <span>weatheralert@gmail.com</span>
+          </li>
+          <li class="flex items-start">
+            <i class="fas fa-phone-alt mt-1 mr-3 text-primary-400"></i>
+            <span>+63-123-456-7890</span>
+          </li>
+        </ul>
+      </div>
+      
+      <div>
+        <h4 class="text-lg font-semibold mb-4">Connect With Us</h4>
+        <div class="flex space-x-4">
+          <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-600 transition">
+            <i class="fab fa-facebook-f"></i>
+          </a>
+          <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-600 transition">
+            <i class="fab fa-twitter"></i>
+          </a>
+          <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-600 transition">
+            <i class="fab fa-instagram"></i>
+          </a>
+          <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-600 transition">
+            <i class="fab fa-linkedin-in"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
+      <p>&copy; 2025 WeatherAlert. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!--login modal-->
+<div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content p-0 overflow-hidden">
+            <div class="flex flex-col lg:flex-row w-100" style="min-height: 500px;">
+                <div class="hidden lg:flex lg:w-1/2 bg-blue-600 text-white items-center justify-center p-4">
+                    <div class="text-center">
+                        <img src="{% static 'images/logo.png' %}" alt="Weather Alert" class="w-50 mx-auto mb-4">
+                        <p class="fs-5 font-serif">Welcome back! Please login to continue.</p>
+                    </div>
+                </div>
+
+                <!-- Right Section - Full width on mobile, half on lg+ -->
+                <div class="w-full lg:w-1/2 bg-white p-4 relative">
+                    <button type="button" class="btn-close absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close"></button>
+
+                    <!-- Mobile-only logo (added for mobile) -->
+                    <div class="lg:hidden flex justify-center mb-6 pt-4">
+                        <img src="{% static 'images/logo.png' %}" alt="Weather Alert" class="h-16">
+                    </div>
+
+                    <h2 class="fs-4 fw-bold mt-4 mb-6 text-dark text-center">Login</h2>
+
+                    <form id="loginForm" method="POST" action="{% url 'login' %}" class="vstack gap-3">
+                        {% csrf_token %}
+                        {% if form_loginError %}
+                            <div id="formLoginErrorAlert" class="alert alert-danger text-center py-1 small" role="alert">
+                                {{ form_loginError }}
+                            </div>
+                            <script>
+                                setTimeout(function() {
+                                    const alert = document.getElementById('formLoginErrorAlert');
+                                    if (alert) {
+                                        alert.style.opacity = '0';
+                                        setTimeout(() => alert.style.display = 'none', 500);
+                                    }
+                                }, 3000);
+                            </script>
+                        {% endif %}
+
+                        <div class="mb-2">
+                            <label for="loginUsername" class="form-label fw-semibold text-dark">Username</label>
+                            <input id="loginUsername" type="text" placeholder="Username" name="username"
+                                class="form-control border-dark" required>
+                        </div>
+
+                        <div class="mb-2">
+                            <label for="loginPassword" class="form-label fw-semibold text-dark">Password</label>
+                            <div class="position-relative">
+                              <input id="loginPassword" type="password" placeholder="Password" name="password" class="form-control border-dark" required>
+                              <span class="toggle-password position-absolute top-50 end-0 translate-middle-y pe-3" style="cursor: pointer;" data-target="loginPassword">
+                                <i class="fa-solid fa-eye" style="color: #6c757d;"></i>
+                              </span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <a href="{% url 'forgot_password' %}" class="text-primary small">Forgot Password?</a>
+                                <a href="#" class="text-primary small text-end ms-auto" id="openRegisterLink" role="button">
+                                    Don't have an account?
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input border-dark" id="remember_me" name="remember_me">
+                            <label class="form-check-label text-dark" for="remember_me">Remember me</label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 py-2">
+                            <span class="submit-text">Login</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!--register modal-->
+  <div class="modal fade" id="registerModal" tabindex="-1" aria-labelledby="registerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-white">
+        <form id="registerForm" method="POST" enctype="multipart/form-data" action="{% url 'register_user' %}">
+          {% csrf_token %}
+            <div class="modal-header position-relative">
+              <div class="flex items-center justify-center w-full">
+                <img src="{% static 'images/logo.png' %}" alt="Logo" class="h-8 w-8 mr-2">
+                <h5 class="modal-title text-blue-600 fw-bold" id="registerModalLabel">Create An Account</h5>
+              </div>
+              <button type="button" class="btn-close position-absolute end-0 me-2" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <p class="text-muted small text-center">Realtime Weather Monitoring & Analytics</p>
+
+            <div class="modal-body">
+              <div class="mb-3">
+                <label for="regName" class="form-label fw-semibold text-dark">Name <span class="text-red-500">*</span></label>
+                <input type="text" class="form-control border-gray" id="regName" name="name" placeholder="Name"  {% if show_register_modal and form_errors %}value="{{ request.POST.name }}"{% endif %} required>
+                {% if form_errors.name %}
+                  <div class="text-danger small mt-1">{{ form_errors.name }}</div>
+                {% endif %}
+              </div>
+
+              <div class="mb-3">
+                <label for="address" class="form-label fw-semibold text-dark">Barangay <span class="text-red-500">*</span></label>
+                <select class="form-select border-gray" id="address" name="address" required>
+                  <option value="">Select Barangay</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label for="regEmail" class="form-label fw-semibold text-dark">Email Address <span class="text-red-500">*</span></label>
+                <input type="email" class="form-control border-gray" id="regEmail" name="email" placeholder="Email"  {% if show_register_modal and form_errors %}value="{{ request.POST.email }}"{% endif %} required>
+                {% if form_errors.email %}
+                  <div class="text-danger small mt-1">{{ form_errors.email }}</div>
+                {% endif %}
+              </div>
+
+              <div class="mb-3">
+                <label for="regPhone" class="form-label fw-semibold text-dark">Phone Number <span class="text-red-500">*</span></label>
+                <input type="text" class="form-control border-gray" id="regPhone" name="phone_num" placeholder="Phone Number"  {% if show_register_modal and form_errors %}value="{{ request.POST.phone_num }}"{% endif %} required>
+                {% if form_errors.phone_num %}
+                  <div class="text-danger small mt-1">{{ form_errors.phone_num }}</div>
+                {% endif %}
+              </div>
+
+              <div class="mb-3">
+                <label for="id_card" class="form-label fw-semibold text-dark">Upload ID Card <span class="text-red-500">*</span></label>
+                <input type="file" class="form-control border-gray" name="id_card" id="id_card" accept=".jpg, .jpeg, .png, .pdf" required onchange="previewIDCard(event)">
+                <small class="text-muted">Allowed: JPG, PNG, PDF • Max size: 2MB</small>
+
+                {% if form_errors.id_card %}
+                  <div class="text-danger small mt-1">{{ form_errors.id_card }}</div>
+                {% endif %}
+
+                <div id="idPreview" class="mt-3 d-none">
+                  <p class="small fw-semibold">Preview:</p>
+                  <img id="idCardImage" src="#" alt="ID Card Preview" class="img-thumbnail" style="max-width: 250px;" />
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="regUsername" class="form-label fw-semibold text-dark">Username <span class="text-red-500">*</span></label>
+                <input type="text" class="form-control border-gray" id="regUsername" name="username" placeholder="Username"  {% if show_register_modal and form_errors %}value="{{ request.POST.username }}"{% endif %} required>
+                {% if form_errors.username %}
+                  <div class="text-danger small mt-1">{{ form_errors.username }}</div>
+                {% endif %}
+              </div>
+
+              <div class="mb-3">
+                <label for="regPassword" class="form-label fw-semibold text-dark">
+                  Password <span class="text-red-500">*</span>
+                </label>
+
+                <div class="position-relative">
+                  <input id="regPassword" type="password" placeholder="Password" name="password" class="form-control border-gray" required>
+                  <span class="toggle-password position-absolute top-50 end-0 translate-middle-y pe-3" style="cursor: pointer;" data-target="regPassword">
+                    <i class="fa-solid fa-eye" style="color: #6c757d;"></i>
+                  </span>
+                </div>
+                {% if form_errors.password %}
+                  <div class="text-danger small mt-1">{{ form_errors.password }}</div>
+                {% endif %}
+              </div>
+
+              <div class="mb-3">
+                <label for="confirm_Password" class="form-label fw-semibold text-dark">
+                  Confirm Password <span class="text-red-500">*</span>
+                </label>
+
+                <div class="position-relative">
+                  <input id="confirm_Password" type="password" placeholder="Confirm Password" name="confirm_password" class="form-control border-gray" required>
+                  <span class="toggle-password position-absolute top-50 end-0 translate-middle-y pe-3" style="cursor: pointer;" data-target="confirm_Password">
+                    <i class="fa-solid fa-eye" style="color: #6c757d;"></i>
+                  </span>
+                </div>
+                {% if form_errors.confirm_password %}
+                  <div class="text-danger small mt-1">{{ form_errors.confirm_password }}</div>
+                {% endif %}
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-2 mb-2">
+                <a href="#" class="text-primary small" id="openLoginLink" role="button">
+                  Already have an account?
+                </a>
+              </div>
+              <div class="modal-footer d-flex flex-column align-items-center bg-white">
+                <button type="submit" class="btn btn-primary w-100 mb-2">Save</button>
+              </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+ {% if form_regsuccess %}
+  <div id="formRegSuccessAlert" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md">
+    <div class="mb-4 px-6 py-4 text-white rounded-lg shadow-md text-center bg-green-500">
+      {{ form_regsuccess }}
+    </div>
+  </div>
+  <script>
+    setTimeout(function() {
+      const alert = document.getElementById('formRegSuccessAlert');
+      if (alert) {
+        alert.style.opacity = '0';
+      setTimeout(() => alert.style.display = 'none', 500);
+        }
+    }, 3000);
+  </script>
+{% endif %}
+
+{% if form_logoutSuccess %}
+  <div id="formLogoutSuccessAlert" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md">
+    <div class="mb-4 px-6 py-4 text-white rounded-lg shadow-md text-center bg-green-500">
+      {{ form_logoutSuccess }}
+    </div>
+  </div>
+  <script>
+    setTimeout(function() {
+      const alert = document.getElementById('formLogoutSuccessAlert');
+      if (alert) {
+        alert.style.opacity = '0';
+      setTimeout(() => alert.style.display = 'none', 500);
+        }
+    }, 3000);
+  </script>
+{% endif %}
+
+  {% if show_register_modal %}
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+    const modal = new bootstrap.Modal(document.getElementById('registerModal'));
+    modal.show();
+    });
+  </script>
+  {% endif %}
+
+  {% if show_login_modal %}
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
+      loginModal.show();
+    });
+  </script>
+  {% endif %}
+
+  <script>
+    const selectedBarangay = "{{ form_data.address|default:'' }}";
+    const bagoBarangays = [
+      "Abuanan", "Alianza", "Atipuluan", "Bacong-Montilla", "Bagroy", "Balingasag", "Binubuhan",
+      "Busay", "Calumangan", "Caridad", "Don Jorge L. Araneta", "Dulao", "Ilijan", "Lag-asan",
+      "Ma-ao", "Mailum", "Malingin", "Napoles", "Pacol", "Poblacion", "Sagasa", "Tabunan",
+      "Taloc", "Sampinit"
+    ];
+
+    function populateBarangays() {
+      const barangaySelect = document.getElementById("address");
+      if (barangaySelect.options.length > 1) return;
+      
+      bagoBarangays.forEach(brgy => {
+        const option = document.createElement("option");
+        option.value = brgy;
+        option.textContent = brgy;
+        if (brgy === selectedBarangay) {
+          option.selected = true;
+        }
+        barangaySelect.appendChild(option);
+      });
+    }
+
+    const registerModal = document.getElementById('registerModal');
+    registerModal.addEventListener('shown.bs.modal', populateBarangays);
+
+  function switchModal(fromId, toId) {
+    const fromModal = bootstrap.Modal.getInstance(document.getElementById(fromId));
+    const toModalElement = document.getElementById(toId);
+
+    if (!fromModal || !toModalElement) {
+      console.error('Modal elements not found');
+      return;
+    }
+
+    fromModal.hide();
+    
+    document.getElementById(fromId).addEventListener('hidden.bs.modal', function handler() {
+      const toModal = new bootstrap.Modal(toModalElement);
+      toModal.show();
+      this.removeEventListener('hidden.bs.modal', handler); // Clean up
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const rememberMe = localStorage.getItem('rememberMe');
+    if (rememberMe === 'true') {
+        document.getElementById('remember_me').checked = true;
+    }
+    
+    document.getElementById('remember_me').addEventListener('change', function() {
+        localStorage.setItem('rememberMe', this.checked);
+    });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.toggle-password').forEach(toggle => {
+    toggle.addEventListener('click', function() {
+      const targetId = this.getAttribute('data-target');
+      const input = document.getElementById(targetId);
+      const icon = this.querySelector('i');
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.replace('fa-eye', 'fa-eye-slash');
+        icon.style.color = '#dc3545'; // Red when visible
+      } else {
+        input.type = 'password';
+        icon.classList.replace('fa-eye-slash', 'fa-eye');
+        icon.style.color = '#6c757d'; // Gray when hidden
+      }
+    });
+  });
+});
+
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('openRegisterLink')?.addEventListener('click', function(e) {
+      e.preventDefault();
+      switchModal('loginModal', 'registerModal');
+    });
+
+    document.getElementById('openLoginLink')?.addEventListener('click', function(e) {
+      e.preventDefault();
+      switchModal('registerModal', 'loginModal');
+    });
+
+    document.querySelectorAll('.toggle-password').forEach(icon => {
+      icon.addEventListener('click', togglePassword);
+    });
+
+
+    function previewIDCard(event) {
+      const file = event.target.files[0];
+      const previewContainer = document.getElementById("idPreview");
+      const previewImage = document.getElementById("idCardImage");
+
+      previewContainer.classList.add("d-none");
+      previewImage.src = "#";
+
+      if (!file) return;
+
+      const allowedTypes = ["image/jpeg", "image/png", "application/pdf"];
+      const maxSize = 2 * 1024 * 1024; // 2MB
+
+      if (!allowedTypes.includes(file.type)) {
+        alert("Only JPG, PNG, or PDF files are allowed.");
+        event.target.value = "";
+        return;
+      }
+
+      if (file.size > maxSize) {
+        alert("File must be under 2MB.");
+        event.target.value = "";
+        return;
+      }
+
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          previewImage.src = e.target.result;
+          previewContainer.classList.remove("d-none");
+        };
+        reader.readAsDataURL(file);
+      } else {
+        previewImage.alt = "PDF uploaded. Preview not available.";
+        previewImage.src = "";
+        previewContainer.classList.remove("d-none");
+      }
+    }
+
+    document.getElementById('id_card')?.addEventListener('change', previewIDCard);
+  });
+
+  document.getElementById('loginForm')?.addEventListener('submit', function(e) {
+    const modalElement = document.getElementById('loginModal');
+    const modal = bootstrap.Modal.getInstance(modalElement);
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm';
+    overlay.innerHTML = `
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+        <p class="mt-4 text-lg font-medium text-gray-700">Logging in...</p>
+    `;
+    document.body.appendChild(overlay);
+    
+    modal.hide();
+    
+    const modalBackdrop = document.querySelector('.modal-backdrop');
+    if (modalBackdrop) {
+        modalBackdrop.remove();
+    }
+    
+    document.body.style.overflow = 'auto';
+    document.body.style.paddingRight = '0';
+    
+    setTimeout(() => {
+        this.submit();
+    }, 100);
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Clear login form when modal is hidden
+    const loginModal = document.getElementById('loginModal');
+    loginModal.addEventListener('hidden.bs.modal', function() {
+      document.getElementById('loginForm').reset();
+    });
+
+    // Clear register form when modal is hidden
+    const registerModal = document.getElementById('registerModal');
+    registerModal.addEventListener('hidden.bs.modal', function() {
+      document.getElementById('registerForm').reset();
+      // Also clear the ID card preview
+      document.getElementById('idPreview').classList.add('d-none');
+      document.getElementById('idCardImage').src = '#';
+    });
+  });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

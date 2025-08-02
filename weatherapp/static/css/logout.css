@@ -1,0 +1,36 @@
+@keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .animate-spin {
+      animation: spin 1s linear infinite;
+    }
+
+    .transition-all {
+      transition-property: all;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+      transition-duration: 150ms;
+    }
+
+.transition-margin {
+  transition: margin-left 0.3s ease-in-out;
+}
+
+#sidebar {
+  transition: transform 0.3s ease-in-out;
+  z-index: 40;
+}
+
+/* Mobile overlay behavior */
+@media (max-width: 767px) {
+    #sidebar {
+        z-index: 40;
+    }
+    body.sidebar-open {
+        overflow: hidden;
+    }
+    .transition-margin {
+    transition-delay: 0s; /* No delay on mobile */
+  }
+}

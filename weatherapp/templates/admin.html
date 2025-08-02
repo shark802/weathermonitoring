@@ -1,0 +1,784 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Management</title>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="{% static 'css/logout.css' %}">
+  <style>
+    @media (max-width: 767px) {
+      main {
+        margin-left: 0 !important;
+        padding: 1rem !important;
+      }
+      
+      .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      
+      .modal-dialog {
+        margin: 0.5rem auto;
+        max-width: 95%;
+      }
+      
+      .action-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+      }
+      .add-admin-btn-mobile {
+      width: auto;
+      min-width: 120px;
+      padding: 0.5rem 1rem;
+      margin-left: auto;
+    }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+
+  {% if form_adminSuccess %}
+    <div id="formAdminSuccessAlert" style="z-index: 999;" class="fixed top-4 left-1/2 transform -translate-x-1/2 max-w-md w-full">
+      <div class="mb-4 px-6 py-4 text-white rounded-lg shadow-md text-center bg-green-500">
+      {{ form_adminSuccess }}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if form_adminError %}
+    <div id="formAdminErrorAlert" style="z-index: 999;" class="fixed top-4 left-1/2 transform -translate-x-1/2 max-w-md w-full">
+      <div class="mb-4 px-6 py-4 text-white rounded-lg shadow-md text-center bg-red-500">
+      {{ form_adminError }}
+      </div>
+    </div>
+  {% endif %}
+
+  {% include "weather/header.html" %}
+
+  <div class="flex pt-16">
+    {% include "weather/aside.html" %}
+
+    <main class="w-full md:ml-64 p-4 md:p-6 space-y-6 transition-all duration-300">
+      <div class="info-box w-full">
+        <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
+          <h4 class="text-xl font-semibold">Manage Admins</h4>
+          <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition w-full md:w-auto text-center add-admin-btn-mobile" 
+                  data-bs-toggle="modal" data-bs-target="#addAdminModal">
+            <i class="bi bi-plus-lg"></i> Add Admin
+          </button>            
+        </div>
+
+        <div class="overflow-x-auto">
+          <table id="adminTable" class="min-w-full border border-gray-300 text-base">
+            <thead class="bg-blue-600 text-white">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">ID</th>
+                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Name</th>
+                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider hidden md:table-cell">Email</th>
+                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider hidden sm:table-cell">Phone</th>
+                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Username</th>
+                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for admin in admins %}
+              <tr class="hover:bg-gray-200">
+                <td class="px-4 py-2">{{ admin.id }}</td>
+                <td class="px-4 py-2">{{ admin.name }}</td>
+                <td class="px-4 py-2 hidden md:table-cell">{{ admin.email }}</td>
+                <td class="px-4 py-2 hidden sm:table-cell">{{ admin.phone_num }}</td>
+                <td class="px-4 py-2">{{ admin.username }}</td>
+                <td class="px-4 py-2">
+                  {% if admin.status == "Active" %}
+                    <span class="inline-block px-2 py-1 text-sm font-semibold text-green-900 bg-green-400 rounded-full">Active</span>
+                  {% elif admin.status == "Deactivated" %}
+                    <span class="inline-block px-2 py-1 text-sm font-semibold text-red-900 bg-red-400 rounded-full">Deactivated</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if admin.id != request.session.admin_id %}
+                  <div class="action-buttons">
+                    <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#updateAdminModal"
+                            data-id="{{ admin.id }}"
+                            data-name="{{ admin.name }}"
+                            data-email="{{ admin.email }}"
+                            data-phone_num="{{ admin.phone_num }}"
+                            data-username="{{ admin.username }}">
+                      <i class="bi bi-pencil-square" data-bs-toggle="tooltip" title="Edit Admin"></i>
+                    </button>
+
+                    {% if admin.status == "Active" %}
+                    <form action="{% url 'deactivate_admin' admin.id %}" method="POST" style="display:inline;">
+                      {% csrf_token %}
+                      <button class="btn btn-sm btn-danger"
+                              onclick="return confirm('Are you sure you want to deactivate this admin?');"
+                              data-bs-toggle="tooltip" title="Deactivate Admin">
+                        <i class="bi bi-person-slash"></i>
+                      </button>
+                    </form>
+                    {% else %}
+                    <form action="{% url 'activate_admin' admin.id %}" method="POST" style="display:inline;">
+                      {% csrf_token %}
+                      <button class="btn btn-sm btn-success"
+                              onclick="return confirm('Do you want to activate this admin?');"
+                              data-bs-toggle="tooltip" title="Activate Admin">
+                        <i class="bi bi-person-check"></i>
+                      </button>
+                    </form>
+                    {% endif %}
+                  </div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<!-- Add Admin Modal -->
+<div class="modal fade" id="addAdminModal" tabindex="-1" aria-labelledby="addAdminModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg mx-auto">
+    <div class="modal-content border-0 shadow-lg">
+      <form method="POST" action="{% url 'add_admin' %}" id="addAdminForm">
+        {% csrf_token %}
+        <div class="modal-header bg-blue-600 text-white rounded-t-lg position-relative">
+          <h5 class="modal-title fw-bold w-100 text-center" id="addAdminModalLabel">Add Admin</h5>
+          <button type="button" class="btn-close btn-close-white position-absolute end-0 me-2" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        
+        <div class="modal-body p-4 p-md-5">
+          {% if form_errors.required %}
+            <div class="alert alert-danger mb-4">{{ form_errors.required }}</div>
+          {% endif %}
+          
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="name" class="form-label fw-semibold text-gray-700">Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="name" name="name" value="{{ form_data.name|default_if_none:'' }}" required>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="email" class="form-label fw-semibold text-gray-700">Email <span class="text-danger">*</span></label>
+                <input type="email" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="email" name="email" value="{{ form_data.email|default_if_none:'' }}" required>
+                {% if form_errors.email %}
+                  <small class="text-danger text-sm">{{ form_errors.email }}</small>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="phone_num" class="form-label fw-semibold text-gray-700">Phone <span class="text-danger">*</span></label>
+                <input type="tel" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="phone_num" name="phone_num" value="{{ form_data.phone_num|default_if_none:'' }}" required>
+                {% if form_errors.phone_num %}
+                  <small class="text-danger text-sm">{{ form_errors.phone_num }}</small>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="username" class="form-label fw-semibold text-gray-700">Username <span class="text-danger">*</span></label>
+                <input type="text" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="username" name="username" value="{{ form_data.username|default_if_none:'' }}" required>
+                {% if form_errors.username %}
+                  <small class="text-danger text-sm">{{ form_errors.username }}</small>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="password" class="form-label fw-semibold text-gray-700">Password <span class="text-danger">*</span></label>
+                <input type="password" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="password" name="password" required>
+                {% if form_errors.password %}
+                  <small class="text-danger text-sm">{{ form_errors.password }}</small>
+                {% endif %}
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="confirm_password" class="form-label fw-semibold text-gray-700">Confirm Password <span class="text-danger">*</span></label>
+                <input type="password" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="confirm_password" name="confirm_password" required>
+                {% if form_errors.confirm_password %}
+                  <small class="text-danger text-sm">{{ form_errors.confirm_password }}</small>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          {% if form_errors.database %}
+            <div class="alert alert-danger mt-3">{{ form_errors.database }}</div>
+          {% endif %}
+        </div>
+        
+        <div class="modal-footer bg-gray-50 rounded-b-lg px-4 py-3 sm:px-6">
+          <div class="w-full flex flex-col sm:flex-row justify-end gap-3">
+            <button type="button" 
+                    class="btn btn-outline-secondary w-full sm:w-auto px-4 py-2 text-sm font-medium"
+                    data-bs-dismiss="modal">
+              Cancel
+            </button>
+            <button type="submit" 
+                    class="btn btn-primary w-full sm:w-auto px-4 py-2 text-sm font-medium"
+                    id="addAdminSubmit">
+              <span id="addAdminSubmitText" class="flex items-center justify-center gap-2">
+                <i class="fas fa-save"></i> Save
+              </span>
+              <span id="addAdminSpinner" class="spinner-border spinner-border-sm d-none ms-2" role="status" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Update Admin Modal -->
+<div class="modal fade" id="updateAdminModal" tabindex="-1" aria-labelledby="updateAdminModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg mx-auto">
+    <div class="modal-content border-0 shadow-lg">
+      <form method="POST" action="{% url 'update_admin' %}" id="updateAdminForm">
+        {% csrf_token %}
+        <div class="modal-header bg-blue-600 text-white rounded-t-lg position-relative">
+          <h5 class="modal-title fw-bold w-100 text-center" id="updateAdminModalLabel">Update Admin</h5>
+          <button type="button" class="btn-close btn-close-white position-absolute end-0 me-2" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        {% if request.session.form_errors %}
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+                {% for field, error in request.session.form_errors.items %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <div class="modal-body p-4 p-md-5">
+          <input type="hidden" id="update-id" name="id">
+          
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="update-name" class="form-label fw-semibold text-gray-700">Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="update-name" name="name" required>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="update-email" class="form-label fw-semibold text-gray-700">Email <span class="text-danger">*</span></label>
+                <input type="email" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="update-email" name="email" required>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="update-phone_num" class="form-label fw-semibold text-gray-700">Phone <span class="text-danger">*</span></label>
+                <input type="tel" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="update-phone_num" name="phone_num" required>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="update-username" class="form-label fw-semibold text-gray-700">Username <span class="text-danger">*</span></label>
+                <input type="text" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="update-username" name="username" required>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="update-password" class="form-label fw-semibold text-gray-700">New Password</label>
+                <input type="password" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="update-password" name="password">
+                <small class="text-muted text-sm">Leave blank to keep current</small>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="update-confirm_password" class="form-label fw-semibold text-gray-700">Confirm Password</label>
+                <input type="password" class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                       id="update-confirm_password" name="confirm_password">
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer bg-gray-50 rounded-b-lg px-4 py-3 sm:px-6">
+          <div class="w-full flex flex-col sm:flex-row justify-end gap-3">
+            <button type="button" 
+                    class="btn btn-outline-secondary w-full sm:w-auto px-4 py-2 text-sm font-medium"
+                    data-bs-dismiss="modal">
+              Cancel
+            </button>
+            <button type="submit" 
+                    class="btn btn-success w-full sm:w-auto px-4 py-2 text-sm font-medium"
+                    id="updateAdminSubmit">
+              <span id="updateAdminSubmitText" class="flex items-center justify-center gap-2">
+                <i class="fas fa-save"></i> Save Changes
+              </span>
+              <span id="updateAdminSpinner" class="spinner-border spinner-border-sm d-none ms-2" role="status" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+  <!--logout modal-->
+  <div id="logoutModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen p-4">
+      <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" aria-hidden="true"></div>
+      
+      <div class="relative bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md transform transition-all">
+        <div class="p-6">
+          <div class="flex items-start">
+            <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-50">
+              <i class="fas fa-sign-out-alt text-red-600 text-xl"></i>
+            </div>
+            
+            <div class="ml-4">
+              <h3 class="text-xl font-semibold text-gray-900">Log out of your account?</h3>
+              <div class="mt-2">
+                <p class="text-gray-600">You'll need to log in again to access your dashboard.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-gray-50 px-6 py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+          <button type="button" onclick="hideLogoutModal()" 
+                  class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button type="button" onclick="performLogout()" 
+                  class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+            Log Out
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="sendAlertModal" tabindex="-1" aria-labelledby="sendAlertModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <form method="POST" action="{% url 'send_alert' %}" id="sendAlertForm">
+        {% csrf_token %}
+        <div class="modal-header bg-blue-600 text-white rounded-t-lg">
+          <div class="w-full text-center">
+            <h5 class="modal-title text-xl font-bold" id="sendAlertModalLabel">SEND ALERT NOTIFICATION</h5>
+          </div>
+          <button type="button" class="btn-close btn-close-white absolute right-4 top-4" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        
+        <div class="modal-body p-6 space-y-4">
+          <!-- Barangay Selection -->
+          <div class="space-y-3">
+            <h6 class="font-semibold text-gray-700 flex items-center">
+              <i class="fas fa-map-marker-alt mr-2 text-blue-500"></i>
+              Target Barangays
+            </h6>
+            <div id="barangay-container" class="space-y-3">
+              <!-- Barangay selects will be added here -->
+            </div>
+            <button type="button" 
+                    class="w-full flex items-center justify-center gap-2 bg-blue-50 text-blue-600 font-medium py-2 px-4 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200"
+                    onclick="addBarangaySelect()">
+              <i class="fas fa-plus"></i> Add Another Barangay
+            </button>
+          </div>
+
+          <div class="border-t border-gray-200 my-4"></div>
+
+          <!-- Alert Type -->
+          <div class="space-y-3">
+            <h6 class="font-semibold text-gray-700 flex items-center">
+              <i class="fas fa-exclamation-triangle mr-2 text-yellow-500"></i>
+              Alert Details
+            </h6>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="alert_type" class="block text-sm font-medium text-gray-700 mb-1">Alert Type</label>
+                <select class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 shadow-sm" 
+                        id="alert_type" name="alert_type" required>
+                  <option value="Rain">Rain Alert</option>
+                  <option value="Wind">Wind Alert</option>
+                </select>
+              </div>
+              
+              <div>
+                <label for="severity" class="block text-sm font-medium text-gray-700 mb-1">Severity Level</label>
+                <select class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 shadow-sm" 
+                        id="severity" name="severity" required>
+                  <option value="Heavy">Heavy - Rain</option>
+                  <option value="Torrential">Torrential - Rain</option>
+                  <option value="Intense">Intense - Rain</option>
+                  <option value="Gale">Gale - Wind</option>
+                  <option value="Storm">Storm - Wind</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div id="alert-status" class="mt-4 text-center font-medium text-sm"></div>
+        </div>
+        
+        <div class="modal-footer bg-gray-50 rounded-b-lg px-6 py-4 flex flex-col sm:flex-row-reverse gap-3">
+          <button type="submit" 
+                  class="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm flex items-center justify-center gap-2">
+            <i class="fas fa-paper-plane"></i> Send Alert
+          </button>
+          <button type="button" 
+                  class="w-full sm:w-auto px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm"
+                  data-bs-dismiss="modal">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+  <!--logout loading-->
+  <div id="loadingOverlay" class="hidden fixed inset-0 z-50 bg-white bg-opacity-80 flex flex-col items-center justify-center">
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+    <p class="mt-4 text-lg font-medium text-gray-700">Logging out...</p>
+  </div>
+
+  {% if show_addadmin_modal %}
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        var modal = new bootstrap.Modal(document.getElementById("addAdminModal"));
+        modal.show();
+      });
+    </script>
+  {% endif %}
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script>
+    const bagoBarangays = [
+    "Abuanan", "Alianza", "Atipuluan", "Bacong-Montilla", "Bagroy", "Balingasag",
+    "Binubuhan", "Busay", "Calumangan", "Caridad", "Don Jorge L. Araneta",
+    "Dulao", "Ilijan", "Lag-asan", "Ma-ao", "Mailum", "Malingin", "Napoles",
+    "Pacol", "Poblacion", "Sagasa", "Tabunan", "Taloc", "Sampinit"
+  ];
+
+  function createBarangaySelectGroup() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "mb-3 d-flex align-items-center barangay-group";
+
+    const select = document.createElement("select");
+    select.name = "address";
+    select.className = "form-select";
+    select.required = true;
+
+    const defaultOption = document.createElement("option");
+    defaultOption.textContent = "-- Select Barangay --";
+    defaultOption.disabled = true;
+    defaultOption.selected = true;
+    select.appendChild(defaultOption);
+
+    bagoBarangays.forEach(brgy => {
+      const option = document.createElement("option");
+      option.value = brgy;
+      option.textContent = brgy;
+      select.appendChild(option);
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "╳";
+    removeBtn.className = "btn btn-sm btn-danger ms-2";
+    removeBtn.onclick = () => wrapper.remove();
+
+    wrapper.appendChild(select);
+    wrapper.appendChild(removeBtn);
+
+    return wrapper;
+  }
+
+  function addBarangaySelect() {
+    const container = document.getElementById("barangay-container");
+    const groups = container.querySelectorAll(".barangay-group");
+    
+    // Limit to 5 barangay selections
+    if (groups.length >= 5) {
+      alert("Maximum of 5 barangays allowed");
+      return;
+    }
+    
+    const group = createBarangaySelectGroup();
+    container.appendChild(group);
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    // Add initial barangay select
+    addBarangaySelect();
+    
+    // Form submission handler
+    const form = document.getElementById("sendAlertForm");
+    const statusDiv = document.getElementById("alert-status");
+
+    form.addEventListener("submit", function(e) {
+      e.preventDefault();
+      statusDiv.innerHTML = '<span class="text-info">⏳ Sending alert...</span>';
+      
+      const formData = new FormData(form);
+      
+      // Validate at least one barangay is selected
+      const barangaySelects = form.querySelectorAll('select[name="address"]');
+      let hasSelection = false;
+      
+      barangaySelects.forEach(select => {
+        if (select.value && !select.options[0].selected) {
+          hasSelection = true;
+        }
+      });
+      
+      if (!hasSelection) {
+        statusDiv.innerHTML = '<span class="text-danger">❌ Please select at least one barangay</span>';
+        return;
+      }
+
+      fetch(form.action, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": formData.get("csrfmiddlewaretoken"),
+        },
+        body: formData,
+      })
+      .then((response) => {
+        if (!response.ok) throw new Error("Network response was not ok");
+        return response.text();
+      })
+      .then((text) => {
+        if (text.includes("Alert sent successfully")) {
+          statusDiv.innerHTML = '<span class="text-success">✅ Alert sent successfully!</span>';
+          // Reset form after 2 seconds
+          setTimeout(() => {
+            form.reset();
+            const container = document.getElementById("barangay-container");
+            container.innerHTML = "";
+            addBarangaySelect();
+            statusDiv.innerHTML = "";
+          }, 2000);
+        } else {
+          statusDiv.innerHTML = '<span class="text-danger">❌ Failed to send alert.</span>';
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+        statusDiv.innerHTML = '<span class="text-danger">❌ An error occurred: ' + error.message + '</span>';
+      });
+    });
+  });
+
+    // Auto-hide alerts after 5 seconds
+    setTimeout(function() {
+      const successAlert = document.getElementById('formAdminSuccessAlert');
+      const errorAlert = document.getElementById('formAdminErrorAlert');
+      
+      if (successAlert) {
+        successAlert.style.opacity = '0';
+        setTimeout(() => successAlert.style.display = 'none', 500);
+      }
+      
+      if (errorAlert) {
+        errorAlert.style.opacity = '0';
+        setTimeout(() => errorAlert.style.display = 'none', 500);
+      }
+    }, 5000);
+
+    function showLogoutModal() {
+      document.getElementById('logoutModal').classList.remove('hidden');
+    }
+
+    function hideLogoutModal() {
+      document.getElementById('logoutModal').classList.add('hidden');
+    }
+
+    function performLogout() {
+      // Show loading overlay
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      
+      hideLogoutModal();
+      
+      const logoutBtn = document.querySelector('#logout-form button');
+      if (logoutBtn) {
+        logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Logging out...';
+        logoutBtn.disabled = true;
+      }
+      
+      // Submit the form
+      document.getElementById('logout-form').submit();
+    }
+
+    function toggleRainfallDropdown() {
+    const menu = document.getElementById('rainfallMenu');
+    const arrow = document.getElementById('rainfallArrow');
+
+    menu.classList.toggle('hidden');
+
+    if (menu.classList.contains('hidden')) {
+      arrow.classList.remove('fa-chevron-down');
+      arrow.classList.add('fa-chevron-right');
+    } else {
+      arrow.classList.remove('fa-chevron-right');
+      arrow.classList.add('fa-chevron-down');
+    }
+  }
+
+  function toggleUserDropdown() {
+    const menu = document.getElementById('userMenu');
+    const arrow = document.getElementById('userArrow');
+
+    menu.classList.toggle('hidden');
+
+    if (menu.classList.contains('hidden')) {
+      arrow.classList.remove('fa-chevron-down');
+      arrow.classList.add('fa-chevron-right');
+    } else {
+      arrow.classList.remove('fa-chevron-right');
+      arrow.classList.add('fa-chevron-down');
+    }
+  }
+
+    $(document).ready(function () {
+        // Initialize DataTable
+        $('#adminTable').DataTable({
+            responsive: true,
+            autoWidth: false,
+            columnDefs: [
+                { responsivePriority: 1, targets: 0 }, // ID
+                { responsivePriority: 2, targets: 1 }, // Name
+                { responsivePriority: 3, targets: -1 } // Actions
+            ]
+        });
+
+        // Update Admin Modal handler
+        const updateModal = document.getElementById('updateAdminModal');
+        if (updateModal) {
+          updateModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const id = button.getAttribute('data-id');
+            const name = button.getAttribute('data-name');
+            const email = button.getAttribute('data-email');
+            const phone_num = button.getAttribute('data-phone_num');
+            const username = button.getAttribute('data-username');
+
+            document.getElementById('update-id').value = id;
+            document.getElementById('update-name').value = name;
+            document.getElementById('update-email').value = email;
+            document.getElementById('update-phone_num').value = phone_num;
+            document.getElementById('update-username').value = username;
+          });
+        }
+
+        // Form submission loading states
+        $('#addAdminForm').submit(function() {
+          $('#addAdminSubmitText').text('Saving...');
+          $('#addAdminSpinner').removeClass('d-none');
+          $('#addAdminSubmit').prop('disabled', true);
+        });
+
+        $('#updateAdminForm').submit(function() {
+          $('#updateAdminSubmitText').text('Saving...');
+          $('#updateAdminSpinner').removeClass('d-none');
+          $('#updateAdminSubmit').prop('disabled', true);
+        });
+
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+          new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const sidebar = document.getElementById('sidebar');
+      const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+      const mainContent = document.querySelector('main');
+
+      // Initialize state
+      const initSidebar = () => {
+          const isDesktop = window.innerWidth >= 768;
+          
+          if (isDesktop) {
+              sidebar.classList.remove('-translate-x-full');
+              mainContent.classList.add('md:ml-64');
+          } else {
+              sidebar.classList.add('-translate-x-full');
+              mainContent.classList.remove('md:ml-64');
+          }
+      };
+
+      // Toggle function
+      const toggleSidebar = () => {
+          const isDesktop = window.innerWidth >= 768;
+          
+          sidebar.classList.toggle('-translate-x-full');
+          
+          // Only adjust margin on desktop
+          if (isDesktop) {
+              mainContent.classList.toggle('md:ml-64');
+              mainContent.classList.toggle('md:ml-0');
+          }
+      };
+
+      // Handle window resize
+      const handleResize = () => {
+          const isDesktop = window.innerWidth >= 768;
+          
+          if (isDesktop) {
+              // If sidebar is open on desktop, ensure margin is applied
+              if (!sidebar.classList.contains('-translate-x-full')) {
+                  mainContent.classList.add('md:ml-64');
+                  mainContent.classList.remove('md:ml-0');
+              }
+          } else {
+              // On mobile, remove margin (sidebar will overlay)
+              mainContent.classList.remove('md:ml-64');
+              mainContent.classList.add('md:ml-0');
+          }
+      };
+
+      // Event listeners
+    sidebarToggleBtn.addEventListener('click', toggleSidebar);
+    window.addEventListener('resize', handleResize);
+    
+    // Initialize
+    initSidebar();
+    });
+  </script>
+</body>
+</html>

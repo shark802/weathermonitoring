@@ -1,0 +1,31 @@
+{% load static %}
+<header class="bg-blue-600 text-white py-2 px-4 flex justify-between items-center shadow fixed w-full z-50 top-0">
+    <div class="flex items-center space-x-4">
+        <!-- Mobile menu button -->
+        <button id="sidebarToggleBtn" class="text-white focus:outline-none" aria-label="Toggle menu">
+            <i class="fas fa-bars text-xl"></i>
+        </button>
+        
+        <!-- Logo/Title - responsive sizing -->
+        <h1 class="text-lg sm:text-xl font-bold whitespace-nowrap">Weather Monitoring Dashboard</h1>
+    </div>
+
+    <div class="flex items-center gap-3">
+        <div class="text-right leading-tight hidden sm:block">
+            <div class="font-bold text-sm sm:text-base truncate max-w-[120px] md:max-w-[180px]">
+                {{ admin.name|default:"Admin" }}
+            </div>
+            <div class="text-xs opacity-80">ADMIN</div>
+        </div>
+
+        <!-- Profile button - consistent size -->
+        <button type="button"
+                onclick="window.location.href='{% url 'admin_profile' %}'"
+                class="focus:outline-none hover:opacity-80 transition-opacity" 
+                aria-label="Admin profile"
+                data-bs-toggle="tooltip" 
+                title="Profile">
+            <i class="fas fa-user-circle text-3xl"></i>
+        </button>
+    </div>
+</header>

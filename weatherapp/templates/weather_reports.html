@@ -1,0 +1,911 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weather Reports</title>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="{% static 'css/logout.css' %}">
+  <style>
+    /* Mobile styles */
+    @media (max-width: 767px) {
+      /* Table scrolling fixes */
+      .dataTables_wrapper .dataTables_scroll {
+        position: relative;
+        width: 100%;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      
+      .dataTables_scrollHead {
+        overflow: hidden !important;
+        position: relative !important;
+      }
+      
+      .dataTables_scrollHeadInner {
+        width: auto !important;
+        padding-right: 0 !important;
+      }
+      
+      .dataTables_scrollBody {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100vw;
+      }
+      
+      /* Force table to be at least as wide as its content */
+      #weatherTable {
+        min-width: 1000px;
+        width: auto !important;
+      }
+      
+      /* Fix header alignment */
+      .dataTables_scrollHead table {
+        margin-bottom: 0 !important;
+        border-collapse: collapse !important;
+      }
+      
+      /* Ensure header cells match body cells */
+      .dataTables_scrollHead th {
+        position: relative;
+        white-space: nowrap;
+        padding: 8px;
+      }
+      
+      /* Other mobile styles */
+      main {
+        margin-left: 0 !important;
+        padding: 1rem !important;
+        width: 100vw;
+        overflow-x: hidden;
+      }
+      
+      .summary-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      
+      .filter-controls {
+        gap: 0.5rem !important;
+      }
+      
+      .filter-input {
+        min-width: 100% !important;
+      }
+      
+      .dt-buttons {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        margin-bottom: 0.5rem;
+      }
+      
+      .dt-button {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+      }
+      
+      .action-btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+      }
+
+      input[type="datetime-local"] {
+        min-height: 42px;
+      }
+    }
+    
+    /* Desktop styles */
+    @media (min-width: 768px) {
+      .summary-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+      
+      #weatherTable thead th {
+        height: 50px;
+        vertical-align: middle;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #2563eb;
+      }
+
+      .dataTables_scrollHead {
+        position: sticky !important;
+        top: 0;
+        z-index: 10;
+      }
+
+      .dataTables_scrollHeadInner {
+        width: auto !important;
+      }
+
+      .dataTables_scrollHeadInner table {
+        margin-bottom: 0 !important;
+      }
+    }
+    
+    /* General improvements */
+    .summary-card {
+      transition: transform 0.2s;
+    }
+    
+    .summary-card:hover {
+      transform: translateY(-2px);
+    }
+    
+    .dataTables_wrapper {
+      position: relative;
+    }
+    
+    /* Fix for DataTables scroll header */
+    .dataTables_scrollHeadInner {
+      width: auto !important;
+    }
+    
+    .dataTables_scrollBody {
+      border-bottom: none !important;
+    }
+
+    /* Ensure table cells don't wrap */
+    #weatherTable td, #weatherTable th {
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+
+  {% include "weather/header.html" %}
+
+  <div class="flex pt-16">
+    {% include "weather/aside.html" %}
+
+    <main class="transition-margin duration-300 flex-1 w-full md:ml-64 mt-0 p-4 md:p-6 space-y-6">
+      <div class="info-box w-full">
+        <div class="d-flex align-items-center justify-content-center position-relative mb-3 mt-4">
+          <h4 class="m-0 text-center w-100">Weather Reports</h4>           
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid summary-grid gap-4 mb-6">
+          <div class="bg-white p-4 rounded shadow summary-card">
+            <h5 class="text-gray-500 text-sm font-medium">Avg Temperature</h5>
+            <p class="text-2xl font-bold">{{ summary_stats.avg_temp|default:"N/A" }}°C</p>
+          </div>
+          <div class="bg-white p-4 rounded shadow summary-card">
+            <h5 class="text-gray-500 text-sm font-medium">Max Wind Speed</h5>
+            <p class="text-2xl font-bold">{{ summary_stats.max_wind|default:"N/A" }} km/h</p>
+          </div>
+          <div class="bg-white p-4 rounded shadow summary-card">
+            <h5 class="text-gray-500 text-sm font-medium">Avg Humidity</h5>
+            <p class="text-2xl font-bold">{{ summary_stats.avg_humidity|default:"N/A" }}%</p>
+          </div>
+          <div class="bg-white p-4 rounded shadow summary-card">
+            <h5 class="text-gray-500 text-sm font-medium">Total Rainfall</h5>
+            <p class="text-2xl font-bold">{{ summary_stats.total_rain|default:"N/A" }} mm</p>
+          </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="bg-white p-4 rounded shadow mb-6">
+          <div class="flex flex-wrap filter-controls gap-4 mb-4">
+            <div class="flex-1 min-w-[200px] filter-input">
+              <label for="startDate" class="block text-sm font-medium text-gray-700">From</label>
+              <input type="datetime-local" id="startDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+            </div>
+            <div class="flex-1 min-w-[200px] filter-input">
+              <label for="endDate" class="block text-sm font-medium text-gray-700">To</label>
+              <input type="datetime-local" id="endDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+            </div>
+            <div class="flex-1 min-w-[200px] filter-input">
+              <label for="sensorFilter" class="block text-sm font-medium text-gray-700">Sensor</label>
+              <select id="sensorFilter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                <option value="">All Sensors</option>
+                {% for sensor in sensors %}
+                <option value="{{ sensor.sensor_id }}">{{ sensor.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="flex-1 min-w-[200px] filter-input">
+              <label for="intensityFilter" class="block text-sm font-medium text-gray-700">Intensity</label>
+              <select id="intensityFilter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
+                <option value="">All Intensities</option>
+                {% for intensity in intensities %}
+                <option value="{{ intensity.intensity_id }}">{{ intensity.intensity }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="self-end">
+              <button id="filterBtn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition action-btn">
+                <i class="fas fa-filter mr-2"></i>Filter
+              </button>
+              <button id="resetBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition ml-2 action-btn">
+                <i class="fas fa-sync-alt mr-2"></i>Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="table-responsive bg-white rounded shadow">
+          <table id="weatherTable" class="min-w-full border border-gray-300 text-sm">
+            <thead class="bg-blue-600 text-white">
+              <tr>
+                <th>Sensor</th>
+                <th>Date/Time</th>
+                <th>Temperature (°C)</th>
+                <th>Humidity (%)</th>
+                <th>Wind Speed (km/h)</th>
+                <th>Wind Direction</th>
+                <th>Pressure (hPa)</th>
+                <th>Dew Point (°C)</th>
+                <th>Rain Rate (mm/h)</th>
+                <th>Intensity</th>
+                <th>Rain (mm)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if reports %}
+                {% for report in reports %}
+                <tr>
+                  <td>{{ report.name|default:"N/A" }}</td>
+                  <td>{{ report.date_time|date:"Y-m-d H:i"|default:"N/A" }}</td>
+                  <td>{{ report.temperature|floatformat:1|default:"N/A" }}</td>
+                  <td>{{ report.humidity|floatformat:1|default:"N/A" }}</td>
+                  <td>{{ report.wind_speed|floatformat:1|default:"N/A" }}</td>
+                  <td>{{ report.wind_direction|default:"N/A" }}</td>
+                  <td>{{ report.barometric_pressure|floatformat:1|default:"N/A" }}</td>
+                  <td>{{ report.dew_point|floatformat:1|default:"N/A" }}</td>
+                  <td>{{ report.rain_rate|floatformat:2|default:"N/A" }}</td>
+                  <td>{{ report.intensity|default:"N/A" }}</td>
+                  <td>{{ report.rain_accumulated|floatformat:2|default:"N/A" }}</td>
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="11" class="text-center py-4 text-gray-500">No weather reports available</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+    <!--logout modal-->
+  <div id="logoutModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen p-4">
+      <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" aria-hidden="true"></div>
+      
+      <div class="relative bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md transform transition-all">
+        <div class="p-6">
+          <div class="flex items-start">
+            <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-50">
+              <i class="fas fa-sign-out-alt text-red-600 text-xl"></i>
+            </div>
+            
+            <div class="ml-4">
+              <h3 class="text-xl font-semibold text-gray-900">Log out of your account?</h3>
+              <div class="mt-2">
+                <p class="text-gray-600">You'll need to log in again to access your dashboard.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-gray-50 px-6 py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+          <button type="button" onclick="hideLogoutModal()" 
+                  class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+            Cancel
+          </button>
+          <button type="button" onclick="performLogout()" 
+                  class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+            Log Out
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="sendAlertModal" tabindex="-1" aria-labelledby="sendAlertModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <form method="POST" action="{% url 'send_alert' %}" id="sendAlertForm">
+        {% csrf_token %}
+        <div class="modal-header bg-blue-600 text-white rounded-t-lg">
+          <div class="w-full text-center">
+            <h5 class="modal-title text-xl font-bold" id="sendAlertModalLabel">SEND ALERT NOTIFICATION</h5>
+          </div>
+          <button type="button" class="btn-close btn-close-white absolute right-4 top-4" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        
+        <div class="modal-body p-6 space-y-4">
+          <!-- Barangay Selection -->
+          <div class="space-y-3">
+            <h6 class="font-semibold text-gray-700 flex items-center">
+              <i class="fas fa-map-marker-alt mr-2 text-blue-500"></i>
+              Target Barangays
+            </h6>
+            <div id="barangay-container" class="space-y-3">
+              <!-- Barangay selects will be added here -->
+            </div>
+            <button type="button" 
+                    class="w-full flex items-center justify-center gap-2 bg-blue-50 text-blue-600 font-medium py-2 px-4 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200"
+                    onclick="addBarangaySelect()">
+              <i class="fas fa-plus"></i> Add Another Barangay
+            </button>
+          </div>
+
+          <div class="border-t border-gray-200 my-4"></div>
+
+          <!-- Alert Type -->
+          <div class="space-y-3">
+            <h6 class="font-semibold text-gray-700 flex items-center">
+              <i class="fas fa-exclamation-triangle mr-2 text-yellow-500"></i>
+              Alert Details
+            </h6>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="alert_type" class="block text-sm font-medium text-gray-700 mb-1">Alert Type</label>
+                <select class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 shadow-sm" 
+                        id="alert_type" name="alert_type" required>
+                  <option value="Rain">Rain Alert</option>
+                  <option value="Wind">Wind Alert</option>
+                </select>
+              </div>
+              
+              <div>
+                <label for="severity" class="block text-sm font-medium text-gray-700 mb-1">Severity Level</label>
+                <select class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 shadow-sm" 
+                        id="severity" name="severity" required>
+                  <option value="Heavy">Heavy - Rain</option>
+                  <option value="Torrential">Torrential - Rain</option>
+                  <option value="Intense">Intense - Rain</option>
+                  <option value="Gale">Gale - Wind</option>
+                  <option value="Storm">Storm - Wind</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div id="alert-status" class="mt-4 text-center font-medium text-sm"></div>
+        </div>
+        
+        <div class="modal-footer bg-gray-50 rounded-b-lg px-6 py-4 flex flex-col sm:flex-row-reverse gap-3">
+          <button type="submit" 
+                  class="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm flex items-center justify-center gap-2">
+            <i class="fas fa-paper-plane"></i> Send Alert
+          </button>
+          <button type="button" 
+                  class="w-full sm:w-auto px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm"
+                  data-bs-dismiss="modal">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+  <!--logout loading-->
+  <div id="loadingOverlay" class="hidden fixed inset-0 z-50 bg-white bg-opacity-80 flex flex-col items-center justify-center">
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+    <p class="mt-4 text-lg font-medium text-gray-700">Logging out...</p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+  <script src="https://cdn.datatables.net/responsive/2.4.1/js/dataTables.responsive.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
+
+  <script>
+    const bagoBarangays = [
+    "Abuanan", "Alianza", "Atipuluan", "Bacong-Montilla", "Bagroy", "Balingasag",
+    "Binubuhan", "Busay", "Calumangan", "Caridad", "Don Jorge L. Araneta",
+    "Dulao", "Ilijan", "Lag-asan", "Ma-ao", "Mailum", "Malingin", "Napoles",
+    "Pacol", "Poblacion", "Sagasa", "Tabunan", "Taloc", "Sampinit"
+  ];
+
+  function createBarangaySelectGroup() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "mb-3 d-flex align-items-center barangay-group";
+
+    const select = document.createElement("select");
+    select.name = "address";
+    select.className = "form-select";
+    select.required = true;
+
+    const defaultOption = document.createElement("option");
+    defaultOption.textContent = "-- Select Barangay --";
+    defaultOption.disabled = true;
+    defaultOption.selected = true;
+    select.appendChild(defaultOption);
+
+    bagoBarangays.forEach(brgy => {
+      const option = document.createElement("option");
+      option.value = brgy;
+      option.textContent = brgy;
+      select.appendChild(option);
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "╳";
+    removeBtn.className = "btn btn-sm btn-danger ms-2";
+    removeBtn.onclick = () => wrapper.remove();
+
+    wrapper.appendChild(select);
+    wrapper.appendChild(removeBtn);
+
+    return wrapper;
+  }
+
+  function addBarangaySelect() {
+    const container = document.getElementById("barangay-container");
+    const groups = container.querySelectorAll(".barangay-group");
+    
+    // Limit to 5 barangay selections
+    if (groups.length >= 5) {
+      alert("Maximum of 5 barangays allowed");
+      return;
+    }
+    
+    const group = createBarangaySelectGroup();
+    container.appendChild(group);
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    // Add initial barangay select
+    addBarangaySelect();
+    
+    // Form submission handler
+    const form = document.getElementById("sendAlertForm");
+    const statusDiv = document.getElementById("alert-status");
+
+    form.addEventListener("submit", function(e) {
+      e.preventDefault();
+      statusDiv.innerHTML = '<span class="text-info">⏳ Sending alert...</span>';
+      
+      const formData = new FormData(form);
+      
+      // Validate at least one barangay is selected
+      const barangaySelects = form.querySelectorAll('select[name="address"]');
+      let hasSelection = false;
+      
+      barangaySelects.forEach(select => {
+        if (select.value && !select.options[0].selected) {
+          hasSelection = true;
+        }
+      });
+      
+      if (!hasSelection) {
+        statusDiv.innerHTML = '<span class="text-danger">❌ Please select at least one barangay</span>';
+        return;
+      }
+
+      fetch(form.action, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": formData.get("csrfmiddlewaretoken"),
+        },
+        body: formData,
+      })
+      .then((response) => {
+        if (!response.ok) throw new Error("Network response was not ok");
+        return response.text();
+      })
+      .then((text) => {
+        if (text.includes("Alert sent successfully")) {
+          statusDiv.innerHTML = '<span class="text-success">✅ Alert sent successfully!</span>';
+          // Reset form after 2 seconds
+          setTimeout(() => {
+            form.reset();
+            const container = document.getElementById("barangay-container");
+            container.innerHTML = "";
+            addBarangaySelect();
+            statusDiv.innerHTML = "";
+          }, 2000);
+        } else {
+          statusDiv.innerHTML = '<span class="text-danger">❌ Failed to send alert.</span>';
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+        statusDiv.innerHTML = '<span class="text-danger">❌ An error occurred: ' + error.message + '</span>';
+      });
+    });
+  });
+
+    function showLogoutModal() {
+      document.getElementById('logoutModal').classList.remove('hidden');
+    }
+
+    function hideLogoutModal() {
+      document.getElementById('logoutModal').classList.add('hidden');
+    }
+
+    function performLogout() {
+      // Show loading overlay
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      
+      hideLogoutModal();
+      
+      const logoutBtn = document.querySelector('#logout-form button');
+      if (logoutBtn) {
+        logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Logging out...';
+        logoutBtn.disabled = true;
+      }
+      
+      // Submit the form
+      document.getElementById('logout-form').submit();
+    }
+
+    function toggleRainfallDropdown() {
+    const menu = document.getElementById('rainfallMenu');
+    const arrow = document.getElementById('rainfallArrow');
+
+    menu.classList.toggle('hidden');
+
+    if (menu.classList.contains('hidden')) {
+      arrow.classList.remove('fa-chevron-down');
+      arrow.classList.add('fa-chevron-right');
+    } else {
+      arrow.classList.remove('fa-chevron-right');
+      arrow.classList.add('fa-chevron-down');
+    }
+  }
+
+  function toggleUserDropdown() {
+    const menu = document.getElementById('userMenu');
+    const arrow = document.getElementById('userArrow');
+
+    menu.classList.toggle('hidden');
+
+    if (menu.classList.contains('hidden')) {
+      arrow.classList.remove('fa-chevron-down');
+      arrow.classList.add('fa-chevron-right');
+    } else {
+      arrow.classList.remove('fa-chevron-right');
+      arrow.classList.add('fa-chevron-down');
+    }
+  }
+
+    $(document).ready(function () {
+    // Initialize DataTable with enhanced features
+    var table = $('#weatherTable').DataTable({
+        scrollX: true,
+        responsive: false,
+        dom: 'Bfrtip',
+        buttons: [
+            {
+                extend: 'copy',
+                exportOptions: {
+                    columns: ':visible'
+                }
+            },
+            {
+                extend: 'csv',
+                exportOptions: {
+                    columns: ':visible'
+                }
+            },
+            {
+                extend: 'excel',
+                exportOptions: {
+                    columns: ':visible'
+                }
+            },
+            {
+                extend: 'pdf',
+                exportOptions: {
+                    columns: ':visible'
+                }
+            },
+            {
+                extend: 'print',
+                exportOptions: {
+                    columns: ':visible'
+                }
+            },
+            'colvis'
+        ],
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
+        language: {
+            search: "_INPUT_",
+            searchPlaceholder: "Search reports...",
+        },
+        order: [[1, 'desc']], // Default sort by date descending
+        columnDefs: [
+            { 
+                type: 'date', 
+                targets: 1,
+                render: function(data, type, row) {
+                    if (type === 'sort') {
+                        return new Date(data).getTime();
+                    }
+                    return data;
+                }
+            },
+            { 
+                targets: '_all', 
+                className: "text-center",
+                defaultContent: "" // Provide empty string as default
+            }
+        ],
+        data: [], // Initialize with empty data
+        columns: [
+            { data: 'name', title: 'Sensor' },
+            { 
+                data: 'date_time', 
+                title: 'Date & Time',
+                render: function(data) {
+                    if (data) {
+                        return new Date(data).toLocaleString('en-US', { 
+                            year: 'numeric', 
+                            month: 'short', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                        });
+                    }
+                    return 'N/A';
+                }
+            },
+            { 
+                data: 'temperature', 
+                title: 'Temp (°C)',
+                render: function(data) {
+                    return data ? parseFloat(data).toFixed(1) : 'N/A';
+                }
+            },
+            { 
+                data: 'humidity', 
+                title: 'Humidity (%)',
+                render: function(data) {
+                    return data ? parseFloat(data).toFixed(1) : 'N/A';
+                }
+            },
+            { 
+                data: 'wind_speed', 
+                title: 'Wind (km/h)',
+                render: function(data) {
+                    return data ? parseFloat(data).toFixed(1) : 'N/A';
+                }
+            },
+            { 
+                data: 'wind_direction', 
+                title: 'Wind Dir',
+                render: function(data) {
+                    return data || 'N/A';
+                }
+            },
+            { 
+                data: 'pressure', 
+                title: 'Pressure (hPa)',
+                render: function(data) {
+                    return data ? parseFloat(data).toFixed(1) : 'N/A';
+                }
+            },
+            { 
+                data: 'dew_point', 
+                title: 'Dew Point (°C)',
+                render: function(data) {
+                    return data ? parseFloat(data).toFixed(1) : 'N/A';
+                }
+            },
+            { 
+                data: 'rain_rate', 
+                title: 'Rain Rate (mm/h)',
+                render: function(data) {
+                    return data ? parseFloat(data).toFixed(2) : 'N/A';
+                }
+            },
+            { 
+                data: 'rain_accumulated', 
+                title: 'Rain (mm)',
+                render: function(data) {
+                    return data ? parseFloat(data).toFixed(2) : 'N/A';
+                }
+            },
+            { 
+                data: 'intensity', 
+                title: 'Intensity',
+                render: function(data) {
+                    return data || 'N/A';
+                }
+            }
+        ]
+    });
+
+    // Set default date range (last 7 days)
+    function formatLocalDateTime(date) {
+        return date.toISOString().slice(0, 16);
+    }
+    
+    function formatLocalDateTime(date) {
+        // Philippine time is UTC+8
+        const phTime = new Date(date.getTime() + (8 * 60 * 60 * 1000));
+        
+        return phTime.toISOString().replace('T', ' ').substring(0, 19);
+    }
+
+    var now = new Date();
+    var sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    $('#endDate').val(formatLocalDateTime(now));
+    $('#startDate').val(formatLocalDateTime(sevenDaysAgo));
+
+    // Initial data load
+    loadData();
+
+    function loadData(startDate = null, endDate = null, sensorId = null, intensityId = null) {
+        $('#filterBtn').html('<i class="fas fa-spinner fa-spin mr-2"></i>Loading...');
+        
+        // Use the default dates if none provided
+        startDate = startDate || $('#startDate').val();
+        endDate = endDate || $('#endDate').val();
+        
+        $.ajax({
+            url: '{% url "weather_reports" %}',
+            type: 'GET',
+            data: {
+                'start_date': startDate,
+                'end_date': endDate,
+                'sensor_id': sensorId,
+                'intensity_id': intensityId
+            },
+            success: function(response) {
+                // Clear existing data
+                table.clear();
+                
+                // Process and add new data
+                var processedData = response.reports.map(function(report) {
+                    return {
+                        name: report.name || 'N/A',
+                        date_time: report.date_time,
+                        temperature: report.temperature,
+                        humidity: report.humidity,
+                        wind_speed: report.wind_speed,
+                        wind_direction: report.wind_direction || 'N/A',
+                        pressure: report.pressure,
+                        dew_point: report.dew_point,
+                        rain_rate: report.rain_rate,
+                        rain_accumulated: report.rain_accumulated,
+                        intensity: report.intensity || 'N/A'
+                    };
+                });
+                
+                table.rows.add(processedData).draw();
+                
+                // Update summary cards if they exist
+                if (response.summary_stats) {
+                    updateSummaryCards(response.summary_stats);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error:', error);
+                alert('Error loading data. Please try again.');
+            },
+            complete: function() {
+                $('#filterBtn').html('<i class="fas fa-filter mr-2"></i>Filter');
+            }
+        });
+    }
+
+    function updateSummaryCards(stats) {
+        $('.summary-card:nth-child(1) .text-2xl').text(
+            stats.avg_temp ? stats.avg_temp + '°C' : 'N/A'
+        );
+        $('.summary-card:nth-child(2) .text-2xl').text(
+            stats.max_wind ? stats.max_wind + ' km/h' : 'N/A'
+        );
+        $('.summary-card:nth-child(3) .text-2xl').text(
+            stats.avg_humidity ? stats.avg_humidity + '%' : 'N/A'
+        );
+        $('.summary-card:nth-child(4) .text-2xl').text(
+            stats.total_rain ? stats.total_rain + ' mm' : 'N/A'
+        );
+    }
+
+    // Filter button functionality
+    $('#filterBtn').on('click', function() {
+        var startDate = $('#startDate').val();
+        var endDate = $('#endDate').val();
+        var sensorId = $('#sensorFilter').val();
+        var intensityId = $('#intensityFilter').val();
+        loadData(startDate, endDate, sensorId, intensityId);
+    });
+
+    // Reset button functionality
+    $('#resetBtn').on('click', function() {
+        // Reset to default date range (last 7 days)
+        var now = new Date();
+        var sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        
+        $('#endDate').val(formatLocalDateTime(now));
+        $('#startDate').val(formatLocalDateTime(sevenDaysAgo));
+        $('#sensorFilter').val('');
+        $('#intensityFilter').val('');
+        loadData();
+    });
+
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+    const mainContent = document.querySelector('main');
+
+    // Initialize state
+    const initSidebar = () => {
+        const isDesktop = window.innerWidth >= 768;
+        
+        if (isDesktop) {
+            sidebar.classList.remove('-translate-x-full');
+            mainContent.classList.add('md:ml-64');
+        } else {
+            sidebar.classList.add('-translate-x-full');
+            mainContent.classList.remove('md:ml-64');
+        }
+    };
+
+    // Toggle function
+    const toggleSidebar = () => {
+        const isDesktop = window.innerWidth >= 768;
+        
+        sidebar.classList.toggle('-translate-x-full');
+        
+        // Only adjust margin on desktop
+        if (isDesktop) {
+            mainContent.classList.toggle('md:ml-64');
+            mainContent.classList.toggle('md:ml-0');
+        }
+    };
+
+    // Handle window resize
+    const handleResize = () => {
+        const isDesktop = window.innerWidth >= 768;
+        
+        if (isDesktop) {
+            // If sidebar is open on desktop, ensure margin is applied
+            if (!sidebar.classList.contains('-translate-x-full')) {
+                mainContent.classList.add('md:ml-64');
+                mainContent.classList.remove('md:ml-0');
+            }
+        } else {
+            // On mobile, remove margin (sidebar will overlay)
+            mainContent.classList.remove('md:ml-64');
+            mainContent.classList.add('md:ml-0');
+        }
+    };
+
+    // Event listeners
+    sidebarToggleBtn.addEventListener('click', toggleSidebar);
+    window.addEventListener('resize', handleResize);
+    
+    // Initialize
+    initSidebar();
+});
+  </script>
+</body>
+</html>
