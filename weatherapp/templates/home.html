@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="{% static 'css/login.css' %}">
+  <link rel="stylesheet" href="{% static 'css/form.css' %}">
   <script>
     tailwind.config = {
       theme: {
@@ -396,120 +397,142 @@
 
 
 <!--register modal-->
-  <div class="modal fade" id="registerModal" tabindex="-1" aria-labelledby="registerModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content bg-white">
-        <form id="registerForm" method="POST" enctype="multipart/form-data" action="{% url 'register_user' %}">
-          {% csrf_token %}
-            <div class="modal-header position-relative">
-              <div class="flex items-center justify-center w-full">
-                <img src="{% static 'images/logo.png' %}" alt="Logo" class="h-8 w-8 mr-2">
-                <h5 class="modal-title text-blue-600 fw-bold" id="registerModalLabel">Create An Account</h5>
-              </div>
-              <button type="button" class="btn-close position-absolute end-0 me-2" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-
-            <p class="text-muted small text-center">Realtime Weather Monitoring & Analytics</p>
-
-            <div class="modal-body">
-              <div class="mb-3">
-                <label for="regName" class="form-label fw-semibold text-dark">Name <span class="text-red-500">*</span></label>
-                <input type="text" class="form-control border-gray" id="regName" name="name" placeholder="Name"  {% if show_register_modal and form_errors %}value="{{ request.POST.name }}"{% endif %} required>
-                {% if form_errors.name %}
-                  <div class="text-danger small mt-1">{{ form_errors.name }}</div>
-                {% endif %}
-              </div>
-
-              <div class="mb-3">
-                <label for="address" class="form-label fw-semibold text-dark">Barangay <span class="text-red-500">*</span></label>
-                <select class="form-select border-gray" id="address" name="address" required>
-                  <option value="">Select Barangay</option>
-                </select>
-              </div>
-
-              <div class="mb-3">
-                <label for="regEmail" class="form-label fw-semibold text-dark">Email Address <span class="text-red-500">*</span></label>
-                <input type="email" class="form-control border-gray" id="regEmail" name="email" placeholder="Email"  {% if show_register_modal and form_errors %}value="{{ request.POST.email }}"{% endif %} required>
-                {% if form_errors.email %}
-                  <div class="text-danger small mt-1">{{ form_errors.email }}</div>
-                {% endif %}
-              </div>
-
-              <div class="mb-3">
-                <label for="regPhone" class="form-label fw-semibold text-dark">Phone Number <span class="text-red-500">*</span></label>
-                <input type="text" class="form-control border-gray" id="regPhone" name="phone_num" placeholder="Phone Number"  {% if show_register_modal and form_errors %}value="{{ request.POST.phone_num }}"{% endif %} required>
-                {% if form_errors.phone_num %}
-                  <div class="text-danger small mt-1">{{ form_errors.phone_num }}</div>
-                {% endif %}
-              </div>
-
-              <div class="mb-3">
-                <label for="id_card" class="form-label fw-semibold text-dark">Upload ID Card <span class="text-red-500">*</span></label>
-                <input type="file" class="form-control border-gray" name="id_card" id="id_card" accept=".jpg, .jpeg, .png, .pdf" required onchange="previewIDCard(event)">
-                <small class="text-muted">Allowed: JPG, PNG, PDF • Max size: 2MB</small>
-
-                {% if form_errors.id_card %}
-                  <div class="text-danger small mt-1">{{ form_errors.id_card }}</div>
-                {% endif %}
-
-                <div id="idPreview" class="mt-3 d-none">
-                  <p class="small fw-semibold">Preview:</p>
-                  <img id="idCardImage" src="#" alt="ID Card Preview" class="img-thumbnail" style="max-width: 250px;" />
-                </div>
-              </div>
-
-              <div class="mb-3">
-                <label for="regUsername" class="form-label fw-semibold text-dark">Username <span class="text-red-500">*</span></label>
-                <input type="text" class="form-control border-gray" id="regUsername" name="username" placeholder="Username"  {% if show_register_modal and form_errors %}value="{{ request.POST.username }}"{% endif %} required>
-                {% if form_errors.username %}
-                  <div class="text-danger small mt-1">{{ form_errors.username }}</div>
-                {% endif %}
-              </div>
-
-              <div class="mb-3">
-                <label for="regPassword" class="form-label fw-semibold text-dark">
-                  Password <span class="text-red-500">*</span>
-                </label>
-
-                <div class="position-relative">
-                  <input id="regPassword" type="password" placeholder="Password" name="password" class="form-control border-gray" required>
-                  <span class="toggle-password position-absolute top-50 end-0 translate-middle-y pe-3" style="cursor: pointer;" data-target="regPassword">
-                    <i class="fa-solid fa-eye" style="color: #6c757d;"></i>
-                  </span>
-                </div>
-                {% if form_errors.password %}
-                  <div class="text-danger small mt-1">{{ form_errors.password }}</div>
-                {% endif %}
-              </div>
-
-              <div class="mb-3">
-                <label for="confirm_Password" class="form-label fw-semibold text-dark">
-                  Confirm Password <span class="text-red-500">*</span>
-                </label>
-
-                <div class="position-relative">
-                  <input id="confirm_Password" type="password" placeholder="Confirm Password" name="confirm_password" class="form-control border-gray" required>
-                  <span class="toggle-password position-absolute top-50 end-0 translate-middle-y pe-3" style="cursor: pointer;" data-target="confirm_Password">
-                    <i class="fa-solid fa-eye" style="color: #6c757d;"></i>
-                  </span>
-                </div>
-                {% if form_errors.confirm_password %}
-                  <div class="text-danger small mt-1">{{ form_errors.confirm_password }}</div>
-                {% endif %}
-              </div>
-              <div class="d-flex justify-content-between align-items-center mt-2 mb-2">
-                <a href="#" class="text-primary small" id="openLoginLink" role="button">
-                  Already have an account?
-                </a>
-              </div>
-              <div class="modal-footer d-flex flex-column align-items-center bg-white">
-                <button type="submit" class="btn btn-primary w-100 mb-2">Save</button>
-              </div>
+<div class="modal fade" id="registerModal" tabindex="-1" aria-labelledby="registerModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-white">
+      <form id="registerForm" method="POST" enctype="multipart/form-data" action="{% url 'register_user' %}" novalidate>
+        {% csrf_token %}
+        <div class="modal-header position-relative">
+          <div class="flex items-center justify-center w-full">
+            <img src="{% static 'images/logo.png' %}" alt="Logo" class="h-8 w-8 mr-2">
+            <h5 class="modal-title text-blue-600 fw-bold" id="registerModalLabel">Create An Account</h5>
           </div>
-        </form>
-      </div>
+          <button type="button" class="btn-close position-absolute end-0 me-2" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <p class="text-muted small text-center">Realtime Weather Monitoring & Analytics</p>
+
+        <div class="modal-body">
+          <!-- Name Field -->
+          <div class="mb-3">
+            <label for="regName" class="form-label fw-semibold text-dark">Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control border-gray" id="regName" name="name" placeholder="Name" required>
+          </div>
+
+          <!-- Address Field -->
+          <div class="mb-3">
+            <label for="province" class="form-label fw-semibold text-dark">Province <span class="text-danger">*</span></label>
+            <select class="form-select border-gray" id="province-dropdown" name="province" required>
+              <option value="">Select Province</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="city" class="form-label fw-semibold text-dark">City/Municipality <span class="text-danger">*</span></label>
+            <select class="form-select border-gray" id="city-dropdown" name="city" required disabled>
+              <option value="">Select City/Municipality</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="barangay" class="form-label fw-semibold text-dark">Barangay <span class="text-danger">*</span></label>
+            <select class="form-select border-gray" id="barangay-dropdown" name="barangay" required disabled>
+              <option value="">Select Barangay</option>
+            </select>
+          </div>
+
+          <!-- Email Field -->
+          <div class="mb-3">
+            <label for="regEmail" class="form-label fw-semibold text-dark">Email Address <span class="text-danger">*</span></label>
+            <input type="email" class="form-control border-gray" id="regEmail" name="email" placeholder="Email" required>
+          </div>
+
+          <!-- Phone Field -->
+          <div class="mb-3">
+            <label for="regPhone" class="form-label fw-semibold text-dark">Phone Number <span class="text-danger">*</span></label>
+            <input type="text" class="form-control border-gray" id="regPhone" name="phone_num" placeholder="Phone Number" required>
+          </div>
+
+          <!-- ID Card Upload -->
+          <div class="mb-3">
+            <label for="id_card" class="form-label fw-semibold text-dark">Upload ID Card <span class="text-danger">*</span></label>
+            <input type="file" class="form-control border-gray" name="id_card" id="id_card" accept=".jpg,.jpeg,.png,.pdf" required>
+            <small class="text-muted">Allowed: JPG, PNG, PDF • Max size: 2MB</small>
+            
+            <div id="idPreview" class="mt-3 d-none">
+              <p class="small fw-semibold">Preview:</p>
+              <img id="idCardImage" src="#" alt="ID Card Preview" class="img-thumbnail" style="max-width: 250px;">
+            </div>
+          </div>
+
+          <!-- Username Field -->
+          <div class="mb-3">
+            <label for="regUsername" class="form-label fw-semibold text-dark">Username <span class="text-danger">*</span></label>
+            <input type="text" class="form-control border-gray" id="regUsername" name="username" placeholder="Username" required>
+          </div>
+
+          <!-- Password Field -->
+          <div class="mb-3 input-wrapper">
+            <label for="regPassword" class="form-label fw-semibold text-dark">
+              Password <span class="text-danger">*</span>
+            </label>
+            <div class="position-relative">
+              <input id="regPassword" type="password" placeholder="Password" name="password"
+                class="form-control border-gray" required>
+              <span class="toggle-password position-absolute end-0 pe-3" data-target="regPassword">
+                <i class="fa-solid fa-eye" style="color: #6c757d;"></i>
+              </span>
+            </div>
+            <div class="password-requirements mt-2 small text-muted">
+              <p>Password must contain:</p>
+              <ul class="list-unstyled mb-0">
+                <li class="req-length"><i class="fas fa-check-circle text-success d-none"></i><i
+                    class="fas fa-times-circle text-danger"></i> At least 8 characters</li>
+                <li class="req-upper"><i class="fas fa-check-circle text-success d-none"></i><i
+                    class="fas fa-times-circle text-danger"></i> One uppercase letter</li>
+                <li class="req-lower"><i class="fas fa-check-circle text-success d-none"></i><i
+                    class="fas fa-times-circle text-danger"></i> One lowercase letter</li>
+                <li class="req-number"><i class="fas fa-check-circle text-success d-none"></i><i
+                    class="fas fa-times-circle text-danger"></i> One number</li>
+                <li class="req-special"><i class="fas fa-check-circle text-success d-none"></i><i
+                    class="fas fa-times-circle text-danger"></i> One special character</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Confirm Password Field -->
+          <div class="mb-3 input-wrapper">
+            <label for="confirm_Password" class="form-label fw-semibold text-dark">
+              Confirm Password <span class="text-danger">*</span>
+            </label>
+            <div class="position-relative">
+              <input id="confirm_Password" type="password" placeholder="Confirm Password" name="confirm_password"
+                class="form-control border-gray" required>
+              <span class="toggle-password position-absolute end-0 pe-3" data-target="confirm_Password">
+                <i class="fa-solid fa-eye" style="color: #6c757d;"></i>
+              </span>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mt-2 mb-2">
+            <a href="#" class="text-primary small" id="openLoginLink" role="button">
+              Already have an account?
+            </a>
+          </div>
+        </div>
+
+        <div class="modal-footer d-flex flex-column align-items-center bg-white">
+          <button type="submit" class="btn btn-primary w-100 mb-2" id="registerSubmitBtn">
+            Register
+          </button>
+        </div>
+      </form>
     </div>
   </div>
+</div>
+
+<!-- Toast Notifications -->
+<div id="toastContainer" class="position-fixed bottom-0 end-0 p-3" style="z-index: 11"></div>
 
  {% if form_regsuccess %}
   <div id="formRegSuccessAlert" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md">
@@ -563,32 +586,10 @@
   </script>
   {% endif %}
 
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="{% static 'js/register.js' %}"></script>
   <script>
-    const selectedBarangay = "{{ form_data.address|default:'' }}";
-    const bagoBarangays = [
-      "Abuanan", "Alianza", "Atipuluan", "Bacong-Montilla", "Bagroy", "Balingasag", "Binubuhan",
-      "Busay", "Calumangan", "Caridad", "Don Jorge L. Araneta", "Dulao", "Ilijan", "Lag-asan",
-      "Ma-ao", "Mailum", "Malingin", "Napoles", "Pacol", "Poblacion", "Sagasa", "Tabunan",
-      "Taloc", "Sampinit"
-    ];
-
-    function populateBarangays() {
-      const barangaySelect = document.getElementById("address");
-      if (barangaySelect.options.length > 1) return;
-      
-      bagoBarangays.forEach(brgy => {
-        const option = document.createElement("option");
-        option.value = brgy;
-        option.textContent = brgy;
-        if (brgy === selectedBarangay) {
-          option.selected = true;
-        }
-        barangaySelect.appendChild(option);
-      });
-    }
-
-    const registerModal = document.getElementById('registerModal');
-    registerModal.addEventListener('shown.bs.modal', populateBarangays);
 
   function switchModal(fromId, toId) {
     const fromModal = bootstrap.Modal.getInstance(document.getElementById(fromId));
@@ -738,6 +739,8 @@ document.addEventListener('DOMContentLoaded', function() {
       // Also clear the ID card preview
       document.getElementById('idPreview').classList.add('d-none');
       document.getElementById('idCardImage').src = '#';
+
+       clearModalErrors('registerModal');
     });
   });
 </script>

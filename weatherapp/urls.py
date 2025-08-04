@@ -4,6 +4,8 @@ from . import views
 urlpatterns = [
     path('', views.home, name='home'),
     path('register/', views.register_user, name='register_user'),
+    path('check-username/', views.check_username, name='check_username'),
+    path('check-name/', views.check_name, name='check_name'),
     path('login/', views.login_view, name='login'),
     path('forgot-password/', views.forgot_password, name='forgot_password'),
     path('verify-otp/', views.verify_otp, name='verify_otp'),
@@ -33,4 +35,4 @@ urlpatterns = [
     path('monthly-reports/', views.monthly_reports, name='monthly_reports'),
     path('api/data/', views.receive_sensor_data, name='receive_sensor_data'),
     path('send-alert/', views.send_alert, name='send_alert'),
-] 
+]

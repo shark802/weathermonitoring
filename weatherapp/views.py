@@ -28,20 +28,24 @@ from django.conf import settings
 
 def register_user(request):
     if request.method == 'POST':
-        
         errors = {}
         
         name = request.POST.get('name')
-        address = request.POST.get('address')
+        province = request.POST.get('province')
+        city = request.POST.get('city')
+        barangay = request.POST.get('barangay')
         email = request.POST.get('email')
         phone = request.POST.get('phone_num')
         id_card = request.FILES.get('id_card')
         username = request.POST.get('username')
         password = request.POST.get('password')
         confirm_password = request.POST.get('confirm_password')
+
+        address = f"{barangay}, {city}, {province}"
         
         id_card_path = None
 
+        # Validation (same as before)
         if not id_card:
             errors['id_card'] = "ID Card is required."
         else:
@@ -56,23 +60,6 @@ def register_user(request):
                 fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'id_cards'))
                 filename = fs.save(id_card.name, id_card)
                 id_card_path = 'id_cards/' + filename
-
-        form_data = {
-            'name': name,
-            'address': address,
-            'email': email,
-            'phone_num': phone,
-            'username': username,
-        }
-
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT user_id FROM user WHERE username = %s", [username])
-            if cursor.fetchone():
-                errors['username'] = "Username already exists."
-
-            cursor.execute("SELECT user_id FROM user WHERE name = %s", [name])
-            if cursor.fetchone():
-                errors['name'] = "Name already exists."
 
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
             errors['email'] = "Invalid email format."
@@ -94,12 +81,20 @@ def register_user(request):
         if password != confirm_password:
             errors['confirm_password'] = "Passwords do not match."
 
+        # Database checks
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT user_id FROM user WHERE username = %s", [username])
+            if cursor.fetchone():
+                errors['username'] = "Username already exists."
+
+            cursor.execute("SELECT user_id FROM user WHERE name = %s", [name])
+            if cursor.fetchone():
+                errors['name'] = "Name already exists."
+
         if errors:
-            return render(request, 'home.html', {
-                'show_register_modal': True,
-                'form_errors': errors,
-                'form_data': form_data,
-                "request": request
+            return JsonResponse({
+                'success': False,
+                'errors': errors,
             })
 
         hashed_password = make_password(password)
@@ -108,23 +103,47 @@ def register_user(request):
             with connection.cursor() as cursor:
                 cursor.execute("""
                     INSERT INTO user (name, address, email, phone_num, username, password, id_card, status)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, 'Pending')
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 'Active')
                 """, [name, address, email, phone, username, hashed_password, id_card_path])
-            form_regsuccess = "Registration successful! Please wait for the admin approval."
             
-            return render(request, 'home.html', {
-                'form_regsuccess': form_regsuccess,
-                'show_register_modal': False,
+            return JsonResponse({
+                'success': True,
+                'message': "Registration successful!",
             })
 
         except Exception as e:
-            return render(request, 'home.html', {
-                'show_register_modal': True,
-                'form_data': form_data,
-                'form_errors': {'database': f"Error during registration: {str(e)}"}
+            return JsonResponse({
+                'success': False,
+                'errors': {'database': f"Error during registration: {str(e)}"}
             })
+    
+    return JsonResponse({
+        'success': False,
+        'errors': {'method': 'Invalid request method.'}
+    })
 
-    return redirect('home')
+def check_username(request):
+    username = request.GET.get('username')
+    if not username:
+        return JsonResponse({'exists': False})
+    
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT user_id FROM user WHERE username = %s", [username])
+        exists = cursor.fetchone() is not None
+    
+    return JsonResponse({'exists': exists})
+
+def check_name(request):
+    name = request.GET.get('name')
+    if not name:
+        return JsonResponse({'exists': False})
+    
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT user_id FROM user WHERE name = %s", [name])
+        exists = cursor.fetchone() is not None
+    
+    return JsonResponse({'exists': exists})
+
 
 def home(request):
     

@@ -1,0 +1,31 @@
+<style>
+  .position-relative .form-control {
+    padding-right: 2.5rem; /* prevent icon overlap */
+  }
+
+  .toggle-password {
+    top: 50%;
+    transform: translateY(-50%);
+    height: 100%;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Optional: Prevent error message from pushing the layout */
+  .form-control.is-invalid {
+    margin-bottom: 0;
+  }
+
+  .error-message,
+  .invalid-feedback {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    color: #dc3545;
+  }
+
+  /* Maintain space for error messages (prevents jump) */
+  .input-wrapper {
+    position: relative;
+    margin-bottom: 1.75rem; /* enough space for errors */
+  }
+</style>
