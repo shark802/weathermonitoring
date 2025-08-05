@@ -9,14 +9,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
 function setupFormValidation() {
   const fieldMap = {
-    firstName: () => validateRequired('firstName', 'First name is required.'),
-    lastName: () => validateRequired('lastName', 'Last name is required.'),
-    regEmail: validateEmail,
-    regPhone: validatePhone,
-    regUsername: validateRequired,
-    regPassword: validatePassword,
-    confirm_Password: validateConfirmPassword,
-  };
+  firstName: () => validateRequired('firstName', 'First name is required.'),
+  lastName: () => validateRequired('lastName', 'Last name is required.'),
+  regEmail: () => validateEmail(),
+  regPhone: () => validatePhone(),
+  regUsername: () => validateRequired('regUsername', 'Username is required.'),
+  regPassword: () => validatePassword(),
+  confirm_Password: () => validateConfirmPassword(),
+};
 
   Object.entries(fieldMap).forEach(([id, validatorFn]) => {
     const input = document.getElementById(id);
@@ -510,62 +510,61 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-document.addEventListener('DOMContentLoaded', function () {
-  // Open Register Modal
-  document.getElementById('openRegisterLink')?.addEventListener('click', function (e) {
-    e.preventDefault();
-    switchModal('loginModal', 'registerModal');
-  });
+ document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('openRegisterLink')?.addEventListener('click', function(e) {
+      e.preventDefault();
+      switchModal('loginModal', 'registerModal');
+    });
 
-  // Open Login Modal
-  document.getElementById('openLoginLink')?.addEventListener('click', function (e) {
-    e.preventDefault();
-    switchModal('registerModal', 'loginModal');
-  });
+    document.getElementById('openLoginLink')?.addEventListener('click', function(e) {
+      e.preventDefault();
+      switchModal('registerModal', 'loginModal');
+    });
 
-  // Toggle Password Icons
-  document.querySelectorAll('.toggle-password').forEach(icon => {
-    icon.addEventListener('click', togglePassword);
-  });
+    document.querySelectorAll('.toggle-password').forEach(icon => {
+      icon.addEventListener('click', togglePassword);
+    });
+ });
 
-  // Login Form Submit
-  document.getElementById('loginForm')?.addEventListener('submit', function (e) {
-    const modalElement = document.getElementById('loginModal');
-    const modal = bootstrap.Modal.getInstance(modalElement);
-
-    const overlay = document.createElement('div');
+document.getElementById('loginForm')?.addEventListener('submit', function(e) {
+  const modalElement = document.getElementById('loginModal');
+  const modal = bootstrap.Modal.getInstance(modalElement);
+    
+  const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm';
-    overlay.innerHTML = `
-      <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
-      <p class="mt-4 text-lg font-medium text-gray-700">Logging in...</p>
+    overlay.innerHTML =` 
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+        <p class="mt-4 text-lg font-medium text-gray-700">Logging in...</p>
     `;
     document.body.appendChild(overlay);
-
+    
     modal.hide();
-
+    
     const modalBackdrop = document.querySelector('.modal-backdrop');
     if (modalBackdrop) {
-      modalBackdrop.remove();
+        modalBackdrop.remove();
     }
-
+    
     document.body.style.overflow = 'auto';
     document.body.style.paddingRight = '0';
-
+    
     setTimeout(() => {
-      this.submit();
+        this.submit();
     }, 100);
-  });
-
-  // Clear login form when modal is hidden
-  const loginModal = document.getElementById('loginModal');
-  loginModal?.addEventListener('hidden.bs.modal', function () {
-    document.getElementById('loginForm').reset();
-  });
-
-  // Clear register form when modal is hidden
-  const registerModal = document.getElementById('registerModal');
-  registerModal?.addEventListener('hidden.bs.modal', function () {
-    document.getElementById('registerForm').reset();
-    clearModalErrors('registerModal');
-  });
 });
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Clear login form when modal is hidden
+    const loginModal = document.getElementById('loginModal');
+    loginModal.addEventListener('hidden.bs.modal', function() {
+      document.getElementById('loginForm').reset();
+    });
+
+    // Clear register form when modal is hidden
+    const registerModal = document.getElementById('registerModal');
+    registerModal.addEventListener('hidden.bs.modal', function() {
+      document.getElementById('registerForm').reset();
+
+       clearModalErrors('registerModal');
+    });
+  });
