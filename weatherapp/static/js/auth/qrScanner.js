@@ -1,114 +1,98 @@
 let scannerInstance = null;
 let scannerRunning = false;
-let errorDisplayed = false; // Track if we've shown an error
-const IGNORED_ERRORS = [
-  'NotFoundException',
-  'No multi format readers configured',
-  'Video stream has ended',
-  'QR code parse error',
-  'Decoder is busy'
-];
+let lastErrorTime = 0;
+const ERROR_DEBOUNCE_TIME = 3000; // 3 seconds
 
-async function startQRScanner() {
-  if (scannerRunning) return true;
-
+async function checkCameraPermissions() {
   try {
-    // Check camera permissions
     if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('Camera not supported');
+      throw new Error('Camera API not supported in this browser');
     }
-
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     stream.getTracks().forEach(track => track.stop());
+    return true;
+  } catch (error) {
+    console.error('Camera permission denied:', error);
+    throw new Error('Camera access was denied. Please enable camera permissions.');
+  }
+}
 
-    // Get available cameras
+async function startQRScanner() {
+  // Prevent multiple simultaneous scanners
+  if (scannerRunning) {
+    console.log('Scanner already running');
+    return true;
+  }
+
+  if (typeof Html5Qrcode === 'undefined') {
+    throw new Error('QR Scanner library not loaded. Please refresh the page.');
+  }
+
+  try {
+    await checkCameraPermissions();
+
     const cameras = await Html5Qrcode.getCameras();
     if (cameras.length === 0) {
-      throw new Error('No cameras available');
+      throw new Error('No cameras found. Please ensure you have a working camera.');
     }
 
     scannerInstance = new Html5Qrcode('reader');
     scannerRunning = true;
-    errorDisplayed = false; // Reset error state
 
-    // Try to use back camera
-    const backCamera = cameras.find(cam => 
-      cam.label.toLowerCase().includes('back') || 
-      cam.label.toLowerCase().includes('rear')
-    );
+    // Try to find back camera
+    const backCamera = findBackCamera(cameras);
+    const cameraId = backCamera ? backCamera.id : cameras[0].id;
 
     await scannerInstance.start(
-      backCamera?.id || cameras[0].id,
-      {
-        fps: 10,
+      cameraId,
+      { 
+        fps: 10, 
         qrbox: { width: 250, height: 250 },
-        disableFlip: true // Reduces some errors
+        aspectRatio: 1.0,
+        disableFlip: true // Reduce some error sources
       },
       onQRScanSuccess,
       (error) => {
-        if (!shouldDisplayError(error)) return;
-        onQRScanError(error);
+        // Filter out non-critical errors
+        if (!isIgnorableError(error)) {
+          onQRScanError(error);
+        }
       }
     );
 
     document.getElementById('qrScannerContainer').classList.remove('d-none');
     return true;
   } catch (error) {
-    handleInitializationError(error);
+    scannerRunning = false;
+    if (scannerInstance) {
+      await scannerInstance.clear();
+    }
+    console.error('QR Scanner initialization failed:', error);
     throw error;
   }
 }
 
-function shouldDisplayError(error) {
-  // Don't display if we've already shown an error
-  if (errorDisplayed) return false;
+function isIgnorableError(error) {
+  if (!error) return true;
   
-  // Don't display ignorable errors
-  return !IGNORED_ERRORS.some(ignorable => 
+  // List of errors we can safely ignore
+  const ignorableErrors = [
+    'NotFoundException', 
+    'No multi format readers configured',
+    'Video stream has ended',
+    'QR code parse error, error ='
+  ];
+
+  return ignorableErrors.some(ignorable => 
     error.toString().includes(ignorable) ||
     (error.message && error.message.includes(ignorable))
   );
 }
 
-function handleInitializationError(error) {
-  scannerRunning = false;
-  let userMessage = 'Failed to start scanner';
-  
-  if (error.message.includes('permission')) {
-    userMessage = 'Camera access denied. Please enable permissions.';
-  } else if (error.message.includes('camera') || error.message.includes('device')) {
-    userMessage = 'Camera not available. Please check your device.';
-  }
-
-  errorDisplayed = true;
-  showToast('error', userMessage);
-}
-
-function onQRScanSuccess(decodedText) {
-  // Skip if we recently showed an error
-  if (errorDisplayed) return;
-  
-  stopQRScanner().then(() => {
-    document.getElementById('qrData').value = decodedText;
-    processPhilSysData(decodedText);
-    showToast('success', 'QR code scanned successfully!');
-  });
-}
-
-function onQRScanError(error) {
-  if (!shouldDisplayError(error)) return;
-  
-  errorDisplayed = true;
-  showToast('error', 'Position the QR code clearly in the frame');
-  
-  // Auto-reset error state after delay
-  setTimeout(() => {
-    errorDisplayed = false;
-  }, 3000);
-}
-
 async function stopQRScanner() {
-  if (!scannerRunning) return false;
+  if (!scannerInstance || !scannerRunning) {
+    return false;
+  }
 
   try {
     await scannerInstance.stop();
@@ -116,9 +100,47 @@ async function stopQRScanner() {
     document.getElementById('qrScannerContainer').classList.add('d-none');
     return true;
   } catch (error) {
-    console.warn('Error stopping scanner:', error);
+    console.error('Error stopping scanner:', error);
     return false;
+  } finally {
+    if (scannerInstance) {
+      scannerInstance.clear();
+    }
   }
+}
+
+function onQRScanSuccess(decodedText) {
+  const now = Date.now();
+  if (now - lastErrorTime < 1000) return; // Ignore success immediately after error
+  
+  stopQRScanner().then(() => {
+    document.getElementById('qrData').value = decodedText;
+    processPhilSysData(decodedText);
+    showToast('success', 'PhilSys QR scanned successfully!');
+  }).catch(error => {
+    console.error('Error during scanner cleanup:', error);
+  });
+}
+
+function onQRScanError(error) {
+  const now = Date.now();
+  if (now - lastErrorTime < ERROR_DEBOUNCE_TIME) return;
+  lastErrorTime = now;
+
+  if (isIgnorableError(error)) {
+    return;
+  }
+
+  console.error('QR Scan Error:', error);
+  
+  let userMessage = 'QR scan failed. Please try again.';
+  if (error.message.includes('permission')) {
+    userMessage = 'Camera access denied. Please enable camera permissions.';
+  } else if (error.message.includes('cameras') || error.message.includes('camera')) {
+    userMessage = 'Camera problem. Please check your camera.';
+  }
+
+  showToast('error', userMessage);
 }
 
 function processPhilSysData(qrData) {
