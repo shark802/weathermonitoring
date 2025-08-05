@@ -11,7 +11,6 @@ import random
 from django.core.mail import send_mail
 from django.conf import settings
 from .forecast import get_five_day_forecast
-import jwt
 import json
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
@@ -25,6 +24,8 @@ import pytz
 from decimal import Decimal
 import requests
 import time
+from django.conf import settings
+import jwt
 
 def register_user(request):
     if request.method == 'POST':
@@ -128,8 +129,8 @@ def register_user(request):
             with connection.cursor() as cursor:
                 cursor.execute("""
                     INSERT INTO user (
-                        name,
-                        address,
+                        name,           -- Only storing concatenated full name
+                        address,        -- Only storing concatenated address
                         email, 
                         phone_num, 
                         username, 
