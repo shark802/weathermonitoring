@@ -413,13 +413,32 @@
         <p class="text-muted small text-center">Realtime Weather Monitoring & Analytics</p>
 
         <div class="modal-body">
-          <!-- Name Field -->
-          <div class="mb-3">
-            <label for="regName" class="form-label fw-semibold text-dark">Name <span class="text-danger">*</span></label>
-            <input type="text" class="form-control border-gray" id="regName" name="name" placeholder="Name" required>
+          <!-- QR Scan Button -->
+          <div class="mb-3 text-center">
+            <button type="button" id="scanPhilSysQR" class="btn btn-outline-primary">
+              <i class="fas fa-qrcode me-2"></i>Scan PhilSys QR Code
+            </button>
+            <input type="hidden" name="qr_data" id="qrData">
+            <small class="d-block text-muted mt-1">Scan your PhilSys National ID for automatic verification</small>
           </div>
 
-          <!-- Address Field -->
+          <!-- Name Fields (Split) -->
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <label for="firstName" class="form-label fw-semibold text-dark">First Name <span class="text-danger">*</span></label>
+              <input type="text" class="form-control border-gray" id="firstName" name="first_name" placeholder="Juan" required>
+            </div>
+            <div class="col-md-4">
+              <label for="middleName" class="form-label fw-semibold text-dark">Middle Name</label>
+              <input type="text" class="form-control border-gray" id="middleName" name="middle_name" placeholder="Dela">
+            </div>
+            <div class="col-md-4">
+              <label for="lastName" class="form-label fw-semibold text-dark">Last Name <span class="text-danger">*</span></label>
+              <input type="text" class="form-control border-gray" id="lastName" name="last_name" placeholder="Cruz" required>
+            </div>
+          </div>
+
+          <!-- Address Fields -->
           <div class="mb-3">
             <label for="province" class="form-label fw-semibold text-dark">Province <span class="text-danger">*</span></label>
             <select class="form-select border-gray" id="province-dropdown" name="province" required>
@@ -451,18 +470,6 @@
           <div class="mb-3">
             <label for="regPhone" class="form-label fw-semibold text-dark">Phone Number <span class="text-danger">*</span></label>
             <input type="text" class="form-control border-gray" id="regPhone" name="phone_num" placeholder="Phone Number" required>
-          </div>
-
-          <!-- ID Card Upload -->
-          <div class="mb-3">
-            <label for="id_card" class="form-label fw-semibold text-dark">Upload ID Card <span class="text-danger">*</span></label>
-            <input type="file" class="form-control border-gray" name="id_card" id="id_card" accept=".jpg,.jpeg,.png,.pdf" required>
-            <small class="text-muted">Allowed: JPG, PNG, PDF • Max size: 2MB</small>
-            
-            <div id="idPreview" class="mt-3 d-none">
-              <p class="small fw-semibold">Preview:</p>
-              <img id="idCardImage" src="#" alt="ID Card Preview" class="img-thumbnail" style="max-width: 250px;">
-            </div>
           </div>
 
           <!-- Username Field -->
@@ -588,162 +595,8 @@
 
 
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.0.9/dist/html5-qrcode.min.js"></script>
   <script src="{% static 'js/register.js' %}"></script>
-  <script>
-
-  function switchModal(fromId, toId) {
-    const fromModal = bootstrap.Modal.getInstance(document.getElementById(fromId));
-    const toModalElement = document.getElementById(toId);
-
-    if (!fromModal || !toModalElement) {
-      console.error('Modal elements not found');
-      return;
-    }
-
-    fromModal.hide();
-    
-    document.getElementById(fromId).addEventListener('hidden.bs.modal', function handler() {
-      const toModal = new bootstrap.Modal(toModalElement);
-      toModal.show();
-      this.removeEventListener('hidden.bs.modal', handler); // Clean up
-    });
-  }
-
-  document.addEventListener('DOMContentLoaded', function() {
-    const rememberMe = localStorage.getItem('rememberMe');
-    if (rememberMe === 'true') {
-        document.getElementById('remember_me').checked = true;
-    }
-    
-    document.getElementById('remember_me').addEventListener('change', function() {
-        localStorage.setItem('rememberMe', this.checked);
-    });
-});
-
-document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('.toggle-password').forEach(toggle => {
-    toggle.addEventListener('click', function() {
-      const targetId = this.getAttribute('data-target');
-      const input = document.getElementById(targetId);
-      const icon = this.querySelector('i');
-      
-      if (input.type === 'password') {
-        input.type = 'text';
-        icon.classList.replace('fa-eye', 'fa-eye-slash');
-        icon.style.color = '#dc3545'; // Red when visible
-      } else {
-        input.type = 'password';
-        icon.classList.replace('fa-eye-slash', 'fa-eye');
-        icon.style.color = '#6c757d'; // Gray when hidden
-      }
-    });
-  });
-});
-
-  document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('openRegisterLink')?.addEventListener('click', function(e) {
-      e.preventDefault();
-      switchModal('loginModal', 'registerModal');
-    });
-
-    document.getElementById('openLoginLink')?.addEventListener('click', function(e) {
-      e.preventDefault();
-      switchModal('registerModal', 'loginModal');
-    });
-
-    document.querySelectorAll('.toggle-password').forEach(icon => {
-      icon.addEventListener('click', togglePassword);
-    });
-
-
-    function previewIDCard(event) {
-      const file = event.target.files[0];
-      const previewContainer = document.getElementById("idPreview");
-      const previewImage = document.getElementById("idCardImage");
-
-      previewContainer.classList.add("d-none");
-      previewImage.src = "#";
-
-      if (!file) return;
-
-      const allowedTypes = ["image/jpeg", "image/png", "application/pdf"];
-      const maxSize = 2 * 1024 * 1024; // 2MB
-
-      if (!allowedTypes.includes(file.type)) {
-        alert("Only JPG, PNG, or PDF files are allowed.");
-        event.target.value = "";
-        return;
-      }
-
-      if (file.size > maxSize) {
-        alert("File must be under 2MB.");
-        event.target.value = "";
-        return;
-      }
-
-      if (file.type.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          previewImage.src = e.target.result;
-          previewContainer.classList.remove("d-none");
-        };
-        reader.readAsDataURL(file);
-      } else {
-        previewImage.alt = "PDF uploaded. Preview not available.";
-        previewImage.src = "";
-        previewContainer.classList.remove("d-none");
-      }
-    }
-
-    document.getElementById('id_card')?.addEventListener('change', previewIDCard);
-  });
-
-  document.getElementById('loginForm')?.addEventListener('submit', function(e) {
-    const modalElement = document.getElementById('loginModal');
-    const modal = bootstrap.Modal.getInstance(modalElement);
-    
-    const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm';
-    overlay.innerHTML = `
-        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
-        <p class="mt-4 text-lg font-medium text-gray-700">Logging in...</p>
-    `;
-    document.body.appendChild(overlay);
-    
-    modal.hide();
-    
-    const modalBackdrop = document.querySelector('.modal-backdrop');
-    if (modalBackdrop) {
-        modalBackdrop.remove();
-    }
-    
-    document.body.style.overflow = 'auto';
-    document.body.style.paddingRight = '0';
-    
-    setTimeout(() => {
-        this.submit();
-    }, 100);
-});
-
-document.addEventListener('DOMContentLoaded', function() {
-    // Clear login form when modal is hidden
-    const loginModal = document.getElementById('loginModal');
-    loginModal.addEventListener('hidden.bs.modal', function() {
-      document.getElementById('loginForm').reset();
-    });
-
-    // Clear register form when modal is hidden
-    const registerModal = document.getElementById('registerModal');
-    registerModal.addEventListener('hidden.bs.modal', function() {
-      document.getElementById('registerForm').reset();
-      // Also clear the ID card preview
-      document.getElementById('idPreview').classList.add('d-none');
-      document.getElementById('idCardImage').src = '#';
-
-       clearModalErrors('registerModal');
-    });
-  });
-</script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

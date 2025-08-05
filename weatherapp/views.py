@@ -11,6 +11,7 @@ import random
 from django.core.mail import send_mail
 from django.conf import settings
 from .forecast import get_five_day_forecast
+import jwt
 import json
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
@@ -24,42 +25,66 @@ import pytz
 from decimal import Decimal
 import requests
 import time
-from django.conf import settings
 
 def register_user(request):
     if request.method == 'POST':
         errors = {}
         
-        name = request.POST.get('name')
-        province = request.POST.get('province')
-        city = request.POST.get('city')
-        barangay = request.POST.get('barangay')
+        # Get and format name components
+        first_name = request.POST.get('first_name', '').strip().upper()
+        middle_name = request.POST.get('middle_name', '').strip().upper()
+        last_name = request.POST.get('last_name', '').strip().upper()
+        name = ' '.join(filter(None, [first_name, middle_name, last_name]))  # Concatenated full name
+
+        # Get and format address components
+        province = request.POST.get('province', '').strip().upper()
+        city = request.POST.get('city', '').strip().upper()
+        barangay = request.POST.get('barangay', '').strip().upper()
+        address = ', '.join(filter(None, [barangay, city, province]))  # Standardized address format
+
+        # Other fields
         email = request.POST.get('email')
         phone = request.POST.get('phone_num')
-        id_card = request.FILES.get('id_card')
         username = request.POST.get('username')
         password = request.POST.get('password')
         confirm_password = request.POST.get('confirm_password')
+        qr_data = request.POST.get('qr_data')
 
-        address = f"{barangay}, {city}, {province}"
-        
-        id_card_path = None
-
-        # Validation (same as before)
-        if not id_card:
-            errors['id_card'] = "ID Card is required."
+        # =====================
+        # 1. PHILSYS QR VALIDATION
+        # =====================
+        if not qr_data:
+            errors['qr_data'] = "Please scan your PhilSys QR code"
         else:
-            allowed_types = ['image/jpeg', 'image/png', 'application/pdf']
-            max_size = 2 * 1024 * 1024
+            try:
+                decoded = jwt.decode(qr_data, key=settings.PSA_PUBLIC_KEY, algorithms=["RS256"])
+                
+                # Name validation
+                phil_first = decoded.get('givenName', '').upper()
+                phil_middle = decoded.get('middleName', '').upper()
+                phil_last = decoded.get('familyName', '').upper()
+                
+                # Address validation
+                phil_barangay = decoded.get('address', {}).get('barangay', '').upper()
+                phil_city = decoded.get('address', {}).get('city', '').upper()
+                phil_province = decoded.get('address', {}).get('province', '').upper()
 
-            if id_card.content_type not in allowed_types:
-                errors['id_card'] = "Only JPG, PNG, or PDF files are allowed."
-            elif id_card.size > max_size:
-                errors['id_card'] = "ID Card must be under 2MB."
-            else:
-                fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'id_cards'))
-                filename = fs.save(id_card.name, id_card)
-                id_card_path = 'id_cards/' + filename
+                # Component-wise comparison
+                if (first_name != phil_first or 
+                    last_name != phil_last or 
+                    (middle_name and middle_name != phil_middle)):
+                    errors['name_mismatch'] = "Name doesn't match PhilSys ID"
+                
+                # Address partial matching
+                if (province and province not in phil_province or
+                    city and city not in phil_city or
+                    barangay and barangay not in phil_barangay):
+                    errors['address_mismatch'] = "Address doesn't match PhilSys ID"
+                    
+            except jwt.InvalidSignatureError:
+                errors['qr_invalid'] = "Invalid PhilSys QR signature"
+            except Exception as e:
+                errors['qr_error'] = f"QR verification failed: {str(e)}"
 
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
             errors['email'] = "Invalid email format."
@@ -98,28 +123,49 @@ def register_user(request):
             })
 
         hashed_password = make_password(password)
-
+        
         try:
             with connection.cursor() as cursor:
                 cursor.execute("""
-                    INSERT INTO user (name, address, email, phone_num, username, password, id_card, status)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, 'Active')
-                """, [name, address, email, phone, username, hashed_password, id_card_path])
+                    INSERT INTO user (
+                        name,
+                        address,
+                        email, 
+                        phone_num, 
+                        username, 
+                        password, 
+                        status, 
+                        verified_with_philsys
+                    ) VALUES (%s, %s, %s, %s, %s, %s, 'Active', %s)
+                """, [
+                    name,
+                    address,
+                    email,
+                    phone,
+                    username,
+                    hashed_password,
+                    bool(qr_data)
+                ])
             
             return JsonResponse({
                 'success': True,
                 'message': "Registration successful!",
+                'user_data': {
+                    'full_name': name,
+                    'address': address,
+                    'philsys_verified': bool(qr_data)
+                }
             })
 
         except Exception as e:
             return JsonResponse({
                 'success': False,
-                'errors': {'database': f"Error during registration: {str(e)}"}
+                'errors': {'database': str(e)}
             })
     
     return JsonResponse({
         'success': False,
-        'errors': {'method': 'Invalid request method.'}
+        'errors': {'method': 'POST request required'}
     })
 
 def check_username(request):

@@ -12,20 +12,15 @@ function setupFormValidation() {
     regName: validateRequired,
     regEmail: validateEmail,
     regPhone: validatePhone,
-    id_card: validateIdCard,
     regUsername: validateRequired,
     regPassword: validatePassword,
     confirm_Password: validateConfirmPassword,
   };
 
-  Object.keys(fieldMap).forEach(id => {
+  Object.entries(fieldMap).forEach(([id, validatorFn]) => {
     const input = document.getElementById(id);
     if (input) {
-      const eventType = id === 'id_card' ? 'change' : 'input';
-      input.addEventListener(eventType, function () {
-        fieldMap[id]();
-        clearErrorIfValid(id, fieldMap[id]);
-      });
+      input.addEventListener('input', () => clearErrorIfValid(id, validatorFn));
     }
   });
 
@@ -182,7 +177,6 @@ function validateForm() {
   if (!validateRequired('barangay', 'Barangay is required.')) valid = false;
   if (!validateEmail()) valid = false;
   if (!validatePhone()) valid = false;
-  if (!validateIdCard()) valid = false;
   if (!validateRequired('regUsername', 'Username is required.')) valid = false;
   if (!validatePassword()) valid = false;
   if (!validateConfirmPassword()) valid = false;
@@ -223,27 +217,6 @@ function validatePhone() {
   }
   if (!regex.test(phone)) {
     showError('regPhone', 'Phone number must be exactly 11 digits.');
-    return false;
-  }
-  return true;
-}
-
-function validateIdCard() {
-  const input = document.getElementById('id_card');
-  const file = input?.files[0];
-  const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
-  const maxSize = 2 * 1024 * 1024;
-
-  if (!file) {
-    showError('id_card', 'ID Card is required.');
-    return false;
-  }
-  if (!allowed.includes(file.type)) {
-    showError('id_card', 'Only JPG, PNG, or PDF files are allowed.');
-    return false;
-  }
-  if (file.size > maxSize) {
-    showError('id_card', 'ID Card must be under 2MB.');
     return false;
   }
   return true;
@@ -314,7 +287,6 @@ async function handleFormSubmit(e) {
           name: 'regName',
           email: 'regEmail',
           phone_num: 'regPhone',
-          id_card: 'id_card',
           username: 'regUsername',
           password: 'regPassword',
           confirm_password: 'confirm_Password',
@@ -444,3 +416,146 @@ function showToast(type, message) {
                 });
             });
         });
+
+document.getElementById('scanPhilSysQR').addEventListener('click', function() {
+    Html5Qrcode.getCameras().then(cameras => {
+      if (cameras && cameras.length > 0) {
+        const scanner = new Html5Qrcode('reader');
+        scanner.start(
+          cameras[0].id,
+          { fps: 10 },
+          qrCode => {
+            scanner.stop();
+            document.getElementById('qrData').value = qrCode;
+            
+            // Auto-fill name fields from PhilSys QR (example format: "DELA CRUZ,JUAN,SANTOS")
+            const nameParts = qrCode.split(',');
+            if (nameParts.length >= 2) {
+              document.getElementById('lastName').value = nameParts[0].trim();
+              document.getElementById('firstName').value = nameParts[1].trim();
+              if (nameParts.length > 2) {
+                document.getElementById('middleName').value = nameParts[2].trim();
+              }
+            }
+            
+            alert("PhilSys QR scanned successfully!");
+          },
+          error => console.error("QR scan failed:", error)
+        );
+      } else {
+        alert("Camera not found. Please check permissions.");
+      }
+    }).catch(err => {
+      console.error("Camera access error:", err);
+      alert("Cannot access camera. Try uploading an image instead.");
+    });
+  });
+
+function switchModal(fromId, toId) {
+    const fromModal = bootstrap.Modal.getInstance(document.getElementById(fromId));
+    const toModalElement = document.getElementById(toId);
+
+    if (!fromModal || !toModalElement) {
+      console.error('Modal elements not found');
+      return;
+    }
+
+    fromModal.hide();
+    
+    document.getElementById(fromId).addEventListener('hidden.bs.modal', function handler() {
+      const toModal = new bootstrap.Modal(toModalElement);
+      toModal.show();
+      this.removeEventListener('hidden.bs.modal', handler); // Clean up
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const rememberMe = localStorage.getItem('rememberMe');
+    if (rememberMe === 'true') {
+        document.getElementById('remember_me').checked = true;
+    }
+    
+    document.getElementById('remember_me').addEventListener('change', function() {
+        localStorage.setItem('rememberMe', this.checked);
+    });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.toggle-password').forEach(toggle => {
+    toggle.addEventListener('click', function() {
+      const targetId = this.getAttribute('data-target');
+      const input = document.getElementById(targetId);
+      const icon = this.querySelector('i');
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.replace('fa-eye', 'fa-eye-slash');
+        icon.style.color = '#dc3545'; // Red when visible
+      } else {
+        input.type = 'password';
+        icon.classList.replace('fa-eye-slash', 'fa-eye');
+        icon.style.color = '#6c757d'; // Gray when hidden
+      }
+    });
+  });
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+  // Open Register Modal
+  document.getElementById('openRegisterLink')?.addEventListener('click', function (e) {
+    e.preventDefault();
+    switchModal('loginModal', 'registerModal');
+  });
+
+  // Open Login Modal
+  document.getElementById('openLoginLink')?.addEventListener('click', function (e) {
+    e.preventDefault();
+    switchModal('registerModal', 'loginModal');
+  });
+
+  // Toggle Password Icons
+  document.querySelectorAll('.toggle-password').forEach(icon => {
+    icon.addEventListener('click', togglePassword);
+  });
+
+  // Login Form Submit
+  document.getElementById('loginForm')?.addEventListener('submit', function (e) {
+    const modalElement = document.getElementById('loginModal');
+    const modal = bootstrap.Modal.getInstance(modalElement);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm';
+    overlay.innerHTML = `
+      <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+      <p class="mt-4 text-lg font-medium text-gray-700">Logging in...</p>
+    `;
+    document.body.appendChild(overlay);
+
+    modal.hide();
+
+    const modalBackdrop = document.querySelector('.modal-backdrop');
+    if (modalBackdrop) {
+      modalBackdrop.remove();
+    }
+
+    document.body.style.overflow = 'auto';
+    document.body.style.paddingRight = '0';
+
+    setTimeout(() => {
+      this.submit();
+    }, 100);
+  });
+
+  // Clear login form when modal is hidden
+  const loginModal = document.getElementById('loginModal');
+  loginModal?.addEventListener('hidden.bs.modal', function () {
+    document.getElementById('loginForm').reset();
+  });
+
+  // Clear register form when modal is hidden
+  const registerModal = document.getElementById('registerModal');
+  registerModal?.addEventListener('hidden.bs.modal', function () {
+    document.getElementById('registerForm').reset();
+    clearModalErrors('registerModal');
+  });
+});
