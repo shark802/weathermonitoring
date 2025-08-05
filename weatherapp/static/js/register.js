@@ -420,39 +420,46 @@ function showToast(type, message) {
             });
         });
 
+let scannerRunning = false;
+
 document.getElementById('scanPhilSysQR').addEventListener('click', function() {
-    Html5Qrcode.getCameras().then(cameras => {
-      if (cameras && cameras.length > 0) {
-        const scanner = new Html5Qrcode('reader');
-        scanner.start(
-          cameras[0].id,
-          { fps: 10 },
-          qrCode => {
-            scanner.stop();
-            document.getElementById('qrData').value = qrCode;
-            
-            // Auto-fill name fields from PhilSys QR (example format: "DELA CRUZ,JUAN,SANTOS")
-            const nameParts = qrCode.split(',');
-            if (nameParts.length >= 2) {
-              document.getElementById('lastName').value = nameParts[0].trim();
-              document.getElementById('firstName').value = nameParts[1].trim();
-              if (nameParts.length > 2) {
-                document.getElementById('middleName').value = nameParts[2].trim();
-              }
+  if (scannerRunning) return;
+
+  Html5Qrcode.getCameras().then(cameras => {
+    if (cameras && cameras.length > 0) {
+      const scanner = new Html5Qrcode('reader');
+      scannerRunning = true;
+
+      scanner.start(
+        cameras[0].id,
+        { fps: 10, qrbox: 250 },
+        qrCode => {
+          scanner.stop();
+          scannerRunning = false;
+          document.getElementById('qrData').value = qrCode;
+
+          const nameParts = qrCode.split(',');
+          if (nameParts.length >= 2) {
+            document.getElementById('lastName').value = nameParts[0].trim();
+            document.getElementById('firstName').value = nameParts[1].trim();
+            if (nameParts.length > 2) {
+              document.getElementById('middleName').value = nameParts[2].trim();
             }
-            
-            alert("PhilSys QR scanned successfully!");
-          },
-          error => console.error("QR scan failed:", error)
-        );
-      } else {
-        alert("Camera not found. Please check permissions.");
-      }
-    }).catch(err => {
-      console.error("Camera access error:", err);
-      alert("Cannot access camera. Try uploading an image instead.");
-    });
+          }
+
+          alert("PhilSys QR scanned successfully!");
+        },
+        error => console.error("QR scan failed:", error)
+      );
+    } else {
+      alert("Camera not found. Please check permissions.");
+    }
+  }).catch(err => {
+    console.error("Camera access error:", err);
+    alert("Cannot access camera.");
   });
+});
+
 
 function switchModal(fromId, toId) {
     const fromModal = bootstrap.Modal.getInstance(document.getElementById(fromId));
