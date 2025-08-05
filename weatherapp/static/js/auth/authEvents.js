@@ -10,7 +10,7 @@ import {
   setupPasswordToggles 
 } from './uiHelpers.js';
 
-document.addEventListener('DOMContentLoaded', function() {
+export function initializeAuthModules() {
   // Check if QR scanner library is loaded
   if (typeof Html5Qrcode === 'undefined') {
     console.warn('Html5Qrcode not loaded - QR scanning will be disabled');
@@ -21,14 +21,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  initializeAuthModules();
-  setupEventListeners();
-});
-
-function initializeAuthModules() {
   setupPasswordStrengthIndicator();
   setupPasswordToggles();
   loadProvinces();
+  setupEventListeners();
 }
 
 function setupEventListeners() {
@@ -53,6 +49,12 @@ function setupEventListeners() {
     }
   });
 
+  // Cancel scan button
+  document.getElementById('cancelScanBtn')?.addEventListener('click', function(e) {
+    e.preventDefault();
+    stopQRScanner();
+  });
+
   // Form submissions
   document.getElementById('registerForm')?.addEventListener('submit', handleRegisterSubmit);
   document.getElementById('loginForm')?.addEventListener('submit', handleLoginSubmit);
@@ -61,6 +63,7 @@ function setupEventListeners() {
   document.getElementById('registerModal')?.addEventListener('hidden.bs.modal', function() {
     this.querySelector('form').reset();
     clearModalErrors('registerModal');
+    stopQRScanner();
   });
 
   document.getElementById('loginModal')?.addEventListener('hidden.bs.modal', function() {

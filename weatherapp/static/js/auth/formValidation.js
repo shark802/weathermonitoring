@@ -1,4 +1,4 @@
-const Validators = {
+export const Validators = {
   required: (value, fieldName) => {
     if (!value.trim()) return `${fieldName} is required.`;
     return null;
@@ -40,7 +40,7 @@ const Validators = {
   }
 };
 
-function validateField(fieldId, validator, options = {}) {
+export function validateField(fieldId, validator, options = {}) {
   const input = document.getElementById(fieldId);
   if (!input) return false;
 
@@ -56,7 +56,7 @@ function validateField(fieldId, validator, options = {}) {
   return true;
 }
 
-function setupPasswordStrengthIndicator() {
+export function setupPasswordStrengthIndicator() {
   document.getElementById('regPassword')?.addEventListener('input', function() {
     const password = this.value;
     const requirements = {
@@ -82,4 +82,39 @@ function setupPasswordStrengthIndicator() {
   });
 }
 
-export { Validators, validateField, setupPasswordStrengthIndicator };
+// Helper functions (will be imported from uiHelpers.js)
+function showError(inputId, message) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+
+  input.classList.add('is-invalid');
+
+  let errorElement = input.parentNode.querySelector('.error-message');
+  if (errorElement) {
+    errorElement.textContent = message;
+  } else {
+    errorElement = document.createElement('div');
+    errorElement.className = 'text-danger small mt-1 error-message';
+    errorElement.textContent = message;
+    input.parentNode.insertBefore(errorElement, input.nextSibling);
+  }
+}
+
+function clearError(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+
+  input.classList.remove('is-invalid');
+
+  const wrapper = input.closest('.position-relative');
+  if (wrapper) {
+    const errorElement = wrapper.nextElementSibling;
+    if (errorElement?.classList.contains('error-message')) {
+      errorElement.remove();
+      return;
+    }
+  }
+
+  const fallbackError = input.parentNode.querySelector('.error-message');
+  if (fallbackError) fallbackError.remove();
+}

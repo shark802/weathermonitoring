@@ -1,5 +1,5 @@
 // Error Handling
-function showError(inputId, message) {
+export function showError(inputId, message) {
   const input = document.getElementById(inputId);
   if (!input) return;
 
@@ -16,7 +16,7 @@ function showError(inputId, message) {
   }
 }
 
-function clearError(inputId) {
+export function clearError(inputId) {
   const input = document.getElementById(inputId);
   if (!input) return;
 
@@ -36,7 +36,7 @@ function clearError(inputId) {
 }
 
 // Toast Notifications
-function showToast(type, message) {
+export function showToast(type, message) {
   const container = document.getElementById('toastContainer');
   if (!container) return;
 
@@ -62,7 +62,7 @@ function showToast(type, message) {
 }
 
 // Modal Management
-function switchModal(fromId, toId) {
+export function switchModal(fromId, toId) {
   const fromModal = bootstrap.Modal.getInstance(document.getElementById(fromId));
   const toModalElement = document.getElementById(toId);
 
@@ -80,7 +80,7 @@ function switchModal(fromId, toId) {
   });
 }
 
-function clearModalErrors(modalId) {
+export function clearModalErrors(modalId) {
   const modal = document.getElementById(modalId);
   if (!modal) return;
 
@@ -101,7 +101,7 @@ function clearModalErrors(modalId) {
 }
 
 // Password Toggle
-function setupPasswordToggles() {
+export function setupPasswordToggles() {
   document.querySelectorAll('.toggle-password').forEach(toggle => {
     toggle.addEventListener('click', function() {
       const targetId = this.getAttribute('data-target');
@@ -120,12 +120,3 @@ function setupPasswordToggles() {
     });
   });
 }
-
-export { 
-  showError, 
-  clearError, 
-  showToast, 
-  switchModal, 
-  clearModalErrors, 
-  setupPasswordToggles 
-};
