@@ -10,6 +10,63 @@ import {
   setupPasswordToggles 
 } from './uiHelpers.js';
 
+document.addEventListener('DOMContentLoaded', function () {
+  setupFormValidation();
+  initializeAuthModules();
+});
+
+function setupFormValidation() {
+  const fieldMap = {
+    firstName: () => validateField('firstName', Validators.name, { fieldName: 'First name' }),
+    lastName: () => validateField('lastName', Validators.name, { fieldName: 'Last name' }),
+    regEmail: () => validateField('regEmail', Validators.email),
+    regPhone: () => validateField('regPhone', Validators.phone),
+    regUsername: () => validateField('regUsername', Validators.required, { fieldName: 'Username' }),
+    regPassword: () => validateField('regPassword', Validators.password),
+    confirm_Password: () => {
+      const password = document.getElementById('regPassword').value;
+      return validateField('confirm_Password', (value) => Validators.confirmPassword(password, value));
+    }
+  };
+
+  Object.entries(fieldMap).forEach(([id, validatorFn]) => {
+    const input = document.getElementById(id);
+    if (input) {
+      input.addEventListener('input', () => {
+        if (validatorFn()) clearError(id);
+      });
+    }
+  });
+
+  setupPasswordStrengthIndicator();
+
+  // Username uniqueness check
+  document.getElementById('regUsername')?.addEventListener('blur', function () {
+    const username = this.value.trim();
+    if (!username) return;
+
+    fetch(`/check-username?username=${encodeURIComponent(username)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.exists) showError('regUsername', 'Username already exists.');
+        else clearError('regUsername');
+      });
+  });
+
+  // Name uniqueness check
+  document.getElementById('regName')?.addEventListener('blur', function () {
+    const name = this.value.trim();
+    if (!name) return;
+
+    fetch(`/check-name?name=${encodeURIComponent(name)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.exists) showError('regName', 'Name already exists.');
+        else clearError('regName');
+      });
+  });
+}
+
 export function initializeAuthModules() {
   // Check if QR scanner library is loaded
   if (typeof Html5Qrcode === 'undefined') {
@@ -21,7 +78,6 @@ export function initializeAuthModules() {
     }
   }
 
-  setupPasswordStrengthIndicator();
   setupPasswordToggles();
   loadProvinces();
   setupEventListeners();
