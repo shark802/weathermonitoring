@@ -1,31 +1,35 @@
 let scannerInstance = null;
 let scannerRunning = false;
+let lastErrorTime = 0;
+const ERROR_DEBOUNCE_TIME = 3000; // 3 seconds
 
 async function checkCameraPermissions() {
   try {
     if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('Camera API not supported');
+      throw new Error('Camera API not supported in this browser');
     }
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     stream.getTracks().forEach(track => track.stop());
     return true;
   } catch (error) {
     console.error('Camera permission denied:', error);
-    return false;
+    throw new Error('Camera access was denied. Please enable camera permissions.');
   }
 }
 
 async function startQRScanner() {
-  if (scannerRunning) return;
+  // Prevent multiple simultaneous scanners
+  if (scannerRunning) {
+    console.log('Scanner already running');
+    return true;
+  }
+
   if (typeof Html5Qrcode === 'undefined') {
-    throw new Error('QR Scanner library not loaded');
+    throw new Error('QR Scanner library not loaded. Please refresh the page.');
   }
 
   try {
-    const hasPermission = await checkCameraPermissions();
-    if (!hasPermission) {
-      throw new Error('Camera access was denied. Please enable camera permissions.');
-    }
+    await checkCameraPermissions();
 
     const cameras = await Html5Qrcode.getCameras();
     if (cameras.length === 0) {
@@ -35,56 +39,108 @@ async function startQRScanner() {
     scannerInstance = new Html5Qrcode('reader');
     scannerRunning = true;
 
+    // Try to find back camera
+    const backCamera = findBackCamera(cameras);
+    const cameraId = backCamera ? backCamera.id : cameras[0].id;
+
     await scannerInstance.start(
-      cameras[0].id,
+      cameraId,
       { 
         fps: 10, 
         qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0
+        aspectRatio: 1.0,
+        disableFlip: true // Reduce some error sources
       },
       onQRScanSuccess,
-      onQRScanError
+      (error) => {
+        // Filter out non-critical errors
+        if (!isIgnorableError(error)) {
+          onQRScanError(error);
+        }
+      }
     );
 
-    // Show scanner UI
     document.getElementById('qrScannerContainer').classList.remove('d-none');
     return true;
   } catch (error) {
-    console.error('QR Scanner Error:', error);
     scannerRunning = false;
+    if (scannerInstance) {
+      await scannerInstance.clear();
+    }
+    console.error('QR Scanner initialization failed:', error);
     throw error;
   }
 }
 
-function stopQRScanner() {
-  if (scannerInstance && scannerRunning) {
-    return scannerInstance.stop()
-      .then(() => {
-        scannerRunning = false;
-        document.getElementById('qrScannerContainer').classList.add('d-none');
-        return true;
-      })
-      .catch(error => {
-        console.error('Error stopping scanner:', error);
-        return false;
-      });
+function isIgnorableError(error) {
+  if (!error) return true;
+  
+  // List of errors we can safely ignore
+  const ignorableErrors = [
+    'NotFoundException', 
+    'No multi format readers configured',
+    'Video stream has ended',
+    'QR code parse error, error ='
+  ];
+
+  return ignorableErrors.some(ignorable => 
+    error.toString().includes(ignorable) ||
+    (error.message && error.message.includes(ignorable))
+  );
+}
+
+async function stopQRScanner() {
+  if (!scannerInstance || !scannerRunning) {
+    return false;
   }
-  return Promise.resolve(false);
+
+  try {
+    await scannerInstance.stop();
+    scannerRunning = false;
+    document.getElementById('qrScannerContainer').classList.add('d-none');
+    return true;
+  } catch (error) {
+    console.error('Error stopping scanner:', error);
+    return false;
+  } finally {
+    if (scannerInstance) {
+      scannerInstance.clear();
+    }
+  }
 }
 
 function onQRScanSuccess(decodedText) {
+  const now = Date.now();
+  if (now - lastErrorTime < 1000) return; // Ignore success immediately after error
+  
   stopQRScanner().then(() => {
     document.getElementById('qrData').value = decodedText;
     processPhilSysData(decodedText);
     showToast('success', 'PhilSys QR scanned successfully!');
+  }).catch(error => {
+    console.error('Error during scanner cleanup:', error);
   });
 }
 
 function onQRScanError(error) {
-  if (error && !error.startsWith('No multi format readers configured')) {
-    console.error('QR Scan Error:', error);
-    showToast('error', 'QR scan failed. Please try again.');
+  const now = Date.now();
+  if (now - lastErrorTime < ERROR_DEBOUNCE_TIME) return;
+  lastErrorTime = now;
+
+  if (isIgnorableError(error)) {
+    return;
   }
+
+  console.error('QR Scan Error:', error);
+  
+  let userMessage = 'QR scan failed. Please try again.';
+  if (error.message.includes('permission')) {
+    userMessage = 'Camera access denied. Please enable camera permissions.';
+  } else if (error.message.includes('cameras') || error.message.includes('camera')) {
+    userMessage = 'Camera problem. Please check your camera.';
+  }
+
+  showToast('error', userMessage);
 }
 
 function processPhilSysData(qrData) {
@@ -128,4 +184,4 @@ function showToast(type, message) {
   });
 }
 
-export { startQRScanner, stopQRScanner };
+export { startQRScanner, stopQRScanner, isIgnorableError };
