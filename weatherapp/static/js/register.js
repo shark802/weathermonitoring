@@ -9,7 +9,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 function setupFormValidation() {
   const fieldMap = {
-    regName: validateRequired,
+    firstName: () => validateRequired('firstName', 'First name is required.'),
+    lastName: () => validateRequired('lastName', 'Last name is required.'),
     regEmail: validateEmail,
     regPhone: validatePhone,
     regUsername: validateRequired,
@@ -171,7 +172,8 @@ function clearErrors() {
 // Form validation
 function validateForm() {
   let valid = true;
-  if (!validateRequired('regName', 'Name is required.')) valid = false;
+  if (!validateRequired('firstName', 'First name is required.')) valid = false;
+  if (!validateRequired('lastName', 'Last name is required.')) valid = false;
   if (!validateRequired('province', 'Province is required.')) valid = false;
   if (!validateRequired('city', 'City/Municipality is required.')) valid = false;
   if (!validateRequired('barangay', 'Barangay is required.')) valid = false;
@@ -290,6 +292,7 @@ async function handleFormSubmit(e) {
           username: 'regUsername',
           password: 'regPassword',
           confirm_password: 'confirm_Password',
+          qr_data: 'scanPhilSysQR',
         };
         const inputId = map[field] || null;
         inputId ? showError(inputId, msg) : showToast('error', msg);

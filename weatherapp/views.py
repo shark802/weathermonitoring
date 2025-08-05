@@ -51,9 +51,6 @@ def register_user(request):
         confirm_password = request.POST.get('confirm_password')
         qr_data = request.POST.get('qr_data')
 
-        # =====================
-        # 1. PHILSYS QR VALIDATION
-        # =====================
         if not qr_data:
             errors['qr_data'] = "Please scan your PhilSys QR code"
         else:
@@ -129,8 +126,8 @@ def register_user(request):
             with connection.cursor() as cursor:
                 cursor.execute("""
                     INSERT INTO user (
-                        name,           -- Only storing concatenated full name
-                        address,        -- Only storing concatenated address
+                        name,
+                        address,
                         email, 
                         phone_num, 
                         username, 
