@@ -1,6 +1,6 @@
 import { Validators, validateField, setupPasswordStrengthIndicator } from './formValidation.js';
 import { loadProvinces } from './addressSelect.js';
-import { startQRScanner } from './qrScanner.js';
+import QRScanner from './qrScanner.js'; // Updated import
 import { 
   showError, 
   clearError, 
@@ -68,19 +68,12 @@ function setupFormValidation() {
 }
 
 export function initializeAuthModules() {
-  // Check if QR scanner library is loaded
-  if (typeof Html5Qrcode === 'undefined') {
-    console.warn('Html5Qrcode not loaded - QR scanning will be disabled');
-    const qrButton = document.getElementById('scanPhilSysQR');
-    if (qrButton) {
-      qrButton.disabled = true;
-      qrButton.title = 'QR scanner library not loaded';
-    }
-  }
-
   setupPasswordToggles();
   loadProvinces();
   setupEventListeners();
+  
+  // Initialize QR Scanner module
+  QRScanner.init();
 }
 
 function setupEventListeners() {
@@ -95,22 +88,6 @@ function setupEventListeners() {
     switchModal('registerModal', 'loginModal');
   });
 
-  // QR Scanner
-  document.getElementById('scanPhilSysQR')?.addEventListener('click', async function(e) {
-    e.preventDefault();
-    try {
-      await startQRScanner();
-    } catch (error) {
-      showToast('error', error.message || 'Failed to start QR scanner');
-    }
-  });
-
-  // Cancel scan button
-  document.getElementById('cancelScanBtn')?.addEventListener('click', function(e) {
-    e.preventDefault();
-    stopQRScanner();
-  });
-
   // Form submissions
   document.getElementById('registerForm')?.addEventListener('submit', handleRegisterSubmit);
   document.getElementById('loginForm')?.addEventListener('submit', handleLoginSubmit);
@@ -119,7 +96,6 @@ function setupEventListeners() {
   document.getElementById('registerModal')?.addEventListener('hidden.bs.modal', function() {
     this.querySelector('form').reset();
     clearModalErrors('registerModal');
-    stopQRScanner();
   });
 
   document.getElementById('loginModal')?.addEventListener('hidden.bs.modal', function() {

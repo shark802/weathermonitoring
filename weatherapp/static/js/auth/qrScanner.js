@@ -1,131 +1,206 @@
-let scannerInstance = null;
-let scannerRunning = false;
+// QR Scanner Module
+const QRScanner = (function() {
+  // Constants
+  const SCANNER_CONFIG = {
+    fps: 10,
+    qrbox: { width: 250, height: 250 },
+    aspectRatio: 1.0,
+    supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+    rememberLastUsedCamera: true,
+    showTorchButtonIfSupported: true
+  };
 
-async function checkCameraPermissions() {
-  try {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('Camera API not supported');
-    }
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    stream.getTracks().forEach(track => track.stop());
-    return true;
-  } catch (error) {
-    console.error('Camera permission denied:', error);
-    return false;
-  }
-}
+  const SCANNER_UI_STRINGS = {
+    noCamera: 'No cameras found. Please ensure you have a working camera.',
+    permissionDenied: 'Camera access was denied. Please enable camera permissions.',
+    scanSuccess: 'PhilSys QR scanned successfully!',
+    scanFailed: 'QR scan failed. Please try again.',
+    libraryError: 'QR Scanner library not loaded',
+    invalidQRData: 'The scanned QR code does not contain valid PhilSys data'
+  };
 
-async function startQRScanner() {
-  if (scannerRunning) return;
-  if (typeof Html5Qrcode === 'undefined') {
-    throw new Error('QR Scanner library not loaded');
-  }
+  // State variables
+  let scannerInstance = null;
+  let scannerRunning = false;
+  let currentCameraId = null;
 
-  try {
-    const hasPermission = await checkCameraPermissions();
-    if (!hasPermission) {
-      throw new Error('Camera access was denied. Please enable camera permissions.');
-    }
+  // DOM Elements
+  const scanButton = document.getElementById('scanPhilSysQR');
+  const closeButton = document.getElementById('closeScannerBtn');
+  const scannerContainer = document.getElementById('qrScannerContainer');
+  const qrDataInput = document.getElementById('qrData');
 
-    const cameras = await Html5Qrcode.getCameras();
-    if (cameras.length === 0) {
-      throw new Error('No cameras found. Please ensure you have a working camera.');
-    }
-
-    scannerInstance = new Html5Qrcode('reader');
-    scannerRunning = true;
-
-    await scannerInstance.start(
-      cameras[0].id,
-      { 
-        fps: 10, 
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0
-      },
-      onQRScanSuccess,
-      onQRScanError
-    );
-
-    // Show scanner UI
-    document.getElementById('qrScannerContainer').classList.remove('d-none');
-    return true;
-  } catch (error) {
-    console.error('QR Scanner Error:', error);
-    scannerRunning = false;
-    throw error;
-  }
-}
-
-function stopQRScanner() {
-  if (scannerInstance && scannerRunning) {
-    return scannerInstance.stop()
-      .then(() => {
-        scannerRunning = false;
-        document.getElementById('qrScannerContainer').classList.add('d-none');
-        return true;
-      })
-      .catch(error => {
-        console.error('Error stopping scanner:', error);
-        return false;
-      });
-  }
-  return Promise.resolve(false);
-}
-
-function onQRScanSuccess(decodedText) {
-  stopQRScanner().then(() => {
-    document.getElementById('qrData').value = decodedText;
-    processPhilSysData(decodedText);
-    showToast('success', 'PhilSys QR scanned successfully!');
-  });
-}
-
-function onQRScanError(error) {
-  if (error && !error.startsWith('No multi format readers configured')) {
-    console.error('QR Scan Error:', error);
-    showToast('error', 'QR scan failed. Please try again.');
-  }
-}
-
-function processPhilSysData(qrData) {
-  try {
-    const nameParts = qrData.split(',');
-    if (nameParts.length >= 2) {
-      document.getElementById('lastName').value = nameParts[0].trim();
-      document.getElementById('firstName').value = nameParts[1].trim();
-      if (nameParts.length > 2) {
-        document.getElementById('middleName').value = nameParts[2].trim();
+  // Permission Check
+  async function checkCameraPermissions() {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Camera API not supported');
       }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    } catch (error) {
+      console.error('Camera permission denied:', error);
+      return false;
     }
-  } catch (error) {
-    console.error('Error processing PhilSys data:', error);
   }
-}
 
-// Helper function (will be imported from uiHelpers.js)
-function showToast(type, message) {
-  const container = document.getElementById('toastContainer');
-  if (!container) return;
+  // Scanner Control
+  async function startScanner() {
+    if (scannerRunning) return;
+    
+    try {
+      // Show loading state
+      setButtonLoading(true);
 
-  const toastEl = document.createElement('div');
-  toastEl.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0`;
-  toastEl.setAttribute('role', 'alert');
-  toastEl.setAttribute('aria-live', 'assertive');
-  toastEl.setAttribute('aria-atomic', 'true');
-  toastEl.innerHTML = `
-    <div class="d-flex">
-      <div class="toast-body">${message}</div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-    </div>
-  `;
+      if (typeof Html5Qrcode === 'undefined') {
+        throw new Error(SCANNER_UI_STRINGS.libraryError);
+      }
 
-  container.appendChild(toastEl);
-  const toast = new bootstrap.Toast(toastEl);
-  toast.show();
+      const hasPermission = await checkCameraPermissions();
+      if (!hasPermission) {
+        throw new Error(SCANNER_UI_STRINGS.permissionDenied);
+      }
 
-  toastEl.addEventListener('hidden.bs.toast', () => {
-    toastEl.remove();
-  });
-}
+      const cameras = await Html5Qrcode.getCameras();
+      if (cameras.length === 0) {
+        throw new Error(SCANNER_UI_STRINGS.noCamera);
+      }
 
-export { startQRScanner, stopQRScanner };
+      scannerInstance = new Html5Qrcode('reader');
+      scannerRunning = true;
+
+      // Try to use back camera if available
+      currentCameraId = cameras[0].id;
+      const backCamera = cameras.find(cam => cam.label.toLowerCase().includes('back'));
+      if (backCamera) {
+        currentCameraId = backCamera.id;
+      }
+
+      await scannerInstance.start(
+        currentCameraId,
+        SCANNER_CONFIG,
+        onScanSuccess,
+        onScanError
+      );
+
+      // Update UI
+      scannerContainer.classList.remove('d-none');
+      scanButton.style.display = 'none';
+      
+      return true;
+    } catch (error) {
+      console.error('QR Scanner Error:', error);
+      scannerRunning = false;
+      setButtonLoading(false);
+      showToast('error', error.message);
+      throw error;
+    }
+  }
+
+  function stopScanner() {
+    if (scannerInstance && scannerRunning) {
+      return scannerInstance.stop()
+        .then(() => {
+          scannerRunning = false;
+          scannerContainer.classList.add('d-none');
+          resetButtonState();
+          return true;
+        })
+        .catch(error => {
+          console.error('Error stopping scanner:', error);
+          return false;
+        });
+    }
+    return Promise.resolve(false);
+  }
+
+  // Event Handlers
+  function onScanSuccess(decodedText) {
+    stopScanner().then(() => {
+      qrDataInput.value = decodedText;
+      processPhilSysData(decodedText);
+      showToast('success', SCANNER_UI_STRINGS.scanSuccess);
+    });
+  }
+
+  function onScanError(error) {
+    // Ignore certain benign errors
+    if (error && !error.startsWith('No multi format readers configured')) {
+      console.error('QR Scan Error:', error);
+      showToast('error', SCANNER_UI_STRINGS.scanFailed);
+    }
+  }
+
+  // Data Processing
+  function processPhilSysData(qrData) {
+    try {
+      // Basic validation
+      if (!qrData || typeof qrData !== 'string') {
+        throw new Error('Invalid QR data');
+      }
+
+      const nameParts = qrData.split(',').map(part => part.trim());
+      
+      if (nameParts.length < 2) {
+        throw new Error('QR data does not contain complete name information');
+      }
+
+      // Update fields only if they're empty
+      const lastNameField = document.getElementById('lastName');
+      const firstNameField = document.getElementById('firstName');
+      const middleNameField = document.getElementById('middleName');
+
+      if (!lastNameField.value) lastNameField.value = nameParts[0];
+      if (!firstNameField.value) firstNameField.value = nameParts[1];
+      if (nameParts.length > 2 && !middleNameField.value) {
+        middleNameField.value = nameParts[2];
+      }
+    } catch (error) {
+      console.error('Error processing PhilSys data:', error);
+      showToast('error', SCANNER_UI_STRINGS.invalidQRData);
+    }
+  }
+
+  // UI Helpers
+  function setButtonLoading(isLoading) {
+    if (isLoading) {
+      scanButton.disabled = true;
+      scanButton.innerHTML = 
+        '<span class="spinner-border spinner-border-sm" role="status"></span> Initializing scanner...';
+    } else {
+      scanButton.disabled = false;
+      scanButton.innerHTML = 
+        '<i class="fas fa-qrcode me-2"></i>Scan PhilSys QR Code';
+    }
+  }
+
+  function resetButtonState() {
+    scanButton.style.display = 'block';
+    setButtonLoading(false);
+  }
+
+  // Initialize
+  function init() {
+    if (scanButton && closeButton) {
+      scanButton.addEventListener('click', startScanner);
+      closeButton.addEventListener('click', stopScanner);
+    }
+
+    // Cleanup when modal closes
+    const registerModal = document.getElementById('registerModal');
+    if (registerModal) {
+      registerModal.addEventListener('hidden.bs.modal', stopScanner);
+    }
+  }
+
+  // Public API
+  return {
+    init,
+    start: startScanner,
+    stop: stopScanner
+  };
+})();
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', QRScanner.init);
