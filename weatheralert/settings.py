@@ -9,8 +9,6 @@ https://docs.djangoproject.com/en/4.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.1/ref/settings/
 """
-import pymysql
-pymysql.install_as_MySQLdb()
 from pathlib import Path
 import os
 import dj_database_url
@@ -28,7 +26,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-d0a@+xqkrda!+gb$6huxl
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['bccweather-629d88a334c9.herokuapp.com', 'localhost', '127.0.0.1', '192.168.32.107']
+ALLOWED_HOSTS = ['bccweather.herokuapp.com', 'bccweather-629d88a334c9.herokuapp.com', 'localhost', '127.0.0.1', '192.168.32.107']
 
 
 # Application definition
@@ -135,20 +133,14 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
-import django_heroku
-django_heroku.settings(locals())
-
-# Static files
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# Replace your static files config with:
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'weatherapp/static/weatherapp')]
 
-# Extra places for collectstatic to find static files.
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'weatherapp/static'),
-]
-
-# Simplified static file serving.
+# WhiteNoise configuration
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+WHITENOISE_MANIFEST_STRICT = False
 
 STATICFILES_FINDERS = [
     'django.contrib.staticfiles.finders.FileSystemFinder',
@@ -164,8 +156,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'rainalertcaps@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'clmz izuz zphx tnrw')
+EMAIL_HOST_USER = 'rainalertcaps@gmail.com'
+EMAIL_HOST_PASSWORD = 'clmz izuz zphx tnrw'
 DEFAULT_FROM_EMAIL = 'WeatherAlert <rainalertcaps@gmail.com>'
 
 LOGIN_URL = 'login'
@@ -194,3 +186,7 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    
+    
+import django_heroku
+django_heroku.settings(locals(), databases=False)
