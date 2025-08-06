@@ -1,6 +1,5 @@
 import { Validators, validateField, setupPasswordStrengthIndicator } from './formValidation.js';
 import { loadProvinces } from './addressSelect.js';
-import QRScanner from './qrScanner.js'; // Updated import
 import { 
   showError, 
   clearError, 
