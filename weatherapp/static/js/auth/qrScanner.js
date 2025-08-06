@@ -5,7 +5,7 @@ const QRScanner = (function() {
     fps: 10,
     qrbox: { width: 250, height: 250 },
     aspectRatio: 1.0,
-    supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+    supportedScanTypes: [window.Html5QrcodeScanType.SCAN_TYPE_CAMERA],
     rememberLastUsedCamera: true,
     showTorchButtonIfSupported: true
   };

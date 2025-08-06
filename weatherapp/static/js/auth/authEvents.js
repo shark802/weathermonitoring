@@ -71,9 +71,6 @@ export function initializeAuthModules() {
   setupPasswordToggles();
   loadProvinces();
   setupEventListeners();
-  
-  // Initialize QR Scanner module
-  QRScanner.init();
 }
 
 function setupEventListeners() {
