@@ -1,5 +1,5 @@
 import { Validators, validateField, setupPasswordStrengthIndicator } from './formValidation.js';
-import { loadProvinces } from './addressSelect.js';
+import { loadProvinces, setupProvinceDropdownListener } from './addressSelect.js';
 import { 
   showError, 
   clearError, 
@@ -11,7 +11,10 @@ import {
 
 document.addEventListener('DOMContentLoaded', function () {
   setupFormValidation();
-  initializeAuthModules();
+  setupPasswordToggles();
+  loadProvinces();
+  setupProvinceDropdownListener();
+  setupEventListeners();
 });
 
 function setupFormValidation() {

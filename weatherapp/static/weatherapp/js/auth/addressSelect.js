@@ -1,12 +1,10 @@
-const psgcCache = {
-  provinces: null,
-  municipalities: {},
-  cities: {},
-  barangays: {}
-};
+// addressSelect.js
+import { showToast } from './uiHelpers.js';
+
+const psgcCache = {};
 
 async function fetchWithCache(url, cacheKey) {
-  if (psgcCache[cacheKey]) {
+  if (psgcCache[cacheKey] !== null && psgcCache[cacheKey] !== undefined) {
     return psgcCache[cacheKey];
   }
 
@@ -22,13 +20,13 @@ async function fetchWithCache(url, cacheKey) {
   }
 }
 
-async function loadProvinces() {
+export async function loadProvinces() {
   try {
     const provinces = await fetchWithCache(
       'https://psgc.gitlab.io/api/provinces',
       'provinces'
     );
-    
+
     const dropdown = document.getElementById('province-dropdown');
     if (!dropdown) return;
 
@@ -37,17 +35,21 @@ async function loadProvinces() {
       dropdown.innerHTML += `<option value="${province.code}">${province.name}</option>`;
     });
 
-    // Enable city dropdown when province is selected
-    dropdown.addEventListener('change', async () => {
-      const provinceCode = dropdown.value;
-      if (!provinceCode) return;
-
-      await loadCitiesAndMunicipalities(provinceCode);
-    });
-
   } catch (error) {
     showToast('error', 'Failed to load provinces. Please try again.');
   }
+}
+
+export function setupProvinceDropdownListener() {
+  const dropdown = document.getElementById('province-dropdown');
+  if (!dropdown) return;
+
+  dropdown.addEventListener('change', async () => {
+    const provinceCode = dropdown.value;
+    if (!provinceCode) return;
+
+    await loadCitiesAndMunicipalities(provinceCode);
+  });
 }
 
 async function loadCitiesAndMunicipalities(provinceCode) {
@@ -64,29 +66,24 @@ async function loadCitiesAndMunicipalities(provinceCode) {
     ]);
 
     const cityDropdown = document.getElementById('city-dropdown');
-    if (!cityDropdown) return;
+    const barangayDropdown = document.getElementById('barangay-dropdown');
+
+    if (!cityDropdown || !barangayDropdown) return;
 
     cityDropdown.innerHTML = '<option value="" disabled selected>Select City/Municipality</option>';
-    
-    // Add municipalities
-    municipalities.forEach(municipality => {
-      cityDropdown.innerHTML += `
-        <option value="${municipality.code}" data-type="municipality">
-          ${municipality.name}
-        </option>`;
+    barangayDropdown.innerHTML = '<option value="" disabled selected>Select Barangay</option>';
+    barangayDropdown.disabled = true;
+
+    municipalities.forEach(m => {
+      cityDropdown.innerHTML += `<option value="${m.code}" data-type="municipality">${m.name}</option>`;
     });
 
-    // Add cities
-    cities.forEach(city => {
-      cityDropdown.innerHTML += `
-        <option value="${city.code}" data-type="city">
-          ${city.name}
-        </option>`;
+    cities.forEach(c => {
+      cityDropdown.innerHTML += `<option value="${c.code}" data-type="city">${c.name}</option>`;
     });
 
     cityDropdown.disabled = false;
 
-    // Enable barangay dropdown when city/municipality is selected
     cityDropdown.addEventListener('change', async () => {
       const selectedCode = cityDropdown.value;
       const selectedType = cityDropdown.options[cityDropdown.selectedIndex].dataset.type;
@@ -100,7 +97,7 @@ async function loadCitiesAndMunicipalities(provinceCode) {
 
 async function loadBarangays(code, type) {
   try {
-    const url = type === 'city' 
+    const url = type === 'city'
       ? `https://psgc.gitlab.io/api/cities/${code}/barangays/`
       : `https://psgc.gitlab.io/api/municipalities/${code}/barangays/`;
 
@@ -115,36 +112,7 @@ async function loadBarangays(code, type) {
     });
 
     barangayDropdown.disabled = false;
-
   } catch (error) {
     showToast('error', 'Failed to load barangays. Please try again.');
   }
 }
-
-// Helper function (will be imported from uiHelpers.js)
-function showToast(type, message) {
-  const container = document.getElementById('toastContainer');
-  if (!container) return;
-
-  const toastEl = document.createElement('div');
-  toastEl.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0`;
-  toastEl.setAttribute('role', 'alert');
-  toastEl.setAttribute('aria-live', 'assertive');
-  toastEl.setAttribute('aria-atomic', 'true');
-  toastEl.innerHTML = `
-    <div class="d-flex">
-      <div class="toast-body">${message}</div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-    </div>
-  `;
-
-  container.appendChild(toastEl);
-  const toast = new bootstrap.Toast(toastEl);
-  toast.show();
-
-  toastEl.addEventListener('hidden.bs.toast', () => {
-    toastEl.remove();
-  });
-}
-
-export { loadProvinces };

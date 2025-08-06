@@ -1,4 +1,5 @@
-// Error Handling
+// uiHelpers.js
+
 export function showError(inputId, message) {
   const input = document.getElementById(inputId);
   if (!input) return;
@@ -6,14 +7,13 @@ export function showError(inputId, message) {
   input.classList.add('is-invalid');
 
   let errorElement = input.parentNode.querySelector('.error-message');
-  if (errorElement) {
-    errorElement.textContent = message;
-  } else {
+  if (!errorElement) {
     errorElement = document.createElement('div');
     errorElement.className = 'text-danger small mt-1 error-message';
-    errorElement.textContent = message;
     input.parentNode.insertBefore(errorElement, input.nextSibling);
   }
+
+  errorElement.textContent = message;
 }
 
 export function clearError(inputId) {
@@ -21,21 +21,10 @@ export function clearError(inputId) {
   if (!input) return;
 
   input.classList.remove('is-invalid');
-
-  const wrapper = input.closest('.position-relative');
-  if (wrapper) {
-    const errorElement = wrapper.nextElementSibling;
-    if (errorElement?.classList.contains('error-message')) {
-      errorElement.remove();
-      return;
-    }
-  }
-
-  const fallbackError = input.parentNode.querySelector('.error-message');
-  if (fallbackError) fallbackError.remove();
+  const errorElement = input.parentNode.querySelector('.error-message');
+  if (errorElement) errorElement.remove();
 }
 
-// Toast Notifications
 export function showToast(type, message) {
   const container = document.getElementById('toastContainer');
   if (!container) return;
@@ -61,7 +50,6 @@ export function showToast(type, message) {
   });
 }
 
-// Modal Management
 export function switchModal(fromId, toId) {
   const fromModal = bootstrap.Modal.getInstance(document.getElementById(fromId));
   const toModalElement = document.getElementById(toId);
@@ -72,10 +60,8 @@ export function switchModal(fromId, toId) {
   }
 
   fromModal.hide();
-  
   document.getElementById(fromId).addEventListener('hidden.bs.modal', function handler() {
-    const toModal = new bootstrap.Modal(toModalElement);
-    toModal.show();
+    new bootstrap.Modal(toModalElement).show();
     this.removeEventListener('hidden.bs.modal', handler);
   });
 }
@@ -84,30 +70,22 @@ export function clearModalErrors(modalId) {
   const modal = document.getElementById(modalId);
   if (!modal) return;
 
-  modal.querySelectorAll('.is-invalid').forEach(input => {
-    input.classList.remove('is-invalid');
-  });
-
-  modal.querySelectorAll('.error-message').forEach(msg => {
-    msg.remove();
-  });
+  modal.querySelectorAll('.is-invalid').forEach(input => input.classList.remove('is-invalid'));
+  modal.querySelectorAll('.error-message').forEach(msg => msg.remove());
 
   ['length', 'upper', 'lower', 'number', 'special'].forEach(key => {
-    const check = modal.querySelector(`.req-${key} .fa-check-circle`);
-    const cross = modal.querySelector(`.req-${key} .fa-times-circle`);
-    check?.classList.add('d-none');
-    cross?.classList.remove('d-none');
+    modal.querySelector(`.req-${key} .fa-check-circle`)?.classList.add('d-none');
+    modal.querySelector(`.req-${key} .fa-times-circle`)?.classList.remove('d-none');
   });
 }
 
-// Password Toggle
 export function setupPasswordToggles() {
   document.querySelectorAll('.toggle-password').forEach(toggle => {
-    toggle.addEventListener('click', function() {
+    toggle.addEventListener('click', function () {
       const targetId = this.getAttribute('data-target');
       const input = document.getElementById(targetId);
       const icon = this.querySelector('i');
-      
+
       if (input.type === 'password') {
         input.type = 'text';
         icon.classList.replace('fa-eye', 'fa-eye-slash');
