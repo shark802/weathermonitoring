@@ -4,24 +4,33 @@ export function showError(inputId, message) {
   const input = document.getElementById(inputId);
   if (!input) return;
 
-  input.classList.add('is-invalid');
+  // Skip is-invalid for password fields
+  if (!['regPassword', 'confirm_Password'].includes(inputId)) {
+    input.classList.add('is-invalid');
+  }
 
-  let errorElement = input.parentNode.querySelector('.error-message');
+  const container = input.closest('.mb-3') || input.parentElement;
+
+  let errorElement = container.querySelector('.error-message');
   if (!errorElement) {
     errorElement = document.createElement('div');
     errorElement.className = 'text-danger small mt-1 error-message';
-    input.parentNode.insertBefore(errorElement, input.nextSibling);
+
+    const insertAfter = input.closest('.position-relative') || input;
+    insertAfter.insertAdjacentElement('afterend', errorElement);
   }
 
   errorElement.textContent = message;
 }
+
 
 export function clearError(inputId) {
   const input = document.getElementById(inputId);
   if (!input) return;
 
   input.classList.remove('is-invalid');
-  const errorElement = input.parentNode.querySelector('.error-message');
+  const container = input.closest('.input-wrapper') || input.closest('.mb-3') || input.parentElement;
+  const errorElement = container.querySelector('.error-message');
   if (errorElement) errorElement.remove();
 }
 
