@@ -1,4 +1,4 @@
-// QR Scanner Module
+// qrScanner.js
 const QRScanner = (function() {
   // Constants
   const SCANNER_CONFIG = {
@@ -10,19 +10,9 @@ const QRScanner = (function() {
     showTorchButtonIfSupported: true
   };
 
-  const SCANNER_UI_STRINGS = {
-    noCamera: 'No cameras found. Please ensure you have a working camera.',
-    permissionDenied: 'Camera access was denied. Please enable camera permissions.',
-    scanSuccess: 'PhilSys QR scanned successfully!',
-    scanFailed: 'QR scan failed. Please try again.',
-    libraryError: 'QR Scanner library not loaded',
-    invalidQRData: 'The scanned QR code does not contain valid PhilSys data'
-  };
-
   // State variables
   let scannerInstance = null;
   let scannerRunning = false;
-  let currentCameraId = null;
 
   // DOM Elements
   const scanButton = document.getElementById('scanPhilSysQR');
@@ -34,7 +24,7 @@ const QRScanner = (function() {
   async function checkCameraPermissions() {
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('Camera API not supported');
+        throw new Error('Camera API not supported in this browser');
       }
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       stream.getTracks().forEach(track => track.stop());
@@ -46,7 +36,7 @@ const QRScanner = (function() {
   }
 
   // Scanner Control
-  async function startScanner() {
+  async function start() {
     if (scannerRunning) return;
     
     try {
@@ -54,31 +44,31 @@ const QRScanner = (function() {
       setButtonLoading(true);
 
       if (typeof Html5Qrcode === 'undefined') {
-        throw new Error(SCANNER_UI_STRINGS.libraryError);
+        throw new Error('QR scanner library not loaded');
       }
 
       const hasPermission = await checkCameraPermissions();
       if (!hasPermission) {
-        throw new Error(SCANNER_UI_STRINGS.permissionDenied);
+        throw new Error('Please enable camera permissions to use the QR scanner');
       }
 
       const cameras = await Html5Qrcode.getCameras();
       if (cameras.length === 0) {
-        throw new Error(SCANNER_UI_STRINGS.noCamera);
+        throw new Error('No cameras found on this device');
       }
 
       scannerInstance = new Html5Qrcode('reader');
       scannerRunning = true;
 
       // Try to use back camera if available
-      currentCameraId = cameras[0].id;
+      let cameraId = cameras[0].id;
       const backCamera = cameras.find(cam => cam.label.toLowerCase().includes('back'));
       if (backCamera) {
-        currentCameraId = backCamera.id;
+        cameraId = backCamera.id;
       }
 
       await scannerInstance.start(
-        currentCameraId,
+        cameraId,
         SCANNER_CONFIG,
         onScanSuccess,
         onScanError
@@ -88,7 +78,6 @@ const QRScanner = (function() {
       scannerContainer.classList.remove('d-none');
       scanButton.style.display = 'none';
       
-      return true;
     } catch (error) {
       console.error('QR Scanner Error:', error);
       scannerRunning = false;
@@ -98,7 +87,7 @@ const QRScanner = (function() {
     }
   }
 
-  function stopScanner() {
+  function stop() {
     if (scannerInstance && scannerRunning) {
       return scannerInstance.stop()
         .then(() => {
@@ -117,10 +106,10 @@ const QRScanner = (function() {
 
   // Event Handlers
   function onScanSuccess(decodedText) {
-    stopScanner().then(() => {
+    stop().then(() => {
       qrDataInput.value = decodedText;
       processPhilSysData(decodedText);
-      showToast('success', SCANNER_UI_STRINGS.scanSuccess);
+      showToast('success', 'QR code scanned successfully!');
     });
   }
 
@@ -128,14 +117,12 @@ const QRScanner = (function() {
     // Ignore certain benign errors
     if (error && !error.startsWith('No multi format readers configured')) {
       console.error('QR Scan Error:', error);
-      showToast('error', SCANNER_UI_STRINGS.scanFailed);
     }
   }
 
   // Data Processing
   function processPhilSysData(qrData) {
     try {
-      // Basic validation
       if (!qrData || typeof qrData !== 'string') {
         throw new Error('Invalid QR data');
       }
@@ -158,7 +145,7 @@ const QRScanner = (function() {
       }
     } catch (error) {
       console.error('Error processing PhilSys data:', error);
-      showToast('error', SCANNER_UI_STRINGS.invalidQRData);
+      showToast('error', 'The scanned QR code does not contain valid PhilSys data');
     }
   }
 
@@ -167,7 +154,7 @@ const QRScanner = (function() {
     if (isLoading) {
       scanButton.disabled = true;
       scanButton.innerHTML = 
-        '<span class="spinner-border spinner-border-sm" role="status"></span> Initializing scanner...';
+        '<span class="spinner-border spinner-border-sm" role="status"></span> Initializing...';
     } else {
       scanButton.disabled = false;
       scanButton.innerHTML = 
@@ -180,27 +167,51 @@ const QRScanner = (function() {
     setButtonLoading(false);
   }
 
+  function showToast(type, message) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toastEl = document.createElement('div');
+    toastEl.className = `toast show align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0`;
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    toastEl.innerHTML = `
+      <div class="d-flex">
+        <div class="toast-body">${message}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    `;
+
+    container.appendChild(toastEl);
+    
+    // Auto-remove toast after 5 seconds
+    setTimeout(() => {
+      toastEl.remove();
+    }, 5000);
+  }
+
   // Initialize
   function init() {
     if (scanButton && closeButton) {
-      scanButton.addEventListener('click', startScanner);
-      closeButton.addEventListener('click', stopScanner);
+      scanButton.addEventListener('click', start);
+      closeButton.addEventListener('click', stop);
     }
 
     // Cleanup when modal closes
     const registerModal = document.getElementById('registerModal');
     if (registerModal) {
-      registerModal.addEventListener('hidden.bs.modal', stopScanner);
+      registerModal.addEventListener('hidden.bs.modal', stop);
     }
   }
 
   // Public API
   return {
     init,
-    start: startScanner,
-    stop: stopScanner
+    start,
+    stop
   };
 })();
 
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', QRScanner.init);
+// Export as default
+export default QRScanner;
