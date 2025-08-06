@@ -1,11 +1,15 @@
 // qrScanner.js
 const QRScanner = (function() {
-  // Constants
+  // Get scan type from global scope or provide default
+  const ScanType = window.Html5QrcodeScanType || { 
+    SCAN_TYPE_CAMERA: 1
+  };
+
   const SCANNER_CONFIG = {
     fps: 10,
     qrbox: { width: 250, height: 250 },
     aspectRatio: 1.0,
-    supportedScanTypes: [window.Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+    supportedScanTypes: [ScanType.SCAN_TYPE_CAMERA],
     rememberLastUsedCamera: true,
     showTorchButtonIfSupported: true
   };
