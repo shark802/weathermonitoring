@@ -4,7 +4,7 @@ import QrScanner from 'https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.
 // Point to the worker you copied
 QrScanner.WORKER_PATH = '/staticfiles/qrscanner/js/qr-scanner-worker.min.js';
 
-export const QRScanner = (function() {
+const QRScanner = (function() {
   const videoEl     = document.getElementById('qr-video');
   const scanBtn     = document.getElementById('scanPhilSysQR');
   const closeBtn    = document.getElementById('closeScannerBtn');
@@ -83,5 +83,7 @@ export const QRScanner = (function() {
       ?.addEventListener('hidden.bs.modal', stop);
   }
 
-  return { init };
+  return { init, start, stop };
 })();
+
+export { QRScanner };
