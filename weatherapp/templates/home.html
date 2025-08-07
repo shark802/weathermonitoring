@@ -51,7 +51,7 @@
   <nav class="bg-white/50 backdrop-blur-md shadow-sm fixed w-full z-50 border-b border-gray-100">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
         <div class="flex items-center space-x-3">
-            <img src="{% static 'weatherapp/images/logo.png' %}" alt="Logo" class="h-8 w-8">
+            <img src="{% static 'images/logo.png' %}" alt="Logo" class="h-8 w-8">
             <h1 class="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent whitespace-nowrap">
                 WeatherAlert
             </h1>
@@ -404,7 +404,7 @@
         {% csrf_token %}
         <div class="modal-header position-relative">
           <div class="flex items-center justify-center w-full">
-            <img src="{% static 'weatherapp/images/logo.png' %}" alt="Logo" class="h-8 w-8 mr-2">
+            <img src="{% static 'images/logo.png' %}" alt="Logo" class="h-8 w-8 mr-2">
             <h5 class="modal-title text-blue-600 fw-bold" id="registerModalLabel">Create An Account</h5>
           </div>
           <button type="button" class="btn-close position-absolute end-0 me-2" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -607,7 +607,7 @@
     import './weatherapp/js/auth/authEvents.js';
   </script>
 
-  <script src="{% static 'weatherapp/js/qrScanner.js' %}"></script>
+  <script src="{% static 'js/auth/qrScanner.js' %}"></script>
   <script>
     // Kick off our module
     document.addEventListener('DOMContentLoaded', () => {
