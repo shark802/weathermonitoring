@@ -422,10 +422,19 @@
             <small class="d-block text-muted mt-1">Scan your PhilSys National ID for automatic verification</small>
           </div>
 
-          <div id="qrScannerContainer" class="d-none">
-            <div id="reader" class="qr-scanner-viewport"></div>
+          <div id="qrScannerContainer" class="d-none position-relative">
+            <div id="reader" class="qr-scanner-viewport">
+              <div class="scanner-loading-fallback d-flex justify-content-center align-items-center h-100">
+                <div class="text-center text-white">
+                  <div class="spinner-border mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                  <p>Loading scanner...</p>
+                </div>
+              </div>
+            </div>
             <button id="closeScannerBtn" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2">
-              <i class="fas fa-times"></i> Close Scanner
+              <i class="fas fa-times"></i> Close
             </button>
           </div>
 
@@ -605,19 +614,146 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    window.Html5QrcodeScanType = window.Html5QrcodeScanner?.Html5QrcodeScanType || {
+  // 1. Define scanner types with proper fallback
+  window.Html5QrcodeScanType = window.Html5QrcodeScanner?.Html5QrcodeScanType || {
     SCAN_TYPE_CAMERA: 0,
     SCAN_TYPE_FILE: 1 
   };
-  </script>
 
-  <script type="module">
-    import './weatherapp/js/auth/authEvents.js';
-    import QRScanner from './weatherapp/js/auth/qrScanner.js';
+  // 2. Preload the scanner library
+  function preloadScannerLibrary() {
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.href = 'https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js';
+    link.as = 'script';
+    link.crossOrigin = 'anonymous';
+    document.head.appendChild(link);
+  }
+  preloadScannerLibrary();
+</script>
 
-    document.addEventListener('DOMContentLoaded', () => {
-      QRScanner.init();
-    });
-  </script>
+<script type="module">
+  // 3. Main module with enhanced error handling
+  (async function() {
+    // Configuration constants
+    const MODULE_PATHS = {
+      scanner: './weatherapp/js/auth/qrScanner.js',
+      authEvents: './weatherapp/js/auth/authEvents.js'
+    };
+    
+    const MAX_RETRIES = 2;
+    const RETRY_DELAY = 1000;
+
+    // Retryable import function
+    async function importWithRetry(modulePath, retries = MAX_RETRIES) {
+      try {
+        return await import(modulePath);
+      } catch (err) {
+        if (retries > 0) {
+          console.warn(`Retrying ${modulePath}... (${retries} attempts left)`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+          return importWithRetry(modulePath, retries - 1);
+        }
+        throw err;
+      }
+    }
+
+    // Main loading logic
+    try {
+      // Load critical modules with retry
+      const [QRScanner, _] = await Promise.allSettled([
+        importWithRetry(MODULE_PATHS.scanner),
+        importWithRetry(MODULE_PATHS.authEvents)
+      ]);
+
+      // Handle scanner loading result
+      if (QRScanner.status === 'rejected') {
+        throw new Error('Failed to load QR Scanner module');
+      }
+
+      // Initialize when DOM is ready
+      const domReady = new Promise(resolve => {
+        if (document.readyState !== 'loading') {
+          resolve();
+        } else {
+          document.addEventListener('DOMContentLoaded', resolve);
+        }
+      });
+
+      await domReady;
+      
+      try {
+        await QRScanner.value.default.init();
+        console.debug('QR Scanner initialized successfully');
+        
+        // Monitor scanner container for dynamic changes
+        if (document.getElementById('qrScannerContainer')) {
+          new MutationObserver(() => {
+            if (!document.getElementById('reader')) {
+              console.warn('Scanner container was modified');
+            }
+          }).observe(document.getElementById('qrScannerContainer'), {
+            childList: true,
+            subtree: true
+          });
+        }
+      } catch (initError) {
+        console.error('Initialization error:', initError);
+        showErrorState('Scanner initialization failed');
+      }
+
+    } catch (mainError) {
+      console.error('Main module error:', mainError);
+      showErrorState('Scanner functionality unavailable');
+    }
+
+    // Error handling UI
+    function showErrorState(message) {
+      // Update scan button
+      const scanButton = document.getElementById('scanPhilSysQR');
+      if (scanButton) {
+        scanButton.disabled = true;
+        scanButton.innerHTML = `
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          ${message}
+        `;
+        scanButton.classList.add('btn-danger', 'disabled');
+      }
+      
+      // Show toast notification
+      const toastContainer = document.getElementById('toastContainer') || 
+                           document.createElement('div');
+      if (!toastContainer.id) {
+        toastContainer.id = 'toastContainer';
+        toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+        toastContainer.style.zIndex = '1100';
+        document.body.appendChild(toastContainer);
+      }
+
+      const toastId = `toast-${Date.now()}`;
+      const errorToast = document.createElement('div');
+      errorToast.id = toastId;
+      errorToast.className = 'toast show align-items-center text-white bg-danger border-0';
+      errorToast.setAttribute('role', 'alert');
+      errorToast.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            ${message}. Please refresh the page.
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" 
+                  onclick="document.getElementById('${toastId}').remove()">
+          </button>
+        </div>
+      `;
+      
+      toastContainer.appendChild(errorToast);
+      setTimeout(() => {
+        const toast = document.getElementById(toastId);
+        if (toast) toast.remove();
+      }, 5000);
+    }
+  })();
+</script>
 </body>
 </html>

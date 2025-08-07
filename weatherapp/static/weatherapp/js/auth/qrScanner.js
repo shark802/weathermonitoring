@@ -1,24 +1,25 @@
 import { Html5Qrcode } from 'https://unpkg.com/html5-qrcode@2.3.8?module';
 
 const QRScanner = (function() {
-  const ScanType = window.Html5QrcodeScanType || { SCAN_TYPE_CAMERA: 0 };
+  // Initialize with null and handle loading state
+  let scannerInstance = null;
+  let scannerRunning = false;
+  let libraryLoaded = false;
+  let loadAttempted = false;
+
+  const ScanType = {
+    SCAN_TYPE_CAMERA: 0,
+    SCAN_TYPE_FILE: 1
+  };
 
   const SCANNER_CONFIG = {
     fps: 10,
-    qrbox: function(viewfinderWidth, viewfinderHeight) {
-      const size = Math.min(250, Math.min(viewfinderWidth, viewfinderHeight) * 0.8);
-      return { width: size, height: size };
-    },
+    qrbox: { width: 250, height: 250 },
     aspectRatio: 1.0,
     supportedScanTypes: [ScanType.SCAN_TYPE_CAMERA],
     rememberLastUsedCamera: true,
     showTorchButtonIfSupported: true
   };
-
-  let scannerInstance = null;
-  let scannerRunning = false;
-  const toastQueue = [];
-  let isToastShowing = false;
 
   // DOM elements cache
   const domElements = {
@@ -26,24 +27,27 @@ const QRScanner = (function() {
     closeButton: null,
     scannerContainer: null,
     qrDataInput: null,
-    lastNameField: null,
-    firstNameField: null,
-    middleNameField: null,
-    toastContainer: null,
-    registerModal: null
+    toastContainer: null
   };
 
-  // Permission Check
-  async function checkCameraPermissions() {
+  // Load the library with retry mechanism
+  async function loadLibrary() {
+    if (libraryLoaded) return true;
+    if (loadAttempted) return false;
+
+    loadAttempted = true;
+    
     try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error('Camera API not supported in this browser');
+      // Verify Html5Qrcode is available
+      if (typeof Html5Qrcode === 'undefined') {
+        throw new Error('QR Scanner library failed to load');
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach(track => track.stop());
+      
+      libraryLoaded = true;
       return true;
     } catch (error) {
-      console.error('Camera permission denied:', error);
+      console.error('Library loading error:', error);
+      showToast('error', 'Failed to load scanner library. Please refresh the page.');
       return false;
     }
   }
@@ -53,10 +57,16 @@ const QRScanner = (function() {
     
     try {
       setButtonLoading(true);
+      
+      // Ensure library is loaded
+      const isLoaded = await loadLibrary();
+      if (!isLoaded) {
+        throw new Error('Scanner library not available');
+      }
 
       const hasPermission = await checkCameraPermissions();
       if (!hasPermission) {
-        throw new Error('Please enable camera permissions to use the QR scanner');
+        throw new Error('Camera access denied. Please enable camera permissions.');
       }
 
       const cameras = await Html5Qrcode.getCameras();
@@ -69,29 +79,23 @@ const QRScanner = (function() {
 
       let cameraId = cameras[0].id;
       const backCamera = cameras.find(cam => cam.label.toLowerCase().includes('back'));
-      if (backCamera) {
-        cameraId = backCamera.id;
-      }
+      if (backCamera) cameraId = backCamera.id;
 
-      await scannerInstance.start(cameraId, SCANNER_CONFIG, onScanSuccess, onScanError);
+      await scannerInstance.start(
+        cameraId, 
+        SCANNER_CONFIG, 
+        onScanSuccess, 
+        onScanError
+      );
 
       domElements.scannerContainer?.classList.remove('d-none');
-      if (domElements.scanButton) {
-        domElements.scanButton.style.display = 'none';
-      }
-      
-      // Ensure modal stays open during scanning
-      if (domElements.registerModal) {
-        const modal = bootstrap.Modal.getInstance(domElements.registerModal);
-        if (modal) modal._config.backdrop = 'static';
-      }
+      domElements.scanButton.style.display = 'none';
       
     } catch (error) {
-      console.error('QR Scanner Error:', error);
+      console.error('Scanner Error:', error);
       scannerRunning = false;
       setButtonLoading(false);
       showToast('error', error.message);
-      throw error;
     }
   }
 
@@ -253,35 +257,24 @@ const QRScanner = (function() {
   }
 
   function init() {
-    // Initialize DOM elements
     domElements.scanButton = document.getElementById('scanPhilSysQR');
     domElements.closeButton = document.getElementById('closeScannerBtn');
     domElements.scannerContainer = document.getElementById('qrScannerContainer');
     domElements.qrDataInput = document.getElementById('qrData');
-    domElements.lastNameField = document.getElementById('lastName');
-    domElements.firstNameField = document.getElementById('firstName');
-    domElements.middleNameField = document.getElementById('middleName');
     domElements.toastContainer = document.getElementById('toastContainer');
-    domElements.registerModal = document.getElementById('registerModal');
 
-    if (domElements.scanButton && domElements.closeButton) {
+    if (domElements.scanButton) {
       domElements.scanButton.addEventListener('click', start);
+    }
+    if (domElements.closeButton) {
       domElements.closeButton.addEventListener('click', stop);
     }
 
-    if (domElements.registerModal) {
-      domElements.registerModal.addEventListener('hidden.bs.modal', stop);
-    }
-
-    // Add event listener for modal show to ensure proper initialization
-    if (domElements.registerModal) {
-      domElements.registerModal.addEventListener('show.bs.modal', () => {
-        // Reset scanner state when modal is shown
-        scannerRunning = false;
-        if (domElements.scannerContainer) {
-          domElements.scannerContainer.classList.add('d-none');
-        }
-        resetButtonState();
+    // Preload the library when modal is shown
+    const registerModal = document.getElementById('registerModal');
+    if (registerModal) {
+      registerModal.addEventListener('show.bs.modal', () => {
+        loadLibrary().catch(console.error);
       });
     }
   }
