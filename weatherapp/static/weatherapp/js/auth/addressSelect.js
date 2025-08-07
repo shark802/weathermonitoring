@@ -27,7 +27,7 @@ export async function loadProvinces() {
       'provinces'
     );
 
-    const dropdown = document.getElementById('province-dropdown');
+    const dropdown = document.getElementById('province');
     if (!dropdown) return;
 
     dropdown.innerHTML = '<option value="" disabled selected>Select Province</option>';
@@ -41,7 +41,7 @@ export async function loadProvinces() {
 }
 
 export function setupProvinceDropdownListener() {
-  const dropdown = document.getElementById('province-dropdown');
+  const dropdown = document.getElementById('province');
   if (!dropdown) return;
 
   dropdown.addEventListener('change', async () => {
@@ -65,8 +65,8 @@ async function loadCitiesAndMunicipalities(provinceCode) {
       )
     ]);
 
-    const cityDropdown = document.getElementById('city-dropdown');
-    const barangayDropdown = document.getElementById('barangay-dropdown');
+    const cityDropdown = document.getElementById('city');
+    const barangayDropdown = document.getElementById('barangay');
 
     if (!cityDropdown || !barangayDropdown) return;
 

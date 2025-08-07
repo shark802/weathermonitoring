@@ -152,9 +152,9 @@ function validateAllFields() {
   if (!validateField('lastName', Validators.name, { fieldName: 'Last name' })) isValid = false;
   
   // Address fields
-  if (!validateField('province-dropdown', Validators.required, { fieldName: 'Province' })) isValid = false;
-  if (!validateField('city-dropdown', Validators.required, { fieldName: 'City/Municipality' })) isValid = false;
-  if (!validateField('barangay-dropdown', Validators.required, { fieldName: 'Barangay' })) isValid = false;
+  if (!validateField('province', Validators.required, { fieldName: 'Province' })) isValid = false;
+  if (!validateField('city', Validators.required, { fieldName: 'City/Municipality' })) isValid = false;
+  if (!validateField('barangay', Validators.required, { fieldName: 'Barangay' })) isValid = false;
   
   // Contact info
   if (!validateField('regEmail', Validators.email)) isValid = false;
@@ -182,9 +182,9 @@ function handleFormErrors(errors) {
     qr_data: 'scanPhilSysQR',
     first_name: 'firstName',
     last_name: 'lastName',
-    province: 'province-dropdown',
-    city: 'city-dropdown',
-    barangay: 'barangay-dropdown'
+    province: 'province',
+    city: 'city',
+    barangay: 'barangay'
   };
 
   Object.entries(errors).forEach(([field, message]) => {
