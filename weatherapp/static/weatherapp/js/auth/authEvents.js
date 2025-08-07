@@ -1,3 +1,4 @@
+import { QRScanner } from './qrScanner.js';
 import { Validators, validateField, setupPasswordStrengthIndicator } from './formValidation.js';
 import { loadProvinces, setupProvinceDropdownListener } from './addressSelect.js';
 import { 
@@ -214,3 +215,11 @@ function handleLoginSubmit(e) {
   
   setTimeout(() => e.target.submit(), 100);
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Instantiate and start your scanner here
+  const scanner = new QRScanner(document.getElementById('video-preview'));
+  scanner.start();
+   validateForm();
+  setupAddressSelect();
+});
