@@ -69,58 +69,39 @@ const QRScanner = (function() {
   // Scanner Control
   async function start() {
     if (scannerRunning) return;
-    
+
     try {
-      // Show loading state
       setButtonLoading(true);
 
       if (typeof Html5Qrcode === 'undefined') {
         throw new Error('QR scanner library not loaded');
       }
 
-      const hasPermission = await checkCameraPermissions();
-      if (!hasPermission) {
-        throw new Error('Please enable camera permissions to use the QR scanner');
-      }
+      // 1) Permissions
+      const ok = await checkCameraPermissions();
+      if (!ok) throw new Error('Please enable camera permissions');
 
+      // 2) Get a camera
       const cameras = await Html5Qrcode.getCameras();
-      if (cameras.length === 0) {
-        throw new Error('No cameras found on this device');
-      }
+      if (!cameras.length) throw new Error('No camera found');
 
+      // 3) Reset previous instance
       if (scannerInstance) {
-        await scannerInstance.clear(); // optional cleanup
+        await scannerInstance.clear();
         scannerInstance = null;
       }
 
+      // 4) Create and show UI
       scannerInstance = new Html5Qrcode('reader');
       scannerRunning = true;
-
-      // Try to use back camera if available
-      let cameraId = cameras[0].id;
-      const backCamera = cameras.find(cam => cam.label.toLowerCase().includes('back'));
-      if (backCamera) {
-        cameraId = backCamera.id;
-      }
-
-      // Show scanner container
       scannerContainer.classList.remove('d-none');
       scanButton.style.display = 'none';
 
-      // Wait for layout to update
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Force a repaint so the container has size
+      await new Promise(requestAnimationFrame);
 
-      // Create scanner instance
-      scannerInstance = new Html5Qrcode('reader');
-
-      // Wait for video element to appear
-      const video = await waitForVideoElement();
-
-      // Wait for video stream to be ready
-      await waitForVideoReady(video);
-      console.log('Video stream is ready');
-
-      // Now start scanning
+      // 5) Start scanning
+      const cameraId = pickBackCamera(cameras);
       await scannerInstance.start(
         cameraId,
         SCANNER_CONFIG,
@@ -128,18 +109,35 @@ const QRScanner = (function() {
         onScanError
       );
 
-
-      document.querySelector('.scanner-loading-fallback')?.classList.add('d-none'); 
-
-      
-    } catch (error) {
-      console.error('QR Scanner Error:', error);
+      // 6) Hide your fallback as soon as the video actually has metadata
+      const video = document.querySelector('#reader video');
+      if (video) {
+        video.addEventListener('loadedmetadata', () => {
+          document
+            .querySelector('.scanner-loading-fallback')
+            ?.classList.add('d-none');
+        });
+      } else {
+        // If for some reason there's no video, just hide it anyway
+        document
+          .querySelector('.scanner-loading-fallback')
+          ?.classList.add('d-none');
+      }
+    }
+    catch (e) {
+      console.error('QR Scanner Error:', e);
       scannerRunning = false;
       setButtonLoading(false);
-      showToast('error', error.message);
-      throw error;
+      showToast('error', e.message);
     }
   }
+
+// Utility to pick back camera or fallback
+function pickBackCamera(cameras) {
+  const back = cameras.find(c => c.label.toLowerCase().includes('back'));
+  return back ? back.id : cameras[0].id;
+}
+
 
   function stop() {
     if (scannerInstance && scannerRunning) {
