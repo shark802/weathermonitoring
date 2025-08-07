@@ -7,7 +7,7 @@ const QRScanner = (function() {
 
   const SCANNER_CONFIG = {
     fps: 10,
-    qrbox: { width: 250, height: 250 },
+    qrbox: { width: 350, height: 250 },
     aspectRatio: 1.0,
     supportedScanTypes: [ScanType.SCAN_TYPE_CAMERA],
     rememberLastUsedCamera: true,
