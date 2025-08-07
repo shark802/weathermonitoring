@@ -1,107 +1,125 @@
 import { QRScanner } from './qrScanner.js';
-import { Validators, validateField, setupPasswordStrengthIndicator } from './formValidation.js';
-import { loadProvinces, setupProvinceDropdownListener } from './addressSelect.js';
-import { 
-  showError, 
-  clearError, 
-  showToast, 
-  switchModal, 
-  clearModalErrors, 
-  setupPasswordToggles 
+import {
+  Validators,
+  validateField,
+  setupPasswordStrengthIndicator
+} from './formValidation.js';
+import {
+  loadProvinces,
+  setupProvinceDropdownListener
+} from './addressSelect.js';
+import {
+  showError,
+  clearError,
+  showToast,
+  switchModal,
+  clearModalErrors,
+  setupPasswordToggles
 } from './uiHelpers.js';
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', () => {
+  // 1) Basic UI wiring
   setupFormValidation();
   setupPasswordToggles();
   loadProvinces();
   setupProvinceDropdownListener();
   setupEventListeners();
+
+  // 2) QR Scanner wiring
+  const videoEl     = document.getElementById('qr-video');
+  const qrDataInput = document.getElementById('qrData');
+  const scanBtn     = document.getElementById('scanPhilSysQR');
+  const closeBtn    = document.getElementById('closeScannerBtn');
+
+  if (videoEl && qrDataInput && scanBtn && closeBtn) {
+    const scanner = new QRScanner(
+      videoEl,
+      decodedText => {
+        qrDataInput.value = decodedText;
+        const [last, first, middle] = decodedText.split(',').map(s => s.trim());
+        document.getElementById('lastName').value   ||= last;
+        document.getElementById('firstName').value  ||= first;
+        document.getElementById('middleName').value ||= middle;
+        showToast('success', 'QR code scanned');
+      },
+      { preferredCamera: 'environment', maxScansPerSecond: 10 }
+    );
+
+    scanBtn.addEventListener('click', () =>
+      scanner.start().catch(e => showToast('error', e.message))
+    );
+    closeBtn.addEventListener('click', () => scanner.stop());
+  }
 });
 
 function setupFormValidation() {
   const fieldMap = {
-    firstName: () => validateField('firstName', Validators.name, { fieldName: 'First name' }),
-    lastName: () => validateField('lastName', Validators.name, { fieldName: 'Last name' }),
-    regEmail: () => validateField('regEmail', Validators.email),
-    regPhone: () => validateField('regPhone', Validators.phone),
+    firstName:   () => validateField('firstName', Validators.name,    { fieldName: 'First name' }),
+    lastName:    () => validateField('lastName',  Validators.name,    { fieldName: 'Last name' }),
+    regEmail:    () => validateField('regEmail',  Validators.email),
+    regPhone:    () => validateField('regPhone',  Validators.phone),
     regUsername: () => validateField('regUsername', Validators.required, { fieldName: 'Username' }),
     regPassword: () => validateField('regPassword', Validators.password),
     confirm_Password: () => {
-      const password = document.getElementById('regPassword').value;
-      return validateField('confirm_Password', (value) => Validators.confirmPassword(password, value));
+      const pw = document.getElementById('regPassword').value;
+      return validateField('confirm_Password', v => Validators.confirmPassword(pw, v));
     }
   };
 
-  Object.entries(fieldMap).forEach(([id, validatorFn]) => {
+  Object.entries(fieldMap).forEach(([id, fn]) => {
     const input = document.getElementById(id);
-    if (input) {
-      input.addEventListener('input', () => {
-        if (validatorFn()) clearError(id);
-      });
-    }
+    if (!input) return;
+    input.addEventListener('input', () => {
+      if (fn()) clearError(id);
+    });
   });
 
   setupPasswordStrengthIndicator();
 
-  // Username uniqueness check
-  document.getElementById('regUsername')?.addEventListener('blur', function () {
-    const username = this.value.trim();
-    if (!username) return;
-
-    fetch(`/check-username?username=${encodeURIComponent(username)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.exists) showError('regUsername', 'Username already exists.');
-        else clearError('regUsername');
-      });
+  document.getElementById('regUsername')?.addEventListener('blur', function() {
+    const u = this.value.trim();
+    if (!u) return;
+    fetch(`/check-username?username=${encodeURIComponent(u)}`)
+      .then(r => r.json())
+      .then(d => d.exists ? showError('regUsername','Username already exists.') : clearError('regUsername'));
   });
 
-  // Name uniqueness check
-  document.getElementById('regName')?.addEventListener('blur', function () {
-    const name = this.value.trim();
-    if (!name) return;
-
-    fetch(`/check-name?name=${encodeURIComponent(name)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.exists) showError('regName', 'Name already exists.');
-        else clearError('regName');
-      });
+  document.getElementById('regName')?.addEventListener('blur', function() {
+    const n = this.value.trim();
+    if (!n) return;
+    fetch(`/check-name?name=${encodeURIComponent(n)}`)
+      .then(r => r.json())
+      .then(d => d.exists ? showError('regName','Name already exists.') : clearError('regName'));
   });
-}
-
-export function initializeAuthModules() {
-  setupPasswordToggles();
-  loadProvinces();
-  setupEventListeners();
 }
 
 function setupEventListeners() {
-  // Modal switch links
-  document.getElementById('openRegisterLink')?.addEventListener('click', function(e) {
+  // modal toggles
+  document.getElementById('openRegisterLink')?.addEventListener('click', e => {
     e.preventDefault();
-    switchModal('loginModal', 'registerModal');
+    switchModal('loginModal','registerModal');
+  });
+  document.getElementById('openLoginLink')?.addEventListener('click', e => {
+    e.preventDefault();
+    switchModal('registerModal','loginModal');
   });
 
-  document.getElementById('openLoginLink')?.addEventListener('click', function(e) {
-    e.preventDefault();
-    switchModal('registerModal', 'loginModal');
-  });
-
-  // Form submissions
+  // forms
   document.getElementById('registerForm')?.addEventListener('submit', handleRegisterSubmit);
   document.getElementById('loginForm')?.addEventListener('submit', handleLoginSubmit);
 
-  // Modal cleanup
+  // reset on close
   document.getElementById('registerModal')?.addEventListener('hidden.bs.modal', function() {
     this.querySelector('form').reset();
     clearModalErrors('registerModal');
   });
-
   document.getElementById('loginModal')?.addEventListener('hidden.bs.modal', function() {
     this.querySelector('form').reset();
   });
 }
+
+// … keep your existing handleRegisterSubmit, validateAllFields, handleFormErrors, handleLoginSubmit …
+
 
 async function handleRegisterSubmit(e) {
   e.preventDefault();
@@ -215,11 +233,3 @@ function handleLoginSubmit(e) {
   
   setTimeout(() => e.target.submit(), 100);
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-  // Instantiate and start your scanner here
-  const scanner = new QRScanner(document.getElementById('video-preview'));
-  scanner.start();
-   validateForm();
-  setupAddressSelect();
-});
