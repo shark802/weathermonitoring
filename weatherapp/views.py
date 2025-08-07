@@ -32,9 +32,9 @@ def register_user(request):
         errors = {}
         
         # Get and format name components
-        first_name = request.POST.get('first_name', '').strip().upper()
-        middle_name = request.POST.get('middle_name', '').strip().upper()
-        last_name = request.POST.get('last_name', '').strip().upper()
+        first_name = request.POST.get('firstName', '').strip().upper()
+        middle_name = request.POST.get('middleName', '').strip().upper()
+        last_name = request.POST.get('lastName', '').strip().upper()
         name = ' '.join(filter(None, [first_name, middle_name, last_name]))  # Concatenated full name
 
         # Get and format address components
@@ -44,11 +44,11 @@ def register_user(request):
         address = ', '.join(filter(None, [barangay, city, province]))  # Standardized address format
 
         # Other fields
-        email = request.POST.get('email')
-        phone = request.POST.get('phone_num')
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        confirm_password = request.POST.get('confirm_password')
+        email = request.POST.get('regEmail')
+        phone = request.POST.get('regPhone')
+        username = request.POST.get('regUsername')
+        password = request.POST.get('regPassword')
+        confirm_password = request.POST.get('confirm_Password')
         qr_data = request.POST.get('qr_data')
 
         if not qr_data:
@@ -85,30 +85,30 @@ def register_user(request):
                 errors['qr_error'] = f"QR verification failed: {str(e)}"
 
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            errors['email'] = "Invalid email format."
+            errors['regEmail'] = "Invalid email format."
 
         if not re.match(r"^\d{11}$", phone):
-            errors['phone_num'] = "Phone number must be exactly 11 digits."
+            errors['regPhone'] = "Phone number must be exactly 11 digits."
 
         if len(password) < 8:
-            errors['password'] = "Password must be at least 8 characters long."
+            errors['regPassword'] = "Password must be at least 8 characters long."
         elif not re.search(r'[A-Z]', password):
-            errors['password'] = "Password must contain at least one uppercase letter."
+            errors['regPassword'] = "Password must contain at least one uppercase letter."
         elif not re.search(r'[a-z]', password):
-            errors['password'] = "Password must contain at least one lowercase letter."
+            errors['regPassword'] = "Password must contain at least one lowercase letter."
         elif not re.search(r'\d', password):
-            errors['password'] = "Password must contain at least one number."
+            errors['regPassword'] = "Password must contain at least one number."
         elif not re.search(r'[!@#$%^&*(),.?\":{}|<>]', password):
-            errors['password'] = "Password must contain at least one special character."
+            errors['regPassword'] = "Password must contain at least one special character."
 
         if password != confirm_password:
-            errors['confirm_password'] = "Passwords do not match."
+            errors['confirm_Password'] = "Passwords do not match."
 
         # Database checks
         with connection.cursor() as cursor:
             cursor.execute("SELECT user_id FROM user WHERE username = %s", [username])
             if cursor.fetchone():
-                errors['username'] = "Username already exists."
+                errors['regUsername'] = "Username already exists."
 
             cursor.execute("SELECT user_id FROM user WHERE name = %s", [name])
             if cursor.fetchone():
