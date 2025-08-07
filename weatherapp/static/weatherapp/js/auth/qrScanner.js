@@ -18,7 +18,7 @@ export class QRScanner {
 
   async start() {
     // 2. Inject your custom painter before starting
-    this._scanner.setCanvasContextOverride((ctx, scanRegion) => {
+    this._scanner._canvasContextOverride = (ctx, scanRegion) => {
       // full‐screen dark mask
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
@@ -41,7 +41,7 @@ export class QRScanner {
       ctx.moveTo(scanRegion.x + scanRegion.width / 2, scanRegion.y);
       ctx.lineTo(scanRegion.x + scanRegion.width / 2, scanRegion.y + scanRegion.height);
       ctx.stroke();
-    });
+    };
 
     return this._scanner.start();
   }
