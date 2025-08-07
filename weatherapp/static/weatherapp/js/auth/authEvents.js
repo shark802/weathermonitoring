@@ -33,17 +33,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const scanBtn     = document.getElementById('scanPhilSysQR');
   const closeBtn    = document.getElementById('closeScannerBtn');
 
+  // … inside your DOMContentLoaded …
   if (container && videoEl && qrDataInput && scanBtn && closeBtn) {
     const scanner = new QRScanner(
       videoEl,
       canvasEl,
-      decodedText => {
-        qrDataInput.value = decodedText;
-        const [last, first, middle] = decodedText.split(',').map(s => s.trim());
-        document.getElementById('lastName').value   ||= last;
-        document.getElementById('firstName').value  ||= first;
-        document.getElementById('middleName').value ||= middle;
-        showToast('success', 'QR code scanned');
+      async (rawJwt) => {
+        // 1) shove the entire JWT into your hidden form field
+        qrDataInput.value = rawJwt;
+
+        // 2) decode payload for pre-fill (optional)
+        try {
+          // split on dots, base64→JSON
+          const b64 = rawJwt.split('.')[1];
+          const payload = JSON.parse(atob(b64));
+
+          // fill only if the user hasn’t already typed
+          document.getElementById('firstName').value  ||= payload.givenName    || '';
+          document.getElementById('middleName').value ||= payload.middleName   || '';
+          document.getElementById('lastName').value   ||= payload.familyName   || '';
+
+          document.getElementById('barangay').value   ||= payload.address?.barangay || '';
+          document.getElementById('city').value       ||= payload.address?.city     || '';
+          document.getElementById('province').value   ||= payload.address?.province || '';
+        } catch (e) {
+          console.warn('Could not parse JWT payload for prefill:', e);
+        }
+
+        showToast('success', 'PhilSys QR scanned');
         scanner.stop();
         container.classList.add('d-none');
       },
