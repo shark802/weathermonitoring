@@ -46,3 +46,15 @@
   .toast.show {
     opacity: 1;
   }
+
+  .qr-overlay {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 250px;   /* or any size that matches your scanning area */
+  height: 250px;
+  border: 3px dashed lime;
+  border-radius: 8px;
+  pointer-events: none;  /* clicks pass through to the video */
+  box-sizing: border-box;
+}
