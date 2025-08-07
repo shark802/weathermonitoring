@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 2) QR Scanner wiring
   const container   = document.getElementById('qrScannerContainer');
   const videoEl     = document.getElementById('qr-video');
+  const canvasEl  = document.getElementById('qr-overlay');
   const qrDataInput = document.getElementById('qrData');
   const scanBtn     = document.getElementById('scanPhilSysQR');
   const closeBtn    = document.getElementById('closeScannerBtn');
@@ -35,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (container && videoEl && qrDataInput && scanBtn && closeBtn) {
     const scanner = new QRScanner(
       videoEl,
+      canvasEl,
       decodedText => {
         qrDataInput.value = decodedText;
         const [last, first, middle] = decodedText.split(',').map(s => s.trim());
