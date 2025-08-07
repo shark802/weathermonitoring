@@ -103,7 +103,7 @@ async function loadBarangays(code, type) {
 
     const barangays = await fetchWithCache(url, `barangays_${code}`);
 
-    const barangayDropdown = document.getElementById('barangay-dropdown');
+    const barangayDropdown = document.getElementById('barangay');
     if (!barangayDropdown) return;
 
     barangayDropdown.innerHTML = '<option value="" disabled selected>Select Barangay</option>';
