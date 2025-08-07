@@ -168,11 +168,18 @@ const QRScanner = (function() {
   }
 
   function onScanError(error) {
+    const video = document.querySelector('#reader video');
+    const isVideoReady = video && video.videoWidth > 0 && video.videoHeight > 0;
+
+    // Suppress errors until video is ready
+    if (!isVideoReady) return;
+
     // Ignore certain benign errors
     if (error && !error.startsWith('No multi format readers configured')) {
       console.error('QR Scan Error:', error);
     }
   }
+
 
   // Data Processing
   function processPhilSysData(qrData) {
