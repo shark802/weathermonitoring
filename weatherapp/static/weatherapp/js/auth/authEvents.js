@@ -45,10 +45,20 @@ document.addEventListener('DOMContentLoaded', () => {
       { preferredCamera: 'environment', maxScansPerSecond: 10 }
     );
 
-    scanBtn.addEventListener('click', () =>
-      scanner.start().catch(e => showToast('error', e.message))
-    );
-    closeBtn.addEventListener('click', () => scanner.stop());
+    scanBtn.addEventListener('click', async () => {
+      container.classList.remove('d-none');
+      try {
+        await scanner.start();
+      } catch (e) {
+        showToast('error', e.message || 'Unable to access camera');
+        container.classList.add('d-none');
+      }
+    });
+
+    closeBtn.addEventListener('click', () => {
+      scanner.stop();
+      container.classList.add('d-none');
+    });
   }
 });
 
