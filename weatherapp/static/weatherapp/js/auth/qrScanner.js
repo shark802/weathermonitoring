@@ -41,10 +41,6 @@ const QRScanner = (function() {
     try {
       setButtonLoading(true);
 
-      if (typeof Html5Qrcode === 'undefined') {
-        throw new Error('QR scanner library not loaded');
-      }
-
       const hasPermission = await checkCameraPermissions();
       if (!hasPermission) {
         throw new Error('Please enable camera permissions to use the QR scanner');
