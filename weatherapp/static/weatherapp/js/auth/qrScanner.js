@@ -1,3 +1,5 @@
+import { Html5Qrcode } from 'https://unpkg.com/html5-qrcode@2.3.8?module';
+
 const QRScanner = (function() {
   const ScanType = window.Html5QrcodeScanType || { SCAN_TYPE_CAMERA: 0 };
 
