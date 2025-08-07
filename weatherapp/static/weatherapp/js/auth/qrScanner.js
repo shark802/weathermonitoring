@@ -2,7 +2,7 @@
 const QRScanner = (function() {
   // Get scan type from global scope or provide default
   const ScanType = window.Html5QrcodeScanType || { 
-    SCAN_TYPE_CAMERA: 1
+    SCAN_TYPE_CAMERA: 0
   };
 
   const SCANNER_CONFIG = {
