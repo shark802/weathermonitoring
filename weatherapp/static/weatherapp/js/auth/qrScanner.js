@@ -71,6 +71,13 @@ const QRScanner = (function() {
         cameraId = backCamera.id;
       }
 
+      scannerContainer.classList.remove('d-none');
+      scanButton.style.display = 'none';
+
+      // Wait for next repaint so layout is updated
+      await new Promise(requestAnimationFrame);
+
+
       await scannerInstance.start(
         cameraId,
         SCANNER_CONFIG,
@@ -78,9 +85,6 @@ const QRScanner = (function() {
         onScanError
       );
 
-      // Update UI
-      scannerContainer.classList.remove('d-none');
-      scanButton.style.display = 'none';
       
     } catch (error) {
       console.error('QR Scanner Error:', error);
