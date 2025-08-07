@@ -4,6 +4,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+        content="
+          default-src 'self';
+          script-src 'self' 'unsafe-inline';
+          worker-src 'self';
+          style-src 'self' 'unsafe-inline';
+          img-src 'self' data:;
+          connect-src 'self'">
   <title>WeatherAlert</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -422,20 +430,10 @@
             <small class="d-block text-muted mt-1">Scan your PhilSys National ID for automatic verification</small>
           </div>
 
-          <div id="qrScannerContainer" class="d-none position-relative">
-            <div id="reader" class="qr-scanner-viewport">
-              <div class="scanner-loading-fallback d-flex justify-content-center align-items-center h-100">
-                <div class="text-center text-white">
-                  <div class="spinner-border mb-3" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                  </div>
-                  <p>Loading scanner...</p>
-                </div>
-              </div>
-            </div>
-            <button id="closeScannerBtn" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2">
-              <i class="fas fa-times"></i> Close
-            </button>
+          <div id="qrScannerContainer" class="d-none">
+            <video id="qr-video" muted playsinline></video>
+            <div class="scanner-loading-fallback">Initializing camera…</div>
+            <button id="closeScannerBtn">Close Scanner</button>
           </div>
 
           <!-- Name Fields (Split) -->
@@ -612,19 +610,14 @@
 
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
-  <script>
-    window.Html5QrcodeScanType = window.Html5QrcodeScanner?.Html5QrcodeScanType || {
-    SCAN_TYPE_CAMERA: 0,
-    SCAN_TYPE_FILE: 1 
-  };
-  </script>
 
   <script type="module">
     import './weatherapp/js/auth/authEvents.js';
-    import QRScanner from './weatherapp/js/auth/qrScanner.js';
+  </script>
 
+  <script src="{% static 'weatherapp/js/qrScanner.js' %}"></script>
+  <script>
+    // Kick off our module
     document.addEventListener('DOMContentLoaded', () => {
       QRScanner.init();
     });
