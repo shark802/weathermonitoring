@@ -40,11 +40,11 @@ const QRScanner = (function() {
   }
 
   function waitForVideoElement() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const check = () => {
         const video = document.querySelector('#reader video');
         if (video) {
-          resolve();
+          resolve(video);
         } else {
           setTimeout(check, 100);
         }
@@ -53,11 +53,8 @@ const QRScanner = (function() {
     });
   }
 
-  function waitForVideoReady() {
-    return new Promise((resolve, reject) => {
-      const video = document.querySelector('#reader video');
-      if (!video) return reject(new Error('Video element not found'));
-
+  function waitForVideoReady(video) {
+    return new Promise((resolve) => {
       const checkReady = () => {
         if (video.videoWidth > 0 && video.videoHeight > 0) {
           resolve();
@@ -65,12 +62,9 @@ const QRScanner = (function() {
           setTimeout(checkReady, 100);
         }
       };
-
       checkReady();
     });
   }
-
-
 
   // Scanner Control
   async function start() {
@@ -109,16 +103,24 @@ const QRScanner = (function() {
         cameraId = backCamera.id;
       }
 
+      // Show scanner container
       scannerContainer.classList.remove('d-none');
       scanButton.style.display = 'none';
 
       // Wait for layout to update
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Wait for video element to appear in DOM
-      await waitForVideoElement();
+      // Create scanner instance
+      scannerInstance = new Html5Qrcode('reader');
 
-      // Now start the scanner
+      // Wait for video element to appear
+      const video = await waitForVideoElement();
+
+      // Wait for video stream to be ready
+      await waitForVideoReady(video);
+      console.log('Video stream is ready');
+
+      // Now start scanning
       await scannerInstance.start(
         cameraId,
         SCANNER_CONFIG,
@@ -126,9 +128,6 @@ const QRScanner = (function() {
         onScanError
       );
 
-      // Wait for video stream to be ready
-      await waitForVideoReady();
-      console.log('Video stream is ready'); 
 
       document.querySelector('.scanner-loading-fallback')?.classList.add('d-none'); 
 
