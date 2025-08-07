@@ -1,9 +1,5 @@
-// qrScanner.js
 const QRScanner = (function() {
-  // Get scan type from global scope or provide default
-  const ScanType = window.Html5QrcodeScanType || { 
-    SCAN_TYPE_CAMERA: 0
-  };
+  const ScanType = window.Html5QrcodeScanType || { SCAN_TYPE_CAMERA: 0 };
 
   const SCANNER_CONFIG = {
     fps: 10,
@@ -14,15 +10,13 @@ const QRScanner = (function() {
     showTorchButtonIfSupported: true
   };
 
-  // State variables
   let scannerInstance = null;
   let scannerRunning = false;
 
-  // DOM Elements
-  const scanButton = document.getElementById('scanPhilSysQR');
-  const closeButton = document.getElementById('closeScannerBtn');
-  const scannerContainer = document.getElementById('qrScannerContainer');
-  const qrDataInput = document.getElementById('qrData');
+  // ⛔ Remove top-level DOM element declarations
+
+  // Declare placeholders
+  let scanButton, closeButton, scannerContainer, qrDataInput;
 
   // Permission Check
   async function checkCameraPermissions() {
@@ -39,12 +33,10 @@ const QRScanner = (function() {
     }
   }
 
-  // Scanner Control
   async function start() {
     if (scannerRunning) return;
     
     try {
-      // Show loading state
       setButtonLoading(true);
 
       if (typeof Html5Qrcode === 'undefined') {
@@ -64,21 +56,14 @@ const QRScanner = (function() {
       scannerInstance = new Html5Qrcode('reader');
       scannerRunning = true;
 
-      // Try to use back camera if available
       let cameraId = cameras[0].id;
       const backCamera = cameras.find(cam => cam.label.toLowerCase().includes('back'));
       if (backCamera) {
         cameraId = backCamera.id;
       }
 
-      await scannerInstance.start(
-        cameraId,
-        SCANNER_CONFIG,
-        onScanSuccess,
-        onScanError
-      );
+      await scannerInstance.start(cameraId, SCANNER_CONFIG, onScanSuccess, onScanError);
 
-      // Update UI
       scannerContainer.classList.remove('d-none');
       scanButton.style.display = 'none';
       
@@ -108,7 +93,6 @@ const QRScanner = (function() {
     return Promise.resolve(false);
   }
 
-  // Event Handlers
   function onScanSuccess(decodedText) {
     stop().then(() => {
       qrDataInput.value = decodedText;
@@ -118,13 +102,11 @@ const QRScanner = (function() {
   }
 
   function onScanError(error) {
-    // Ignore certain benign errors
     if (error && !error.startsWith('No multi format readers configured')) {
       console.error('QR Scan Error:', error);
     }
   }
 
-  // Data Processing
   function processPhilSysData(qrData) {
     try {
       if (!qrData || typeof qrData !== 'string') {
@@ -137,7 +119,6 @@ const QRScanner = (function() {
         throw new Error('QR data does not contain complete name information');
       }
 
-      // Update fields only if they're empty
       const lastNameField = document.getElementById('lastName');
       const firstNameField = document.getElementById('firstName');
       const middleNameField = document.getElementById('middleName');
@@ -153,7 +134,6 @@ const QRScanner = (function() {
     }
   }
 
-  // UI Helpers
   function setButtonLoading(isLoading) {
     if (isLoading) {
       scanButton.disabled = true;
@@ -189,27 +169,29 @@ const QRScanner = (function() {
 
     container.appendChild(toastEl);
     
-    // Auto-remove toast after 5 seconds
     setTimeout(() => {
       toastEl.remove();
     }, 5000);
   }
 
-  // Initialize
   function init() {
+    // ⏱ Initialize DOM elements here after DOM is loaded
+    scanButton = document.getElementById('scanPhilSysQR');
+    closeButton = document.getElementById('closeScannerBtn');
+    scannerContainer = document.getElementById('qrScannerContainer');
+    qrDataInput = document.getElementById('qrData');
+
     if (scanButton && closeButton) {
       scanButton.addEventListener('click', start);
       closeButton.addEventListener('click', stop);
     }
 
-    // Cleanup when modal closes
     const registerModal = document.getElementById('registerModal');
     if (registerModal) {
       registerModal.addEventListener('hidden.bs.modal', stop);
     }
   }
 
-  // Public API
   return {
     init,
     start,
@@ -217,5 +199,4 @@ const QRScanner = (function() {
   };
 })();
 
-// Export as default
 export default QRScanner;
