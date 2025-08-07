@@ -61,6 +61,11 @@ const QRScanner = (function() {
         throw new Error('No cameras found on this device');
       }
 
+      if (scannerInstance) {
+        await scannerInstance.clear(); // optional cleanup
+        scannerInstance = null;
+      }
+
       scannerInstance = new Html5Qrcode('reader');
       scannerRunning = true;
 
@@ -75,7 +80,7 @@ const QRScanner = (function() {
       scanButton.style.display = 'none';
 
       // Wait for next repaint so layout is updated
-      await new Promise(requestAnimationFrame);
+      await new Promise(resolve => setTimeout(resolve, 100));
 
 
       await scannerInstance.start(
@@ -84,6 +89,8 @@ const QRScanner = (function() {
         onScanSuccess,
         onScanError
       );
+
+      document.querySelector('.scanner-loading-fallback')?.classList.add('d-none');
 
       
     } catch (error) {
