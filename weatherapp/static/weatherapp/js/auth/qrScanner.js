@@ -39,6 +39,24 @@ const QRScanner = (function() {
     }
   }
 
+  function waitForVideoReady() {
+    return new Promise((resolve, reject) => {
+      const video = document.querySelector('#reader video');
+      if (!video) return reject(new Error('Video element not found'));
+
+      const checkReady = () => {
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+          resolve();
+        } else {
+          setTimeout(checkReady, 100);
+        }
+      };
+
+      checkReady();
+    });
+  }
+
+
   // Scanner Control
   async function start() {
     if (scannerRunning) return;
@@ -90,7 +108,10 @@ const QRScanner = (function() {
         onScanError
       );
 
-      document.querySelector('.scanner-loading-fallback')?.classList.add('d-none');
+      await waitForVideoReady();
+      console.log('Video stream is ready');
+
+      document.querySelector('.scanner-loading-fallback')?.classList.add('d-none'); 
 
       
     } catch (error) {
