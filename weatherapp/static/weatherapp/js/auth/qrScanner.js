@@ -1,9 +1,15 @@
+// qrScanner.js
 const QRScanner = (function() {
-  // Configuration constants
+  // Get scan type from global scope or provide default
+  const ScanType = window.Html5QrcodeScanType || { 
+    SCAN_TYPE_CAMERA: 0
+  };
+
   const SCANNER_CONFIG = {
     fps: 10,
     qrbox: { width: 250, height: 250 },
     aspectRatio: 1.0,
+    supportedScanTypes: [ScanType.SCAN_TYPE_CAMERA],
     rememberLastUsedCamera: true,
     showTorchButtonIfSupported: true
   };
@@ -11,42 +17,14 @@ const QRScanner = (function() {
   // State variables
   let scannerInstance = null;
   let scannerRunning = false;
-  let html5QrCodeLib = null;
 
-  // DOM elements cache
-  const domElements = {
-    scanButton: null,
-    closeButton: null,
-    scannerContainer: null,
-    qrDataInput: null,
-    lastNameField: null,
-    firstNameField: null,
-    middleNameField: null,
-    toastContainer: null
-  };
+  // DOM Elements
+  const scanButton = document.getElementById('scanPhilSysQR');
+  const closeButton = document.getElementById('closeScannerBtn');
+  const scannerContainer = document.getElementById('qrScannerContainer');
+  const qrDataInput = document.getElementById('qrData');
 
-  // Load the HTML5 QR Code library dynamically
-  async function loadScannerLibrary() {
-    if (html5QrCodeLib) return html5QrCodeLib;
-
-    try {
-      // Try to use the global version first
-      if (window.Html5Qrcode) {
-        html5QrCodeLib = window.Html5Qrcode;
-        return html5QrCodeLib;
-      }
-
-      // Fallback to dynamic import
-      const module = await import('https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js');
-      html5QrCodeLib = module.Html5Qrcode;
-      return html5QrCodeLib;
-    } catch (error) {
-      console.error('Failed to load QR scanner library:', error);
-      throw new Error('QR scanner library failed to load');
-    }
-  }
-
-  // Camera permission check
+  // Permission Check
   async function checkCameraPermissions() {
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -61,16 +39,18 @@ const QRScanner = (function() {
     }
   }
 
-  // Main scanner function
+  // Scanner Control
   async function start() {
     if (scannerRunning) return;
     
     try {
+      // Show loading state
       setButtonLoading(true);
 
-      // Load library first
-      const Html5Qrcode = await loadScannerLibrary();
-      
+      if (typeof Html5Qrcode === 'undefined') {
+        throw new Error('QR scanner library not loaded');
+      }
+
       const hasPermission = await checkCameraPermissions();
       if (!hasPermission) {
         throw new Error('Please enable camera permissions to use the QR scanner');
@@ -84,91 +64,88 @@ const QRScanner = (function() {
       scannerInstance = new Html5Qrcode('reader');
       scannerRunning = true;
 
-      // Prefer back camera if available
+      // Try to use back camera if available
       let cameraId = cameras[0].id;
       const backCamera = cameras.find(cam => cam.label.toLowerCase().includes('back'));
-      if (backCamera) cameraId = backCamera.id;
+      if (backCamera) {
+        cameraId = backCamera.id;
+      }
 
       await scannerInstance.start(
-        cameraId, 
-        SCANNER_CONFIG, 
-        onScanSuccess, 
+        cameraId,
+        SCANNER_CONFIG,
+        onScanSuccess,
         onScanError
       );
 
-      domElements.scannerContainer?.classList.remove('d-none');
-      domElements.scanButton.style.display = 'none';
+      // Update UI
+      scannerContainer.classList.remove('d-none');
+      scanButton.style.display = 'none';
       
     } catch (error) {
       console.error('QR Scanner Error:', error);
       scannerRunning = false;
       setButtonLoading(false);
       showToast('error', error.message);
+      throw error;
     }
   }
 
-  // Stop scanner function
-  async function stop() {
+  function stop() {
     if (scannerInstance && scannerRunning) {
-      try {
-        await scannerInstance.stop();
-        scannerRunning = false;
-        domElements.scannerContainer?.classList.add('d-none');
-        resetButtonState();
-        return true;
-      } catch (error) {
-        console.error('Error stopping scanner:', error);
-        return false;
-      }
+      return scannerInstance.stop()
+        .then(() => {
+          scannerRunning = false;
+          scannerContainer.classList.add('d-none');
+          resetButtonState();
+          return true;
+        })
+        .catch(error => {
+          console.error('Error stopping scanner:', error);
+          return false;
+        });
     }
-    return false;
+    return Promise.resolve(false);
   }
 
-  // Scan success handler
+  // Event Handlers
   function onScanSuccess(decodedText) {
     stop().then(() => {
-      if (domElements.qrDataInput) {
-        domElements.qrDataInput.value = decodedText;
-      }
+      qrDataInput.value = decodedText;
       processPhilSysData(decodedText);
       showToast('success', 'QR code scanned successfully!');
     });
   }
 
-  // Scan error handler
   function onScanError(error) {
+    // Ignore certain benign errors
     if (error && !error.startsWith('No multi format readers configured')) {
       console.error('QR Scan Error:', error);
     }
   }
 
-  // Process PhilSys data
+  // Data Processing
   function processPhilSysData(qrData) {
     try {
       if (!qrData || typeof qrData !== 'string') {
         throw new Error('Invalid QR data');
       }
 
-      const parsedData = qrData.split(/[,;|]/).map(part => part.trim());
+      const nameParts = qrData.split(',').map(part => part.trim());
       
-      if (parsedData.length < 2) {
+      if (nameParts.length < 2) {
         throw new Error('QR data does not contain complete name information');
       }
 
-      // Only update empty fields
-      if (domElements.lastNameField && !domElements.lastNameField.value) {
-        domElements.lastNameField.value = parsedData[0];
-        triggerInputEvent(domElements.lastNameField);
-      }
-      
-      if (domElements.firstNameField && !domElements.firstNameField.value) {
-        domElements.firstNameField.value = parsedData[1];
-        triggerInputEvent(domElements.firstNameField);
-      }
-      
-      if (parsedData.length > 2 && domElements.middleNameField && !domElements.middleNameField.value) {
-        domElements.middleNameField.value = parsedData[2];
-        triggerInputEvent(domElements.middleNameField);
+      // Update fields only if they're empty
+      const lastNameField = document.getElementById('lastName');
+      const firstNameField = document.getElementById('firstName');
+      const middleNameField = document.getElementById('middleName');
+
+      if (!lastNameField.value) lastNameField.value = nameParts[0];
+      if (!firstNameField.value) firstNameField.value = nameParts[1];
+      if (nameParts.length > 2 && !middleNameField.value) {
+        middleNameField.value = nameParts[2];
       }
     } catch (error) {
       console.error('Error processing PhilSys data:', error);
@@ -176,76 +153,63 @@ const QRScanner = (function() {
     }
   }
 
-  // Helper to trigger input events
-  function triggerInputEvent(element) {
-    const event = new Event('input', { bubbles: true });
-    element.dispatchEvent(event);
-  }
-
-  // UI state management
+  // UI Helpers
   function setButtonLoading(isLoading) {
-    if (!domElements.scanButton) return;
-
-    domElements.scanButton.disabled = isLoading;
-    domElements.scanButton.innerHTML = isLoading
-      ? '<span class="spinner-border spinner-border-sm me-2" role="status"></span> Initializing...'
-      : '<i class="fas fa-qrcode me-2"></i>Scan PhilSys QR Code';
+    if (isLoading) {
+      scanButton.disabled = true;
+      scanButton.innerHTML = 
+        '<span class="spinner-border spinner-border-sm" role="status"></span> Initializing...';
+    } else {
+      scanButton.disabled = false;
+      scanButton.innerHTML = 
+        '<i class="fas fa-qrcode me-2"></i>Scan PhilSys QR Code';
+    }
   }
 
   function resetButtonState() {
-    if (domElements.scanButton) {
-      domElements.scanButton.style.display = 'block';
-      setButtonLoading(false);
-    }
+    scanButton.style.display = 'block';
+    setButtonLoading(false);
   }
 
-  // Toast notification system
   function showToast(type, message) {
-    if (!domElements.toastContainer) {
-      console.warn('Toast container not found');
-      return;
-    }
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
 
     const toastEl = document.createElement('div');
-    toastEl.className = `toast show align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0`;
-    toastEl.innerHTML = `
+    toastEl.className = toast show align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0;
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    toastEl.innerHTML = 
       <div class="d-flex">
         <div class="toast-body">${message}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
       </div>
-    `;
+    ;
 
-    domElements.toastContainer.appendChild(toastEl);
-    setTimeout(() => toastEl.remove(), 5000);
+    container.appendChild(toastEl);
+    
+    // Auto-remove toast after 5 seconds
+    setTimeout(() => {
+      toastEl.remove();
+    }, 5000);
   }
 
-  // Initialize the scanner
+  // Initialize
   function init() {
-    // Cache DOM elements
-    domElements.scanButton = document.getElementById('scanPhilSysQR');
-    domElements.closeButton = document.getElementById('closeScannerBtn');
-    domElements.scannerContainer = document.getElementById('qrScannerContainer');
-    domElements.qrDataInput = document.getElementById('qrData');
-    domElements.lastNameField = document.getElementById('lastName');
-    domElements.firstNameField = document.getElementById('firstName');
-    domElements.middleNameField = document.getElementById('middleName');
-    domElements.toastContainer = document.getElementById('toastContainer');
-
-    // Set up event listeners
-    if (domElements.scanButton) {
-      domElements.scanButton.addEventListener('click', start);
-    }
-    if (domElements.closeButton) {
-      domElements.closeButton.addEventListener('click', stop);
+    if (scanButton && closeButton) {
+      scanButton.addEventListener('click', start);
+      closeButton.addEventListener('click', stop);
     }
 
-    // Clean up when modal closes
+    // Cleanup when modal closes
     const registerModal = document.getElementById('registerModal');
     if (registerModal) {
       registerModal.addEventListener('hidden.bs.modal', stop);
     }
   }
 
+  // Public API
   return {
     init,
     start,
@@ -253,4 +217,5 @@ const QRScanner = (function() {
   };
 })();
 
+// Export as default
 export default QRScanner;
