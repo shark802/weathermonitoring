@@ -423,20 +423,20 @@
           </div>
 
           <div id="qrScannerContainer" class="d-none position-relative">
-          <div id="reader" class="qr-scanner-viewport">
-            <div class="scanner-loading-fallback d-flex justify-content-center align-items-center h-100">
-              <div class="text-center text-white">
-                <div class="spinner-border mb-3" role="status">
-                  <span class="visually-hidden">Loading...</span>
+            <div id="reader" class="qr-scanner-viewport">
+              <div class="scanner-loading-fallback d-flex justify-content-center align-items-center h-100">
+                <div class="text-center text-white">
+                  <div class="spinner-border mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                  <p>Loading scanner...</p>
                 </div>
-                <p>Loading scanner...</p>
               </div>
             </div>
+            <button id="closeScannerBtn" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2">
+              <i class="fas fa-times"></i> Close
+            </button>
           </div>
-          <button id="closeScannerBtn" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2">
-            <i class="fas fa-times"></i> Close
-          </button>
-        </div>
 
           <!-- Name Fields (Split) -->
           <div class="row mb-3" id="regName">
