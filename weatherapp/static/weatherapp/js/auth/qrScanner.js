@@ -5,7 +5,10 @@ const QRScanner = (function() {
 
   const SCANNER_CONFIG = {
     fps: 10,
-    qrbox: { width: 250, height: 250 },
+    qrbox: function(viewfinderWidth, viewfinderHeight) {
+      const size = Math.min(250, Math.min(viewfinderWidth, viewfinderHeight) * 0.8);
+      return { width: size, height: size };
+    },
     aspectRatio: 1.0,
     supportedScanTypes: [ScanType.SCAN_TYPE_CAMERA],
     rememberLastUsedCamera: true,
@@ -14,11 +17,21 @@ const QRScanner = (function() {
 
   let scannerInstance = null;
   let scannerRunning = false;
+  const toastQueue = [];
+  let isToastShowing = false;
 
-  // ⛔ Remove top-level DOM element declarations
-
-  // Declare placeholders
-  let scanButton, closeButton, scannerContainer, qrDataInput;
+  // DOM elements cache
+  const domElements = {
+    scanButton: null,
+    closeButton: null,
+    scannerContainer: null,
+    qrDataInput: null,
+    lastNameField: null,
+    firstNameField: null,
+    middleNameField: null,
+    toastContainer: null,
+    registerModal: null
+  };
 
   // Permission Check
   async function checkCameraPermissions() {
@@ -62,8 +75,16 @@ const QRScanner = (function() {
 
       await scannerInstance.start(cameraId, SCANNER_CONFIG, onScanSuccess, onScanError);
 
-      scannerContainer.classList.remove('d-none');
-      scanButton.style.display = 'none';
+      domElements.scannerContainer?.classList.remove('d-none');
+      if (domElements.scanButton) {
+        domElements.scanButton.style.display = 'none';
+      }
+      
+      // Ensure modal stays open during scanning
+      if (domElements.registerModal) {
+        const modal = bootstrap.Modal.getInstance(domElements.registerModal);
+        if (modal) modal._config.backdrop = 'static';
+      }
       
     } catch (error) {
       console.error('QR Scanner Error:', error);
@@ -79,8 +100,18 @@ const QRScanner = (function() {
       return scannerInstance.stop()
         .then(() => {
           scannerRunning = false;
-          scannerContainer.classList.add('d-none');
+          scannerInstance.clear();
+          if (domElements.scannerContainer) {
+            domElements.scannerContainer.classList.add('d-none');
+          }
           resetButtonState();
+          
+          // Restore modal backdrop behavior
+          if (domElements.registerModal) {
+            const modal = bootstrap.Modal.getInstance(domElements.registerModal);
+            if (modal) modal._config.backdrop = true;
+          }
+          
           return true;
         })
         .catch(error => {
@@ -93,7 +124,9 @@ const QRScanner = (function() {
 
   function onScanSuccess(decodedText) {
     stop().then(() => {
-      qrDataInput.value = decodedText;
+      if (domElements.qrDataInput) {
+        domElements.qrDataInput.value = decodedText;
+      }
       processPhilSysData(decodedText);
       showToast('success', 'QR code scanned successfully!');
     });
@@ -102,6 +135,7 @@ const QRScanner = (function() {
   function onScanError(error) {
     if (error && !error.startsWith('No multi format readers configured')) {
       console.error('QR Scan Error:', error);
+      showToast('error', 'Scanning error: ' + error);
     }
   }
 
@@ -111,20 +145,27 @@ const QRScanner = (function() {
         throw new Error('Invalid QR data');
       }
 
-      const nameParts = qrData.split(',').map(part => part.trim());
+      // Enhanced parsing for PhilSys QR format
+      const parsedData = qrData.split(/[,;|]/).map(part => part.trim());
       
-      if (nameParts.length < 2) {
+      if (parsedData.length < 2) {
         throw new Error('QR data does not contain complete name information');
       }
 
-      const lastNameField = document.getElementById('lastName');
-      const firstNameField = document.getElementById('firstName');
-      const middleNameField = document.getElementById('middleName');
-
-      if (!lastNameField.value) lastNameField.value = nameParts[0];
-      if (!firstNameField.value) firstNameField.value = nameParts[1];
-      if (nameParts.length > 2 && !middleNameField.value) {
-        middleNameField.value = nameParts[2];
+      // Only update fields that are empty
+      if (domElements.lastNameField && !domElements.lastNameField.value) {
+        domElements.lastNameField.value = parsedData[0];
+        triggerInputEvent(domElements.lastNameField);
+      }
+      
+      if (domElements.firstNameField && !domElements.firstNameField.value) {
+        domElements.firstNameField.value = parsedData[1];
+        triggerInputEvent(domElements.firstNameField);
+      }
+      
+      if (parsedData.length > 2 && domElements.middleNameField && !domElements.middleNameField.value) {
+        domElements.middleNameField.value = parsedData[2];
+        triggerInputEvent(domElements.middleNameField);
       }
     } catch (error) {
       console.error('Error processing PhilSys data:', error);
@@ -132,61 +173,116 @@ const QRScanner = (function() {
     }
   }
 
+  function triggerInputEvent(element) {
+    const event = new Event('input', {
+      bubbles: true,
+      cancelable: true,
+    });
+    element.dispatchEvent(event);
+  }
+
   function setButtonLoading(isLoading) {
+    if (!domElements.scanButton) return;
+
     if (isLoading) {
-      scanButton.disabled = true;
-      scanButton.innerHTML = 
-        '<span class="spinner-border spinner-border-sm" role="status"></span> Initializing...';
+      domElements.scanButton.disabled = true;
+      domElements.scanButton.innerHTML = 
+        '<span class="spinner-border spinner-border-sm me-2" role="status"></span> Initializing Scanner...';
     } else {
-      scanButton.disabled = false;
-      scanButton.innerHTML = 
+      domElements.scanButton.disabled = false;
+      domElements.scanButton.innerHTML = 
         '<i class="fas fa-qrcode me-2"></i>Scan PhilSys QR Code';
     }
   }
 
   function resetButtonState() {
-    scanButton.style.display = 'block';
-    setButtonLoading(false);
+    if (domElements.scanButton) {
+      domElements.scanButton.style.display = 'block';
+      setButtonLoading(false);
+    }
   }
 
   function showToast(type, message) {
-    const container = document.getElementById('toastContainer');
-    if (!container) return;
+    if (!domElements.toastContainer) {
+      console.warn('Toast container not found');
+      return;
+    }
 
-    const toastEl = document.createElement('div');
-    toastEl.className = `toast show align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0`;
-    toastEl.setAttribute('role', 'alert');
-    toastEl.setAttribute('aria-live', 'assertive');
-    toastEl.setAttribute('aria-atomic', 'true');
-    toastEl.innerHTML = `
-      <div class="d-flex">
-        <div class="toast-body">${message}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>
-    `;
+    const showNextToast = () => {
+      if (toastQueue.length === 0) {
+        isToastShowing = false;
+        return;
+      }
 
-    container.appendChild(toastEl);
-    
-    setTimeout(() => {
-      toastEl.remove();
-    }, 5000);
+      isToastShowing = true;
+      const { type, message } = toastQueue.shift();
+      
+      const toastEl = document.createElement('div');
+      toastEl.className = `toast show align-items-center text-white bg-${
+        type === 'success' ? 'success' : 'danger'
+      } border-0`;
+      toastEl.setAttribute('role', 'alert');
+      toastEl.setAttribute('aria-live', 'assertive');
+      toastEl.setAttribute('aria-atomic', 'true');
+      toastEl.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${message}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" 
+                  data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      `;
+
+      // Add click handler to close button
+      toastEl.querySelector('.btn-close').addEventListener('click', () => {
+        toastEl.remove();
+        showNextToast();
+      });
+
+      domElements.toastContainer.appendChild(toastEl);
+      
+      setTimeout(() => {
+        toastEl.remove();
+        showNextToast();
+      }, 5000);
+    };
+
+    toastQueue.push({ type, message });
+    if (!isToastShowing) {
+      showNextToast();
+    }
   }
 
   function init() {
-    // ⏱ Initialize DOM elements here after DOM is loaded
-    scanButton = document.getElementById('scanPhilSysQR');
-    closeButton = document.getElementById('closeScannerBtn');
-    scannerContainer = document.getElementById('qrScannerContainer');
-    qrDataInput = document.getElementById('qrData');
+    // Initialize DOM elements
+    domElements.scanButton = document.getElementById('scanPhilSysQR');
+    domElements.closeButton = document.getElementById('closeScannerBtn');
+    domElements.scannerContainer = document.getElementById('qrScannerContainer');
+    domElements.qrDataInput = document.getElementById('qrData');
+    domElements.lastNameField = document.getElementById('lastName');
+    domElements.firstNameField = document.getElementById('firstName');
+    domElements.middleNameField = document.getElementById('middleName');
+    domElements.toastContainer = document.getElementById('toastContainer');
+    domElements.registerModal = document.getElementById('registerModal');
 
-    if (scanButton && closeButton) {
-      scanButton.addEventListener('click', start);
-      closeButton.addEventListener('click', stop);
+    if (domElements.scanButton && domElements.closeButton) {
+      domElements.scanButton.addEventListener('click', start);
+      domElements.closeButton.addEventListener('click', stop);
     }
 
-    const registerModal = document.getElementById('registerModal');
-    if (registerModal) {
-      registerModal.addEventListener('hidden.bs.modal', stop);
+    if (domElements.registerModal) {
+      domElements.registerModal.addEventListener('hidden.bs.modal', stop);
+    }
+
+    // Add event listener for modal show to ensure proper initialization
+    if (domElements.registerModal) {
+      domElements.registerModal.addEventListener('show.bs.modal', () => {
+        // Reset scanner state when modal is shown
+        scannerRunning = false;
+        if (domElements.scannerContainer) {
+          domElements.scannerContainer.classList.add('d-none');
+        }
+        resetButtonState();
+      });
     }
   }
 
