@@ -423,20 +423,20 @@
           </div>
 
           <div id="qrScannerContainer" class="d-none position-relative">
-            <div id="reader" class="qr-scanner-viewport">
-              <div class="scanner-loading-fallback d-flex justify-content-center align-items-center h-100">
-                <div class="text-center text-white">
-                  <div class="spinner-border mb-3" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                  </div>
-                  <p>Loading scanner...</p>
+          <div id="reader" class="qr-scanner-viewport">
+            <div class="scanner-loading-fallback d-flex justify-content-center align-items-center h-100">
+              <div class="text-center text-white">
+                <div class="spinner-border mb-3" role="status">
+                  <span class="visually-hidden">Loading...</span>
                 </div>
+                <p>Loading scanner...</p>
               </div>
             </div>
-            <button id="closeScannerBtn" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2">
-              <i class="fas fa-times"></i> Close
-            </button>
           </div>
+          <button id="closeScannerBtn" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2">
+            <i class="fas fa-times"></i> Close
+          </button>
+        </div>
 
           <!-- Name Fields (Split) -->
           <div class="row mb-3" id="regName">
@@ -614,144 +614,79 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-  // 1. Define scanner types with proper fallback
+  // Define scanner types fallback
   window.Html5QrcodeScanType = window.Html5QrcodeScanner?.Html5QrcodeScanType || {
     SCAN_TYPE_CAMERA: 0,
     SCAN_TYPE_FILE: 1 
   };
-
-  // 2. Preload the scanner library
-  function preloadScannerLibrary() {
-    const link = document.createElement('link');
-    link.rel = 'preload';
-    link.href = 'https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js';
-    link.as = 'script';
-    link.crossOrigin = 'anonymous';
-    document.head.appendChild(link);
-  }
-  preloadScannerLibrary();
 </script>
 
 <script type="module">
-  // 3. Main module with enhanced error handling
+  // Main module loader with error handling
   (async function() {
-    // Configuration constants
-    const MODULE_PATHS = {
-      scanner: './weatherapp/js/auth/qrScanner.js',
-      authEvents: './weatherapp/js/auth/authEvents.js'
-    };
-    
-    const MAX_RETRIES = 2;
-    const RETRY_DELAY = 1000;
-
-    // Retryable import function
-    async function importWithRetry(modulePath, retries = MAX_RETRIES) {
-      try {
-        return await import(modulePath);
-      } catch (err) {
-        if (retries > 0) {
-          console.warn(`Retrying ${modulePath}... (${retries} attempts left)`);
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-          return importWithRetry(modulePath, retries - 1);
-        }
-        throw err;
-      }
-    }
-
-    // Main loading logic
     try {
-      // Load critical modules with retry
-      const [QRScanner, _] = await Promise.allSettled([
-        importWithRetry(MODULE_PATHS.scanner),
-        importWithRetry(MODULE_PATHS.authEvents)
+      // Preload the scanner library
+      const preloadLink = document.createElement('link');
+      preloadLink.rel = 'preload';
+      preloadLink.href = 'https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js';
+      preloadLink.as = 'script';
+      document.head.appendChild(preloadLink);
+
+      // Load modules
+      const [QRScanner, _] = await Promise.all([
+        import('./weatherapp/js/auth/qrScanner.js'),
+        import('./weatherapp/js/auth/authEvents.js').catch(() => console.warn('Auth events failed to load'))
       ]);
 
-      // Handle scanner loading result
-      if (QRScanner.status === 'rejected') {
-        throw new Error('Failed to load QR Scanner module');
-      }
-
-      // Initialize when DOM is ready
-      const domReady = new Promise(resolve => {
-        if (document.readyState !== 'loading') {
-          resolve();
-        } else {
-          document.addEventListener('DOMContentLoaded', resolve);
+      // Initialize when ready
+      document.addEventListener('DOMContentLoaded', () => {
+        try {
+          QRScanner.default.init();
+        } catch (error) {
+          console.error('Scanner initialization failed:', error);
+          showErrorState();
         }
       });
 
-      await domReady;
-      
-      try {
-        await QRScanner.value.default.init();
-        console.debug('QR Scanner initialized successfully');
-        
-        // Monitor scanner container for dynamic changes
-        if (document.getElementById('qrScannerContainer')) {
-          new MutationObserver(() => {
-            if (!document.getElementById('reader')) {
-              console.warn('Scanner container was modified');
-            }
-          }).observe(document.getElementById('qrScannerContainer'), {
-            childList: true,
-            subtree: true
-          });
-        }
-      } catch (initError) {
-        console.error('Initialization error:', initError);
-        showErrorState('Scanner initialization failed');
-      }
-
-    } catch (mainError) {
-      console.error('Main module error:', mainError);
-      showErrorState('Scanner functionality unavailable');
+    } catch (error) {
+      console.error('Module loading failed:', error);
+      showErrorState();
     }
 
-    // Error handling UI
-    function showErrorState(message) {
-      // Update scan button
+    function showErrorState() {
       const scanButton = document.getElementById('scanPhilSysQR');
       if (scanButton) {
         scanButton.disabled = true;
         scanButton.innerHTML = `
           <i class="fas fa-exclamation-triangle me-2"></i>
-          ${message}
+          Scanner Unavailable
         `;
-        scanButton.classList.add('btn-danger', 'disabled');
+        scanButton.classList.add('btn-danger');
       }
       
-      // Show toast notification
-      const toastContainer = document.getElementById('toastContainer') || 
-                           document.createElement('div');
-      if (!toastContainer.id) {
-        toastContainer.id = 'toastContainer';
-        toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
-        toastContainer.style.zIndex = '1100';
-        document.body.appendChild(toastContainer);
-      }
-
-      const toastId = `toast-${Date.now()}`;
+      // Show error toast
+      const toastContainer = document.getElementById('toastContainer') || createToastContainer();
       const errorToast = document.createElement('div');
-      errorToast.id = toastId;
       errorToast.className = 'toast show align-items-center text-white bg-danger border-0';
-      errorToast.setAttribute('role', 'alert');
       errorToast.innerHTML = `
         <div class="d-flex">
           <div class="toast-body">
-            <i class="fas fa-exclamation-circle me-2"></i>
-            ${message}. Please refresh the page.
+            QR Scanner failed to load. Please refresh the page.
           </div>
           <button type="button" class="btn-close btn-close-white me-2 m-auto" 
-                  onclick="document.getElementById('${toastId}').remove()">
-          </button>
+                  data-bs-dismiss="toast"></button>
         </div>
       `;
-      
       toastContainer.appendChild(errorToast);
-      setTimeout(() => {
-        const toast = document.getElementById(toastId);
-        if (toast) toast.remove();
-      }, 5000);
+    }
+
+    function createToastContainer() {
+      const container = document.createElement('div');
+      container.id = 'toastContainer';
+      container.className = 'position-fixed bottom-0 end-0 p-3';
+      container.style.zIndex = '1100';
+      document.body.appendChild(container);
+      return container;
     }
   })();
 </script>
