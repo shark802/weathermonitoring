@@ -39,6 +39,20 @@ const QRScanner = (function() {
     }
   }
 
+  function waitForVideoElement() {
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        const video = document.querySelector('#reader video');
+        if (video) {
+          resolve();
+        } else {
+          setTimeout(check, 100);
+        }
+      };
+      check();
+    });
+  }
+
   function waitForVideoReady() {
     return new Promise((resolve, reject) => {
       const video = document.querySelector('#reader video');
@@ -55,6 +69,7 @@ const QRScanner = (function() {
       checkReady();
     });
   }
+
 
 
   // Scanner Control
@@ -97,10 +112,13 @@ const QRScanner = (function() {
       scannerContainer.classList.remove('d-none');
       scanButton.style.display = 'none';
 
-      // Wait for next repaint so layout is updated
+      // Wait for layout to update
       await new Promise(resolve => setTimeout(resolve, 100));
 
+      // Wait for video element to appear in DOM
+      await waitForVideoElement();
 
+      // Now start the scanner
       await scannerInstance.start(
         cameraId,
         SCANNER_CONFIG,
@@ -108,8 +126,9 @@ const QRScanner = (function() {
         onScanError
       );
 
+      // Wait for video stream to be ready
       await waitForVideoReady();
-      console.log('Video stream is ready');
+      console.log('Video stream is ready'); 
 
       document.querySelector('.scanner-loading-fallback')?.classList.add('d-none'); 
 
