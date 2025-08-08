@@ -29,6 +29,9 @@ import jwt
 import base64
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
+import logging
+
+logger = logging.getLogger(__name__)
 
 def register_user(request):
     if request.method != 'POST':
@@ -64,8 +67,8 @@ def register_user(request):
         errors['qr_data'] = "Please scan your PhilSys QR code"
     else:
         try:
-            # Try parsing as JSON (new EdDSA format)
             try:
+                # Try JSON parse (EdDSA format)
                 qr_json = json.loads(qr_data)
                 alg = qr_json.get("alg", "").upper()
 
@@ -74,19 +77,21 @@ def register_user(request):
                     if not signature_b64:
                         errors['qr_data'] = "QR signature missing."
                     else:
-                        verify_key = VerifyKey(base64.b64decode(settings.PSA_ED25519_PUBLIC_KEY))
-                        signed_content = json.dumps(qr_json, separators=(',', ':')).encode()
-                        try:
-                            verify_key.verify(signed_content, base64.b64decode(signature_b64))
-                        except BadSignatureError:
-                            errors['qr_invalid'] = "Invalid PhilSys QR signature"
+                        psa_key = getattr(settings, 'PSA_ED25519_PUBLIC_KEY', None)
+                        if psa_key:
+                            try:
+                                verify_key = VerifyKey(base64.b64decode(psa_key))
+                                signed_content = json.dumps(qr_json, separators=(',', ':')).encode()
+                                verify_key.verify(signed_content, base64.b64decode(signature_b64))
+                            except BadSignatureError:
+                                errors['qr_invalid'] = "Invalid PhilSys QR signature"
+                        else:
+                            logger.warning("PSA_ED25519_PUBLIC_KEY is not set — skipping QR signature verification.")
 
-                    # Extract and compare details
+                    # Extract name fields
                     phil_first = qr_json.get("subject", {}).get("fName", "").upper()
                     phil_middle = qr_json.get("subject", {}).get("mName", "").upper()
                     phil_last = qr_json.get("subject", {}).get("lName", "").upper()
-
-                    # No address in this sample — skip or adjust if provided
                     phil_barangay = ""
                     phil_city = ""
                     phil_province = ""
@@ -95,7 +100,7 @@ def register_user(request):
                     raise ValueError("Not EdDSA JSON QR")
 
             except json.JSONDecodeError:
-                # Not JSON → try JWT (old RS256 format)
+                # Fallback: JWT RS256 format
                 decoded = jwt.decode(qr_data, key=settings.PSA_PUBLIC_KEY, algorithms=["RS256"])
                 phil_first = decoded.get('givenName', '').upper()
                 phil_middle = decoded.get('middleName', '').upper()
@@ -104,13 +109,13 @@ def register_user(request):
                 phil_city = decoded.get('address', {}).get('city', '').upper()
                 phil_province = decoded.get('address', {}).get('province', '').upper()
 
-            # Name validation
+            # Name match
             if (first_name != phil_first or 
                 last_name != phil_last or 
                 (middle_name and middle_name != phil_middle)):
                 errors['name_mismatch'] = "Name doesn't match PhilSys ID"
 
-            # Address partial matching (skip if EdDSA with no address)
+            # Address match
             if any([phil_province, phil_city, phil_barangay]):
                 if ((province and province not in phil_province) or
                     (city and city not in phil_city) or
@@ -158,7 +163,7 @@ def register_user(request):
     if errors:
         return JsonResponse({'success': False, 'errors': errors})
 
-    # Save to DB
+    # Save user
     hashed_password = make_password(password)
     try:
         with connection.cursor() as cursor:
