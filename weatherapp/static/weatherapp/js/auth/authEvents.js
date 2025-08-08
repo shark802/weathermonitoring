@@ -45,37 +45,41 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Store raw data regardless of format
-      qrDataInput.value = rawJwt;
+      // Store raw QR data
+      qrDataInput.value = rawData;
 
-      // Try JWT parsing only if it looks like a JWT (two dots)
-      if (rawJwt.includes('.') && rawJwt.split('.').length === 3) {
-        try {
-          const b64 = rawJwt.split('.')[1]
-            .replace(/-/g, '+')
-            .replace(/_/g, '/');
-          const payload = JSON.parse(atob(b64));
+      // Try to parse JSON if not JWT
+      let qrJson = null;
+      try {
+        qrJson = JSON.parse(rawData);
+      } catch (err) {
+        console.warn('[DEBUG] Not JSON, skipping parse:', err);
+      }
 
-          console.log('%c[DEBUG] Decoded JWT payload:', 'color: green;', payload);
+      // If it's JSON with "subject"
+      if (qrJson && qrJson.subject) {
+        console.log('%c[DEBUG] Parsed QR JSON:', 'color: green;', qrJson);
 
-          document.getElementById('firstName').value  ||= subject.fName || '';
-          document.getElementById('middleName').value ||= subject.mName || '';
-          document.getElementById('lastName').value   ||= subject.lName || '';
+        const subject = qrJson.subject || {};
+        const address = subject.address || {};
 
-          document.getElementById('barangay').value   ||= payload.address?.barangay || '';
-          document.getElementById('city').value       ||= payload.address?.city     || '';
-          document.getElementById('province').value   ||= payload.address?.province || '';
-        } catch (err) {
-          console.warn('[DEBUG] Failed to decode JWT payload:', err);
-        }
+        // Fill name fields (matching backend logic)
+        document.getElementById('firstName').value  ||= subject.fName || '';
+        document.getElementById('middleName').value ||= subject.mName || '';
+        document.getElementById('lastName').value   ||= subject.lName || '';
+
+        // Fill address fields if present
+        document.getElementById('barangay').value ||= address.barangay || '';
+        document.getElementById('city').value     ||= address.city || '';
+        document.getElementById('province').value ||= address.province || '';
       } else {
-        console.warn('[DEBUG] Data is not in JWT format.');
+        console.warn('[DEBUG] QR does not contain expected "subject" field.');
       }
 
       showToast('success', 'PhilSys QR scanned');
       scanner.stop();
       container.classList.add('d-none');
-    },
+
     { 
       preferredCamera: 'environment', 
       maxScansPerSecond: 10,
