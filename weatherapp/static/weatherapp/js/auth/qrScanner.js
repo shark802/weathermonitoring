@@ -1,8 +1,5 @@
 import QrScannerNative from 'https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.min.js';
 
-QrScannerNative.WORKER_PATH =
-  'https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner-worker.min.js';
-
 export class QRScanner {
   constructor(videoEl, canvasEl, onDecode, options = {}) {
     this._videoEl = videoEl;
@@ -15,10 +12,24 @@ export class QRScanner {
       highlightScanRegion: true,
       highlightCodeOutline: true,
       overlay: canvasEl,
+      returnDetailedScanResult: true, // Debug mode
       ...options
     };
 
-    this._scanner = new QrScannerNative(videoEl, onDecode, mergedOptions);
+    // Wrap the user's decode callback so we also log
+    const wrappedDecode = (result) => {
+      console.log('%c[DEBUG] Raw scan result object:', 'color: orange;', result);
+
+      if (!result?.data) {
+        console.warn('[DEBUG] No data detected in frame.');
+        return;
+      }
+
+      // Call the original callback with just the string
+      onDecode(result.data);
+    };
+
+    this._scanner = new QrScannerNative(videoEl, wrappedDecode, mergedOptions);
 
     const drawOverlay = () => {
       const { width, height } = this._canvasEl;
@@ -73,10 +84,16 @@ export class QRScanner {
   }
 
   async start() {
-    return this._scanner.start();
+    console.log('[DEBUG] Starting camera & scanner...');
+    await this._scanner.start();
+
+    this._videoEl.addEventListener('loadeddata', () => {
+      console.log('[DEBUG] Video is playing. Resolution:', this._videoEl.videoWidth, 'x', this._videoEl.videoHeight);
+    }, { once: true });
   }
 
   stop() {
+    console.log('[DEBUG] Stopping scanner...');
     return this._scanner.stop();
   }
 }
