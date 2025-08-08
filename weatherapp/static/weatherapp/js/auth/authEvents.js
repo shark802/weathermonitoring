@@ -46,12 +46,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Store raw QR data
-      qrDataInput.value = rawData;
+      qrDataInput.value = rawJwt;
 
       // Try to parse JSON if not JWT
       let qrJson = null;
       try {
-        qrJson = JSON.parse(rawData);
+        qrJson = JSON.parse(rawJwt));
       } catch (err) {
         console.warn('[DEBUG] Not JSON, skipping parse:', err);
       }
@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('success', 'PhilSys QR scanned');
       scanner.stop();
       container.classList.add('d-none');
+    },
 
     { 
       preferredCamera: 'environment', 
