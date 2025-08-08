@@ -26,8 +26,8 @@ export class QRScanner {
       this._ctx.lineWidth = 3;
 
       const guideSize = Math.min(width, height) * 0.6;
-      const guideX = (width - guideSize) / 2;
-      const guideY = (height - guideSize) / 2;
+      const guideX = (width - guideSize) / 3;
+      const guideY = (height - guideSize) / 3;
       const cornerLen = 25;
 
       // Corner guides
