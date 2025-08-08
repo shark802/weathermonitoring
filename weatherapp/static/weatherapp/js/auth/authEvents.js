@@ -205,9 +205,8 @@ async function handleRegisterSubmit(e) {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     });
 
-    // Check HTTP status before parsing
     if (!response.ok) {
-      const text = await response.text(); // so you can debug non-JSON responses
+      const text = await response.text(); 
       throw new Error(`HTTP ${response.status} – ${text}`);
     }
 
