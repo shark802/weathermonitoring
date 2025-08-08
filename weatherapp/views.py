@@ -26,145 +26,175 @@ import requests
 import time
 from django.conf import settings
 import jwt
+import base64
+from nacl.signing import VerifyKey
+from nacl.exceptions import BadSignatureError
 
 def register_user(request):
-    if request.method == 'POST':
-        errors = {}
-        
-        # Get and format name components
-        first_name = request.POST.get('firstName', '').strip().upper()
-        middle_name = request.POST.get('middleName', '').strip().upper()
-        last_name = request.POST.get('lastName', '').strip().upper()
-        name = ' '.join(filter(None, [first_name, middle_name, last_name]))  # Concatenated full name
+    if request.method != 'POST':
+        return JsonResponse({
+            'success': False,
+            'errors': {'method': 'POST request required'}
+        })
 
-        # Get and format address components
-        province = request.POST.get('province', '').strip().upper()
-        city = request.POST.get('city', '').strip().upper()
-        barangay = request.POST.get('barangay', '').strip().upper()
-        address = ', '.join(filter(None, [barangay, city, province]))  # Standardized address format
+    errors = {}
 
-        # Other fields
-        email = request.POST.get('regEmail')
-        phone = request.POST.get('regPhone')
-        username = request.POST.get('regUsername')
-        password = request.POST.get('regPassword')
-        confirm_password = request.POST.get('confirm_Password')
-        qr_data = request.POST.get('qr_data')
+    # Get and format name components
+    first_name = request.POST.get('firstName', '').strip().upper()
+    middle_name = request.POST.get('middleName', '').strip().upper()
+    last_name = request.POST.get('lastName', '').strip().upper()
+    name = ' '.join(filter(None, [first_name, middle_name, last_name]))
 
-        if not qr_data:
-            errors['qr_data'] = "Please scan your PhilSys QR code"
-        else:
+    # Get and format address components
+    province = request.POST.get('province', '').strip().upper()
+    city = request.POST.get('city', '').strip().upper()
+    barangay = request.POST.get('barangay', '').strip().upper()
+    address = ', '.join(filter(None, [barangay, city, province]))
+
+    # Other fields
+    email = request.POST.get('regEmail')
+    phone = request.POST.get('regPhone')
+    username = request.POST.get('regUsername')
+    password = request.POST.get('regPassword')
+    confirm_password = request.POST.get('confirm_Password')
+    qr_data = request.POST.get('qr_data')
+
+    # QR validation
+    if not qr_data:
+        errors['qr_data'] = "Please scan your PhilSys QR code"
+    else:
+        try:
+            # Try parsing as JSON (new EdDSA format)
             try:
+                qr_json = json.loads(qr_data)
+                alg = qr_json.get("alg", "").upper()
+
+                if alg == "EDDSA":
+                    signature_b64 = qr_json.pop("signature", None)
+                    if not signature_b64:
+                        errors['qr_data'] = "QR signature missing."
+                    else:
+                        verify_key = VerifyKey(base64.b64decode(settings.PSA_ED25519_PUBLIC_KEY))
+                        signed_content = json.dumps(qr_json, separators=(',', ':')).encode()
+                        try:
+                            verify_key.verify(signed_content, base64.b64decode(signature_b64))
+                        except BadSignatureError:
+                            errors['qr_invalid'] = "Invalid PhilSys QR signature"
+
+                    # Extract and compare details
+                    phil_first = qr_json.get("subject", {}).get("fName", "").upper()
+                    phil_middle = qr_json.get("subject", {}).get("mName", "").upper()
+                    phil_last = qr_json.get("subject", {}).get("lName", "").upper()
+
+                    # No address in this sample — skip or adjust if provided
+                    phil_barangay = ""
+                    phil_city = ""
+                    phil_province = ""
+
+                else:
+                    raise ValueError("Not EdDSA JSON QR")
+
+            except json.JSONDecodeError:
+                # Not JSON → try JWT (old RS256 format)
                 decoded = jwt.decode(qr_data, key=settings.PSA_PUBLIC_KEY, algorithms=["RS256"])
-                
-                # Name validation
                 phil_first = decoded.get('givenName', '').upper()
                 phil_middle = decoded.get('middleName', '').upper()
                 phil_last = decoded.get('familyName', '').upper()
-                
-                # Address validation
                 phil_barangay = decoded.get('address', {}).get('barangay', '').upper()
                 phil_city = decoded.get('address', {}).get('city', '').upper()
                 phil_province = decoded.get('address', {}).get('province', '').upper()
 
-                # Component-wise comparison
-                if (first_name != phil_first or 
-                    last_name != phil_last or 
-                    (middle_name and middle_name != phil_middle)):
-                    errors['name_mismatch'] = "Name doesn't match PhilSys ID"
-                
-                # Address partial matching
-                if (province and province not in phil_province or
-                    city and city not in phil_city or
-                    barangay and barangay not in phil_barangay):
+            # Name validation
+            if (first_name != phil_first or 
+                last_name != phil_last or 
+                (middle_name and middle_name != phil_middle)):
+                errors['name_mismatch'] = "Name doesn't match PhilSys ID"
+
+            # Address partial matching (skip if EdDSA with no address)
+            if any([phil_province, phil_city, phil_barangay]):
+                if ((province and province not in phil_province) or
+                    (city and city not in phil_city) or
+                    (barangay and barangay not in phil_barangay)):
                     errors['address_mismatch'] = "Address doesn't match PhilSys ID"
-                    
-            except jwt.InvalidSignatureError:
-                errors['qr_invalid'] = "Invalid PhilSys QR signature"
-            except Exception as e:
-                errors['qr_error'] = f"QR verification failed: {str(e)}"
 
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            errors['regEmail'] = "Invalid email format."
+        except jwt.InvalidSignatureError:
+            errors['qr_invalid'] = "Invalid PhilSys QR signature"
+        except Exception as e:
+            errors['qr_error'] = f"QR verification failed: {str(e)}"
 
-        if not re.match(r"^\d{11}$", phone):
-            errors['regPhone'] = "Phone number must be exactly 11 digits."
+    # Email validation
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+        errors['regEmail'] = "Invalid email format."
 
-        if len(password) < 8:
-            errors['regPassword'] = "Password must be at least 8 characters long."
-        elif not re.search(r'[A-Z]', password):
-            errors['regPassword'] = "Password must contain at least one uppercase letter."
-        elif not re.search(r'[a-z]', password):
-            errors['regPassword'] = "Password must contain at least one lowercase letter."
-        elif not re.search(r'\d', password):
-            errors['regPassword'] = "Password must contain at least one number."
-        elif not re.search(r'[!@#$%^&*(),.?\":{}|<>]', password):
-            errors['regPassword'] = "Password must contain at least one special character."
+    # Phone validation
+    if not re.match(r"^\d{11}$", phone):
+        errors['regPhone'] = "Phone number must be exactly 11 digits."
 
-        if password != confirm_password:
-            errors['confirm_Password'] = "Passwords do not match."
+    # Password validation
+    if len(password) < 8:
+        errors['regPassword'] = "Password must be at least 8 characters long."
+    elif not re.search(r'[A-Z]', password):
+        errors['regPassword'] = "Password must contain at least one uppercase letter."
+    elif not re.search(r'[a-z]', password):
+        errors['regPassword'] = "Password must contain at least one lowercase letter."
+    elif not re.search(r'\d', password):
+        errors['regPassword'] = "Password must contain at least one number."
+    elif not re.search(r'[!@#$%^&*(),.?\":{}|<>]', password):
+        errors['regPassword'] = "Password must contain at least one special character."
 
-        # Database checks
+    if password != confirm_password:
+        errors['confirm_Password'] = "Passwords do not match."
+
+    # Database checks
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT user_id FROM user WHERE username = %s", [username])
+        if cursor.fetchone():
+            errors['regUsername'] = "Username already exists."
+
+        cursor.execute("SELECT user_id FROM user WHERE name = %s", [name])
+        if cursor.fetchone():
+            errors['name'] = "Name already exists."
+
+    if errors:
+        return JsonResponse({'success': False, 'errors': errors})
+
+    # Save to DB
+    hashed_password = make_password(password)
+    try:
         with connection.cursor() as cursor:
-            cursor.execute("SELECT user_id FROM user WHERE username = %s", [username])
-            if cursor.fetchone():
-                errors['regUsername'] = "Username already exists."
-
-            cursor.execute("SELECT user_id FROM user WHERE name = %s", [name])
-            if cursor.fetchone():
-                errors['name'] = "Name already exists."
-
-        if errors:
-            return JsonResponse({
-                'success': False,
-                'errors': errors,
-            })
-
-        hashed_password = make_password(password)
-        
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute("""
-                    INSERT INTO user (
-                        name,
-                        address,
-                        email, 
-                        phone_num, 
-                        username, 
-                        password, 
-                        status, 
-                        verified_with_philsys
-                    ) VALUES (%s, %s, %s, %s, %s, %s, 'Active', %s)
-                """, [
+            cursor.execute("""
+                INSERT INTO user (
                     name,
                     address,
-                    email,
-                    phone,
-                    username,
-                    hashed_password,
-                    bool(qr_data)
-                ])
-            
-            return JsonResponse({
-                'success': True,
-                'message': "Registration successful!",
-                'user_data': {
-                    'full_name': name,
-                    'address': address,
-                    'philsys_verified': bool(qr_data)
-                }
-            })
+                    email, 
+                    phone_num, 
+                    username, 
+                    password, 
+                    status, 
+                    verified_with_philsys
+                ) VALUES (%s, %s, %s, %s, %s, %s, 'Active', %s)
+            """, [
+                name,
+                address,
+                email,
+                phone,
+                username,
+                hashed_password,
+                bool(qr_data)
+            ])
 
-        except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'errors': {'database': str(e)}
-            })
-    
-    return JsonResponse({
-        'success': False,
-        'errors': {'method': 'POST request required'}
-    })
+        return JsonResponse({
+            'success': True,
+            'message': "Registration successful!",
+            'user_data': {
+                'full_name': name,
+                'address': address,
+                'philsys_verified': bool(qr_data)
+            }
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'errors': {'database': str(e)}})
 
 def check_username(request):
     username = request.GET.get('username')

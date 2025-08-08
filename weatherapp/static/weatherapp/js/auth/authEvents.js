@@ -178,8 +178,6 @@ function setupEventListeners() {
   });
 }
 
-// … keep your existing handleRegisterSubmit, validateAllFields, handleFormErrors, handleLoginSubmit …
-
 
 async function handleRegisterSubmit(e) {
   e.preventDefault();
