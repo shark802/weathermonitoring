@@ -34,54 +34,101 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeBtn    = document.getElementById('closeScannerBtn');
 
   // … inside your DOMContentLoaded …
-  if (container && videoEl && qrDataInput && scanBtn && closeBtn) {
-    const scanner = new QRScanner(
-      videoEl,
-      canvasEl,
-      async (rawJwt) => {
-        // 1) shove the entire JWT into your hidden form field
-        qrDataInput.value = rawJwt;
-
-        // 2) decode payload for pre-fill (optional)
-        try {
-          // split on dots, base64→JSON
-          const b64 = rawJwt.split('.')[1];
-          const payload = JSON.parse(atob(b64));
-
-          // fill only if the user hasn’t already typed
-          document.getElementById('firstName').value  ||= payload.givenName    || '';
-          document.getElementById('middleName').value ||= payload.middleName   || '';
-          document.getElementById('lastName').value   ||= payload.familyName   || '';
-
-          document.getElementById('barangay').value   ||= payload.address?.barangay || '';
-          document.getElementById('city').value       ||= payload.address?.city     || '';
-          document.getElementById('province').value   ||= payload.address?.province || '';
-        } catch (e) {
-          console.warn('Could not parse JWT payload for prefill:', e);
-        }
-
-        showToast('success', 'PhilSys QR scanned');
-        scanner.stop();
-        container.classList.add('d-none');
-      },
-      { preferredCamera: 'environment', maxScansPerSecond: 10 }
-    );
-
-    scanBtn.addEventListener('click', async () => {
-      container.classList.remove('d-none');
-      try {
-        await scanner.start();
-      } catch (e) {
-        showToast('error', e.message || 'Unable to access camera');
-        container.classList.add('d-none');
+  scanBtn.addEventListener('click', async () => {
+  container.classList.remove('d-none');
+  try {
+    // Request HD camera stream explicitly
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
       }
     });
+    videoEl.srcObject = stream;
 
-    closeBtn.addEventListener('click', () => {
-      scanner.stop();
-      container.classList.add('d-none');
-    });
+    // Start scanner after stream is ready
+    await new Promise(res => videoEl.onloadedmetadata = res);
+    await scanner.start();
+  } catch (e) {
+    showToast('error', e.message || 'Unable to access camera');
+    container.classList.add('d-none');
   }
+});
+
+// Scanner creation
+const scanner = new QRScanner(
+  videoEl,
+  canvasEl,
+  async (rawJwt) => {
+    console.log('%c[DEBUG] Raw scanned data:', 'color: orange;', rawJwt);
+
+    if (!rawJwt || rawJwt.length < 10) {
+      console.warn('[DEBUG] Scan result too short — maybe misread.');
+      return;
+    }
+
+    // Store raw data regardless of format
+    qrDataInput.value = rawJwt;
+
+    // Try JWT parsing only if it looks like a JWT (two dots)
+    if (rawJwt.includes('.') && rawJwt.split('.').length === 3) {
+      try {
+        const b64 = rawJwt.split('.')[1]
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+        const payload = JSON.parse(atob(b64));
+
+        console.log('%c[DEBUG] Decoded JWT payload:', 'color: green;', payload);
+
+        document.getElementById('firstName').value  ||= payload.givenName    || '';
+        document.getElementById('middleName').value ||= payload.middleName   || '';
+        document.getElementById('lastName').value   ||= payload.familyName   || '';
+
+        document.getElementById('barangay').value   ||= payload.address?.barangay || '';
+        document.getElementById('city').value       ||= payload.address?.city     || '';
+        document.getElementById('province').value   ||= payload.address?.province || '';
+      } catch (err) {
+        console.warn('[DEBUG] Failed to decode JWT payload:', err);
+      }
+    } else {
+      console.warn('[DEBUG] Data is not in JWT format.');
+    }
+
+    showToast('success', 'PhilSys QR scanned');
+    scanner.stop();
+    container.classList.add('d-none');
+  },
+  { 
+    preferredCamera: 'environment', 
+    maxScansPerSecond: 10,
+    highlightScanRegion: true,
+    highlightCodeOutline: true
+  }
+);
+
+// ⬇ Replace your old click event with this
+scanBtn.addEventListener('click', async () => {
+  container.classList.remove('d-none');
+  try {
+    // Request HD camera stream explicitly
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    });
+    videoEl.srcObject = stream;
+
+    // Start scanner after stream is ready
+    await new Promise(res => videoEl.onloadedmetadata = res);
+    await scanner.start();
+  } catch (e) {
+    showToast('error', e.message || 'Unable to access camera');
+    container.classList.add('d-none');
+  }
+});
 });
 
 function setupFormValidation() {
