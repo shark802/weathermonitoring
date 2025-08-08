@@ -1,5 +1,8 @@
 import QrScannerNative from 'https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.min.js';
 
+QrScannerNative.WORKER_PATH =
+  'https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner-worker.min.js';
+
 export class QRScanner {
   constructor(videoEl, canvasEl, onDecode, options = {}) {
     this._videoEl = videoEl;
