@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Try to parse JSON if not JWT
       let qrJson = null;
       try {
-        qrJson = JSON.parse(rawJwt));
+        qrJson = JSON.parse(rawJwt);
       } catch (err) {
         console.warn('[DEBUG] Not JSON, skipping parse:', err);
       }
