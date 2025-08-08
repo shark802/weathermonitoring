@@ -2,47 +2,22 @@ import QrScannerNative from 'https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-sc
 
 export class QRScanner {
   constructor(videoEl, canvasEl, onDecode, options = {}) {
-    this._videoEl  = videoEl;
-    this._canvasEl = canvasEl;
+    this._videoEl = videoEl;
 
-    this._scanner = new QrScannerNative(
-      videoEl,
-      onDecode,
-      {
-        ...options,
-        canvas: canvasEl,
-        highlightScanRegion: false 
-      }
-    );
+    const mergedOptions = {
+      preferredCamera: 'environment',
+      maxScansPerSecond: 10,
+      highlightScanRegion: true,
+      highlightCodeOutline: true,
+      overlay: canvasEl, // ✅ pass canvas for custom overlay
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      ...options
+    };
+
+    this._scanner = new QrScannerNative(videoEl, onDecode, mergedOptions);
   }
 
   async start() {
-    // 2. Inject your custom painter before starting
-    this._scanner._canvasContextOverride = (ctx, scanRegion) => {
-      // full‐screen dark mask
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-      // clear the window
-      ctx.clearRect(
-        scanRegion.x,
-        scanRegion.y,
-        scanRegion.width,
-        scanRegion.height
-      );
-
-      // crosshairs
-      ctx.strokeStyle = '#00FF00';
-      ctx.lineWidth   = 2;
-      ctx.beginPath();
-      ctx.moveTo(scanRegion.x, scanRegion.y + scanRegion.height / 2);
-      ctx.lineTo(scanRegion.x + scanRegion.width, scanRegion.y + scanRegion.height / 2);
-      ctx.moveTo(scanRegion.x + scanRegion.width / 2, scanRegion.y);
-      ctx.lineTo(scanRegion.x + scanRegion.width / 2, scanRegion.y + scanRegion.height);
-      ctx.stroke();
-    };
-
     return this._scanner.start();
   }
 
