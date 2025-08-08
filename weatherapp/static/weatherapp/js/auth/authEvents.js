@@ -58,9 +58,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
           console.log('%c[DEBUG] Decoded JWT payload:', 'color: green;', payload);
 
-          document.getElementById('firstName').value  ||= payload.givenName    || '';
-          document.getElementById('middleName').value ||= payload.middleName   || '';
-          document.getElementById('lastName').value   ||= payload.familyName   || '';
+          document.getElementById('firstName').value  ||= subject.fName || '';
+          document.getElementById('middleName').value ||= subject.mName || '';
+          document.getElementById('lastName').value   ||= subject.lName || '';
 
           document.getElementById('barangay').value   ||= payload.address?.barangay || '';
           document.getElementById('city').value       ||= payload.address?.city     || '';
