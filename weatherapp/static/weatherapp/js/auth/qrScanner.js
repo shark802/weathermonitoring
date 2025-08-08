@@ -4,7 +4,7 @@ export class QRScanner {
   constructor(videoEl, canvasEl, onDecode, options = {}) {
     this._videoEl = videoEl;
     this._canvasEl = canvasEl;
-    this._ctx = canvasEl.getContext('2d');
+    this._ctx = canvasEl.getContext('2d', { willReadFrequently: true });
 
     const mergedOptions = {
       preferredCamera: 'environment',
