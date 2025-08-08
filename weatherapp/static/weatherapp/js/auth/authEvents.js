@@ -188,14 +188,12 @@ async function handleRegisterSubmit(e) {
   e.preventDefault();
   clearModalErrors('registerModal');
 
-  // Validate all fields
-  const isValid = validateAllFields();
-  if (!isValid) return;
+  if (!validateAllFields()) return;
 
   const form = e.target;
   const submitBtn = form.querySelector('#registerSubmitBtn');
   const originalText = submitBtn.innerHTML;
-  
+
   submitBtn.disabled = true;
   submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Registering...`;
 
@@ -207,7 +205,19 @@ async function handleRegisterSubmit(e) {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     });
 
-    const data = await response.json();
+    // Check HTTP status before parsing
+    if (!response.ok) {
+      const text = await response.text(); // so you can debug non-JSON responses
+      throw new Error(`HTTP ${response.status} – ${text}`);
+    }
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (err) {
+      const text = await response.text();
+      throw new Error(`Invalid JSON from server: ${text}`);
+    }
 
     if (data.success) {
       showToast('success', data.message);
@@ -215,11 +225,11 @@ async function handleRegisterSubmit(e) {
       modal?.hide();
       setTimeout(() => window.location.href = "/", 1500);
     } else {
-      handleFormErrors(data.errors);
+      handleFormErrors(data.errors || {});
     }
   } catch (error) {
     console.error('Registration Error:', error);
-    showToast('error', 'Unexpected error occurred. Please try again.');
+    showToast('error', error.message || 'Unexpected error occurred. Please try again.');
   } finally {
     submitBtn.disabled = false;
     submitBtn.innerHTML = originalText;
