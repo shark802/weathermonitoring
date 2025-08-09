@@ -4,7 +4,7 @@
     <div class="flex-grow overflow-y-auto">
       <div class="mb-0">
         <div class="flex items-center gap-2">
-          <img src="{% static 'weatherapp/images/logo.png' %}" alt="WeatherAlert Logo" class="w-8 h-8">
+          <img src="{% static 'images/logo.png' %}" alt="WeatherAlert Logo" class="w-8 h-8">
           <h2 class="text-xl font-bold text-gray-800">WeatherAlert</h2>
         </div>
         <div class="h-px bg-gray-400 my-4"></div>
@@ -67,46 +67,9 @@
         <a href="{% url 'sensors' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'sensors' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}">
           <i class="fas fa-broadcast-tower w-5 text-center"></i> Sensors
         </a>
-
-        {% with request.resolver_match.url_name as current_url %}
-        <div onclick="toggleUserDropdown()"
-            class="flex justify-between items-center cursor-pointer px-2 py-2 rounded-md font-medium
-                {% if current_url in 'active_user pending_user' %}
-                  bg-blue-50 text-blue-600
-                {% else %}
-                  text-gray-700 hover:bg-blue-50 hover:text-blue-600
-                {% endif %}"
-            role="button" aria-expanded="true" aria-controls="userMenu">
-          <span class="flex items-center gap-2">
-            <i class="fas fa-user w-5 text-center"></i> Manage Users
-          </span>
-          <i id="userArrow"
-              class="fas text-sm transition-transform duration-200
-                {% if current_url in 'active_user pending_user' %}
-                  fa-chevron-down text-blue-600
-                {% else %}
-                  fa-chevron-right text-gray-700
-                {% endif %}">
-          </i>
-        </div>
-        <div id="userMenu"
-            class="{% if current_url in 'active_user pending_user' %}block{% else %}hidden{% endif %}">
-          <ul class="nav flex-column ms-4 space-y-1 mt-1">
-            <li class="nav-item">
-              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'active_user' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}"
-                href="{% url 'active_user' %}">
-                <span class="text-xs">●</span> Active Users
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'pending_user' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}"
-                href="{% url 'pending_user' %}">
-                <span class="text-xs">●</span> Pending Users
-              </a>
-            </li>
-          </ul>
-        </div>
-        {% endwith %}
+        <a href="{% url 'active_user' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'active_user' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}">
+          <i class="fas fa-user w-5 text-center"></i> Manage Users
+        </a>
         
         <!-- Send Alerts Button - Fixed position -->
         <button type="button" 

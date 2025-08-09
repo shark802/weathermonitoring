@@ -1,4 +1,3 @@
-// addressSelect.js
 import { showToast } from './uiHelpers.js';
 
 const psgcCache = {};
@@ -20,7 +19,23 @@ async function fetchWithCache(url, cacheKey) {
   }
 }
 
+// 🔹 Create hidden inputs to store names for form submission
+function ensureHiddenFields() {
+  const fields = ['province_name', 'city_name', 'barangay_name'];
+  fields.forEach(id => {
+    if (!document.getElementById(id)) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = id;
+      input.id = id;
+      document.forms[0].appendChild(input);
+    }
+  });
+}
+
 export async function loadProvinces() {
+  ensureHiddenFields();
+
   try {
     const provinces = await fetchWithCache(
       'https://psgc.gitlab.io/api/provinces',
@@ -33,6 +48,11 @@ export async function loadProvinces() {
     dropdown.innerHTML = '<option value="" disabled selected>Select Province</option>';
     provinces.forEach(province => {
       dropdown.innerHTML += `<option value="${province.code}">${province.name}</option>`;
+    });
+
+    dropdown.addEventListener('change', () => {
+      const selectedName = dropdown.options[dropdown.selectedIndex].text;
+      document.getElementById('province_name').value = selectedName;
     });
 
   } catch (error) {
@@ -87,6 +107,9 @@ async function loadCitiesAndMunicipalities(provinceCode) {
     cityDropdown.addEventListener('change', async () => {
       const selectedCode = cityDropdown.value;
       const selectedType = cityDropdown.options[cityDropdown.selectedIndex].dataset.type;
+      const selectedName = cityDropdown.options[cityDropdown.selectedIndex].text;
+      document.getElementById('city_name').value = selectedName;
+
       await loadBarangays(selectedCode, selectedType);
     });
 
@@ -112,6 +135,12 @@ async function loadBarangays(code, type) {
     });
 
     barangayDropdown.disabled = false;
+
+    barangayDropdown.addEventListener('change', () => {
+      const selectedName = barangayDropdown.options[barangayDropdown.selectedIndex].text;
+      document.getElementById('barangay_name').value = selectedName;
+    });
+
   } catch (error) {
     showToast('error', 'Failed to load barangays. Please try again.');
   }
