@@ -4,16 +4,38 @@ import time
 import dht
 from machine import Pin
 
+# WiFi credentials
 ssid = "SIASICO"
 password = "Waykokabalo0831"
 
+# Onboard LED (usually GPIO 2 for ESP8266/ESP32)
+led = Pin(2, Pin.OUT)
+
+# Log to file + console
+def log(message):
+    print(message)
+    try:
+        with open('log.txt', 'a') as f:
+            f.write(f"{time.localtime()} - {message}\n")
+    except:
+        pass
+
+# Blink LED for status
+def blink(times):
+    for _ in range(times):
+        led.off()
+        time.sleep(0.2)
+        led.on()
+        time.sleep(0.2)
+
+# Connect to WiFi
 def connect_wifi():
     sta = network.WLAN(network.STA_IF)
     if not sta.active():
         sta.active(True)
     
     if not sta.isconnected():
-        print("Connecting to WiFi...")
+        log("Connecting to WiFi...")
         sta.connect(ssid, password)
         
         max_wait = 10
@@ -21,15 +43,18 @@ def connect_wifi():
             if sta.isconnected():
                 break
             max_wait -= 1
-            print('waiting...')
+            log('Waiting for connection...')
             time.sleep(1)
     
     if not sta.isconnected():
+        blink(5)  # Error signal
         raise OSError("Failed to connect to WiFi")
     
-    print("WiFi connected. IP:", sta.ifconfig()[0])
+    log("WiFi connected. IP: " + sta.ifconfig()[0])
+    blink(3)  # Connected signal
     return sta
 
+# Main loop
 try:
     sta = connect_wifi()
     
@@ -48,17 +73,22 @@ try:
                 "sensor_id": "1"
             }
 
+            log(f"Sending data: {payload}")
             response = urequests.post(url, json=payload)
-            print("Server response:", response.text)
+            log("Server response: " + response.text)
             response.close()
 
+            blink(1)  # short blink for each successful send
+
         except Exception as e:
-            print("Error during sensor reading or HTTP request:", e)
+            log("Error: " + str(e))
+            blink(5)  # error blink
             if not sta.isconnected():
-                print("WiFi disconnected, attempting to reconnect...")
+                log("WiFi disconnected, reconnecting...")
                 sta = connect_wifi()
 
-        time.sleep(600)
+        time.sleep(600)  # wait 10 minutes
 
 except OSError as e:
-    print("Fatal error:", e)
+    log("Fatal error: " + str(e))
+    blink(5)

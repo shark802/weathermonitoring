@@ -1554,53 +1554,69 @@ def get_rain_intensity(amount):
 
 @csrf_exempt
 def receive_sensor_data(request):
-    if request.method == "POST":
+    # Log method and body for debugging
+    print("==== Incoming Request ====")
+    print("Method:", request.method)
+    print("Headers:", dict(request.headers))
+    print("Raw body:", request.body)
+    print("==========================")
+
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid request method, must be POST"}, status=405)
+
+    try:
+        # Parse JSON safely
         try:
             data = json.loads(request.body)
+        except json.JSONDecodeError as e:
+            return JsonResponse({"error": f"Invalid JSON: {str(e)}"}, status=400)
 
-            temperature = float(data.get('temperature'))
-            humidity = float(data.get('humidity'))
-            sensor_id = int(data.get('sensor_id'))
+        # Get required fields with defaults
+        temperature = float(data.get('temperature', 0))
+        humidity = float(data.get('humidity', 0))
+        sensor_id = int(data.get('sensor_id', 0))
 
-            rain_rate = 0.0 
-            rain_accumulated = float(data.get('rain_accumulated', 0))
-            wind_speed = float(data.get('wind_speed', 0))
-            wind_direction = data.get('wind_direction', '')
-            pressure = float(data.get('barometric_pressure', 0))
+        # Optional fields
+        rain_rate = float(data.get('rain_rate', 0))
+        rain_accumulated = float(data.get('rain_accumulated', 0))
+        wind_speed = float(data.get('wind_speed', 0))
+        wind_direction = str(data.get('wind_direction', ''))
+        pressure = float(data.get('barometric_pressure', 0))
 
-            dew_point = temperature - ((100 - humidity) / 5)
+        # Derived field
+        dew_point = temperature - ((100 - humidity) / 5)
 
-            intensity_label = get_rain_intensity(rain_rate)
+        # Get intensity label
+        intensity_label = get_rain_intensity(rain_rate)
 
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT intensity_id FROM intensity WHERE intensity = %s", [intensity_label])
-                row = cursor.fetchone()
-                if row:
-                    intensity_id = row[0]
-                else:
-                    return JsonResponse({"error": f"Invalid intensity label: {intensity_label}"}, status=400)
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT intensity_id FROM intensity WHERE intensity = %s", [intensity_label])
+            row = cursor.fetchone()
+            if not row:
+                return JsonResponse({"error": f"Invalid intensity label: {intensity_label}"}, status=400)
+            intensity_id = row[0]
 
-            ph_time = now().astimezone(pytz.timezone('Asia/Manila'))
-            
-            with connection.cursor() as cursor:
-                cursor.execute("""
-                    INSERT INTO weather_reports (
-                        sensor_id, intensity_id, temperature, humidity,
-                        wind_speed, wind_direction, barometric_pressure,
-                        dew_point, date_time, rain_rate, rain_accumulated
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, [
+        # Save to DB
+        ph_time = now().astimezone(pytz.timezone('Asia/Manila'))
+
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO weather_reports (
                     sensor_id, intensity_id, temperature, humidity,
-                    wind_speed, wind_direction, pressure,
-                    dew_point, ph_time, rain_rate, rain_accumulated
-                ])
+                    wind_speed, wind_direction, barometric_pressure,
+                    dew_point, date_time, rain_rate, rain_accumulated
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, [
+                sensor_id, intensity_id, temperature, humidity,
+                wind_speed, wind_direction, pressure,
+                dew_point, ph_time, rain_rate, rain_accumulated
+            ])
 
-            return JsonResponse({"status": "success"}, status=201)
+        return JsonResponse({"status": "success"}, status=201)
 
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
-
-    return JsonResponse({"error": "Invalid request"}, status=405)
+    except Exception as e:
+        # Catch-all for unexpected errors
+        return JsonResponse({"error": str(e)}, status=400)
 
 @csrf_exempt
 def send_alert(request):
