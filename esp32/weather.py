@@ -4,8 +4,8 @@ import time
 import dht
 from machine import Pin
 
-ssid = "Genesis"
-password = "@bccbsis2024"
+ssid = "SIASICO"
+password = "Waykokabalo0831"
 
 def connect_wifi():
     sta = network.WLAN(network.STA_IF)
