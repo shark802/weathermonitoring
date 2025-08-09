@@ -50,9 +50,12 @@ def register_user(request):
 
     # Get and format address components
     province = request.POST.get('province', '').strip().upper()
+    province_name = (request.POST.get('province_name') or '').strip().title()
     city = request.POST.get('city', '').strip().upper()
+    city_name = (request.POST.get('city_name') or '').strip().title()
     barangay = request.POST.get('barangay', '').strip().upper()
-    address = ', '.join(filter(None, [barangay, city, province]))
+    barangay_name = (request.POST.get('barangay_name') or '').strip().title()
+    address = ', '.join(filter(None, [barangay_name, city_name, province_name]))
 
     # Other fields
     email = request.POST.get('regEmail')
@@ -175,9 +178,8 @@ def register_user(request):
                     phone_num, 
                     username, 
                     password, 
-                    status, 
                     verified_with_philsys
-                ) VALUES (%s, %s, %s, %s, %s, %s, 'Active', %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, [
                 name,
                 address,
@@ -233,38 +235,41 @@ def home(request):
     })
 
 
+def set_session_expiry(request, remember_me):
+    """Set session expiry based on 'Remember Me' checkbox."""
+    request.session.set_expiry(30 * 24 * 60 * 60 if remember_me == 'on' else 0)
+
 def login_view(request):
     if request.method == "POST":
         username = request.POST.get('username')
         password = request.POST.get('password')
-        remember_me = request.POST.get('remember_me')  # Checkbox value (None if unchecked)
+        remember_me = request.POST.get('remember_me')
 
+        # Try user login
         with connection.cursor() as cursor:
-            cursor.execute("SELECT user_id, username, password, status FROM user WHERE username = %s", [username])
+            cursor.execute(
+                "SELECT user_id, username, password FROM user WHERE username = %s",
+                [username]
+            )
             user_data = cursor.fetchone()
 
         if user_data:
-            user_id, db_username, db_hashed_password, status = user_data
-            if status == 'Pending':
-                form_loginError = "Your account is still pending for approval."
-            elif check_password(password, db_hashed_password):
+            user_id, db_username, db_hashed_password = user_data
+            if check_password(password, db_hashed_password):
                 request.session['user_id'] = user_id
                 request.session['username'] = db_username
-                
-                # Set session expiry based on "Remember Me" selection
-                if remember_me:
-                    # Persistent session for 30 days
-                    request.session.set_expiry(30 * 24 * 60 * 60)  # 30 days in seconds
-                else:
-                    # Session expires when browser closes
-                    request.session.set_expiry(0)
-                
+                set_session_expiry(request, remember_me)
                 return redirect('user_dashboard')
             else:
                 form_loginError = "Invalid username or password."
+        
         else:
+            # Try admin login
             with connection.cursor() as cursor:
-                cursor.execute("SELECT admin_id, username, password, status FROM admin WHERE username = %s", [username])
+                cursor.execute(
+                    "SELECT admin_id, username, password, status FROM admin WHERE username = %s",
+                    [username]
+                )
                 admin_data = cursor.fetchone()
 
             if admin_data:
@@ -274,13 +279,7 @@ def login_view(request):
                 elif check_password(password, db_hashed_password):
                     request.session['admin_id'] = admin_id
                     request.session['username'] = db_username
-                    
-                    # Set session expiry for admin as well
-                    if remember_me:
-                        request.session.set_expiry(30 * 24 * 60 * 60)
-                    else:
-                        request.session.set_expiry(0)
-                    
+                    set_session_expiry(request, remember_me)
                     return redirect('admin_dashboard')
                 else:
                     form_loginError = "Invalid username or password."
@@ -986,11 +985,9 @@ def active_user(request):
             row = cursor.fetchone()
             admin_name = row[0] if row else 'Admin'
 
-            # Get active users
             cursor.execute("""
-                SELECT user_id, name, address, email, phone_num, id_card, status, username 
+                SELECT user_id, name, address, email, phone_num, username 
                 FROM user 
-                WHERE status = 'Active'
                 ORDER BY name
             """)
             users = [{
@@ -999,9 +996,7 @@ def active_user(request):
                 'address': row[2],
                 'email': row[3],
                 'phone_num': row[4],
-                'id_card': row[5],
-                'status': row[6],
-                'username': row[7],
+                'username': row[5],
             } for row in cursor.fetchall()]
 
         return render(request, 'manageActive_user.html', {
@@ -1031,131 +1026,6 @@ def delete_user(request, user_id):
     except Exception as e:
         messages.error(request, f'Failed to delete user: {str(e)}')
         return redirect('active_user')
-
-@cache_control(no_cache=True, must_revalidate=True, no_store=True)
-def pending_user(request):
-    if 'admin_id' not in request.session:
-        messages.error(request, 'Please login to access this page')
-        return redirect('home')
-    
-    try:
-        with connection.cursor() as cursor:
-            # 1. Get admin info - handle case where admin doesn't exist
-            cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [request.session['admin_id']])
-            admin_row = cursor.fetchone()
-            
-            if not admin_row:  # Admin not found
-                messages.error(request, 'Admin account not found')
-                return redirect('admin_dashboard')
-                
-            admin_name = admin_row[0]
-
-            # 2. Get pending users - empty list is acceptable
-            cursor.execute("""
-                SELECT user_id, name, address, email, phone_num, id_card, status, username 
-                FROM user 
-                WHERE status = 'Pending'
-                ORDER BY name
-            """)
-            
-            # This will be empty if no pending users exist
-            users = [{
-                'id': row[0],
-                'name': row[1],
-                'address': row[2],
-                'email': row[3],
-                'phone_num': row[4],
-                'id_card': row[5],
-                'status': row[6],
-                'username': row[7],
-            } for row in cursor.fetchall()]
-
-        # This will render even with empty users list
-        return render(request, 'managePending_user.html', {
-            'users': users,  # Could be empty list
-            'admin': {'name': admin_name},
-            'current_url': 'pending_user'
-        })
-
-    except Exception as e:
-        messages.error(request, f'Database error: {str(e)}')
-        return redirect('admin_dashboard')
-
-def activate_user(request, user_id):
-    if 'admin_id' not in request.session:
-        return HttpResponseForbidden("Not authorized")
-    
-    if request.method != 'POST':
-        return HttpResponseForbidden("Invalid request method")
-
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT email, name FROM user WHERE user_id = %s", [user_id])
-            result = cursor.fetchone()
-
-        if not result:
-            messages.error(request, "User not found")
-            return redirect('pending_user')
-
-        email, name = result
-
-        with connection.cursor() as cursor:
-            cursor.execute("UPDATE user SET status = 'Active' WHERE user_id = %s", [user_id])
-
-        try:
-            send_mail(
-                subject='Your WeatherAlert Account Has Been Activated',
-                message=f'Hello {name},\n\nYour account has been successfully activated. You may now log in and use the system.\n\nThank you!',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=False,
-            )
-            messages.success(request, "User activated successfully and email sent")
-        except Exception as e:
-            messages.warning(request, f"User activated but email failed to send: {str(e)}")
-
-    except Exception as e:
-        messages.error(request, f"Activation failed: {str(e)}")
-
-    return redirect('pending_user')
-
-def decline_user(request, user_id):
-    if 'admin_id' not in request.session:
-        return HttpResponseForbidden("Not authorized")
-    
-    if request.method != 'POST':
-        return HttpResponseForbidden("Invalid request method")
-
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT email, name FROM user WHERE user_id = %s", [user_id])
-            result = cursor.fetchone()
-
-        if not result:
-            messages.error(request, "User not found")
-            return redirect('pending_user')
-
-        email, name = result
-
-        with connection.cursor() as cursor:
-            cursor.execute("DELETE FROM user WHERE user_id = %s", [user_id])
-
-        try:
-            send_mail(
-                subject='Your WeatherAlert Account Registration Was Declined',
-                message=f'Hello {name},\n\nWe regret to inform you that your registration for the WeatherAlert system has been declined.\n\nFor further inquiries, please contact support.\n\nThank you.',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=False,
-            )
-            messages.success(request, "User declined and email sent")
-        except Exception as e:
-            messages.warning(request, f"User declined but email failed to send: {str(e)}")
-
-    except Exception as e:
-        messages.error(request, f"Decline failed: {str(e)}")
-
-    return redirect('pending_user')
 
 
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
