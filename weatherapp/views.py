@@ -1217,7 +1217,6 @@ def weather_reports(request):
         JOIN intensity i ON wr.intensity_id = i.intensity_id
     """
     
-    # Build WHERE conditions
     conditions = []
     params = []
     
@@ -1259,13 +1258,53 @@ def weather_reports(request):
     
     # Get summary statistics
     summary_query = """
-        SELECT 
-            AVG(temperature) as avg_temp,
-            MAX(wind_speed) as max_wind,
-            AVG(humidity) as avg_humidity,
-            SUM(rain_accumulated) as total_rain
+        SELECT
+            MIN(wr.temperature) AS min_temp,
+            (SELECT wr2.date_time 
+            FROM weather_reports wr2 
+            WHERE wr2.temperature = MIN(wr.temperature)
+            ORDER BY wr2.date_time ASC LIMIT 1) AS min_temp_date,
+            MAX(wr.temperature) AS max_temp,
+            (SELECT wr2.date_time 
+            FROM weather_reports wr2 
+            WHERE wr2.temperature = MAX(wr.temperature)
+            ORDER BY wr2.date_time ASC LIMIT 1) AS max_temp_date,
+
+            MIN(wr.wind_speed) AS min_wind,
+            (SELECT wr2.date_time 
+            FROM weather_reports wr2 
+            WHERE wr2.wind_speed = MIN(wr.wind_speed)
+            ORDER BY wr2.date_time ASC LIMIT 1) AS min_wind_date,
+            MAX(wr.wind_speed) AS max_wind,
+            (SELECT wr2.date_time 
+            FROM weather_reports wr2 
+            WHERE wr2.wind_speed = MAX(wr.wind_speed)
+            ORDER BY wr2.date_time ASC LIMIT 1) AS max_wind_date,
+
+            MIN(wr.humidity) AS min_humidity,
+            (SELECT wr2.date_time 
+            FROM weather_reports wr2 
+            WHERE wr2.humidity = MIN(wr.humidity)
+            ORDER BY wr2.date_time ASC LIMIT 1) AS min_humidity_date,
+            MAX(wr.humidity) AS max_humidity,
+            (SELECT wr2.date_time 
+            FROM weather_reports wr2 
+            WHERE wr2.humidity = MAX(wr.humidity)
+            ORDER BY wr2.date_time ASC LIMIT 1) AS max_humidity_date,
+
+            MIN(wr.rain_accumulated) AS min_rain,
+            (SELECT wr2.date_time 
+            FROM weather_reports wr2 
+            WHERE wr2.rain_accumulated = MIN(wr.rain_accumulated)
+            ORDER BY wr2.date_time ASC LIMIT 1) AS min_rain_date,
+            MAX(wr.rain_accumulated) AS max_rain,
+            (SELECT wr2.date_time 
+            FROM weather_reports wr2 
+            WHERE wr2.rain_accumulated = MAX(wr.rain_accumulated)
+            ORDER BY wr2.date_time ASC LIMIT 1) AS max_rain_date
         FROM weather_reports wr
     """
+
     summary_conditions = []
     summary_params = []
     
@@ -1289,12 +1328,27 @@ def weather_reports(request):
         cursor.execute(summary_query, summary_params)
         summary_row = cursor.fetchone()
         summary_stats = {
-            'avg_temp': round(summary_row[0], 1) if summary_row[0] is not None else None,
-            'max_wind': round(summary_row[1], 1) if summary_row[1] is not None else None,
-            'avg_humidity': round(summary_row[2], 1) if summary_row[2] is not None else None,
-            'total_rain': round(summary_row[3], 2) if summary_row[3] is not None else None
+            'min_temp': summary_row[0],
+            'min_temp_date': summary_row[1],
+            'max_temp': summary_row[2],
+            'max_temp_date': summary_row[3],
+            
+            'min_wind': summary_row[4],
+            'min_wind_date': summary_row[5],
+            'max_wind': summary_row[6],
+            'max_wind_date': summary_row[7],
+
+            'min_humidity': summary_row[8],
+            'min_humidity_date': summary_row[9],
+            'max_humidity': summary_row[10],
+            'max_humidity_date': summary_row[11],
+
+            'min_rain': summary_row[12],
+            'min_rain_date': summary_row[13],
+            'max_rain': summary_row[14],
+            'max_rain_date': summary_row[15],
         }
-    
+
     # Get all sensors and intensities for filters
     with connection.cursor() as cursor:
         cursor.execute("SELECT sensor_id, name FROM sensor ORDER BY name")
@@ -1354,14 +1408,52 @@ def daily_reports(request):
     """
     
     summary_query = """
+    WITH daily AS (
         SELECT 
-            AVG(wr.temperature) AS avg_temp,
-            MAX(wr.wind_speed) AS max_wind,
+            DATE(wr.date_time) AS date,
+            AVG(wr.temperature) AS avg_temperature,
+            AVG(wr.wind_speed) AS avg_wind_speed,
             AVG(wr.humidity) AS avg_humidity,
             SUM(wr.rain_accumulated) AS total_rain
         FROM weather_reports wr
+        {where_clause}
+        GROUP BY DATE(wr.date_time)
+    ),
+    minmax AS (
+        SELECT
+            MIN(avg_temperature) AS min_temp,
+            MAX(avg_temperature) AS max_temp,
+            MIN(avg_wind_speed) AS min_wind,
+            MAX(avg_wind_speed) AS max_wind,
+            MIN(avg_humidity) AS min_humidity,
+            MAX(avg_humidity) AS max_humidity,
+            MIN(total_rain) AS min_rain,
+            MAX(total_rain) AS max_rain
+        FROM daily
+    )
+    SELECT
+        min_temp,
+        (SELECT date FROM daily WHERE avg_temperature = min_temp LIMIT 1) AS min_temp_date,
+        max_temp,
+        (SELECT date FROM daily WHERE avg_temperature = max_temp LIMIT 1) AS max_temp_date,
+        
+        min_wind,
+        (SELECT date FROM daily WHERE avg_wind_speed = min_wind LIMIT 1) AS min_wind_date,
+        max_wind,
+        (SELECT date FROM daily WHERE avg_wind_speed = max_wind LIMIT 1) AS max_wind_date,
+        
+        min_humidity,
+        (SELECT date FROM daily WHERE avg_humidity = min_humidity LIMIT 1) AS min_humidity_date,
+        max_humidity,
+        (SELECT date FROM daily WHERE avg_humidity = max_humidity LIMIT 1) AS max_humidity_date,
+        
+        min_rain,
+        (SELECT date FROM daily WHERE total_rain = min_rain LIMIT 1) AS min_rain_date,
+        max_rain,
+        (SELECT date FROM daily WHERE total_rain = max_rain LIMIT 1) AS max_rain_date
+    FROM minmax;
     """
-    
+
     conditions = []
     params = []
     
@@ -1377,27 +1469,46 @@ def daily_reports(request):
     
     if conditions:
         where_clause = " WHERE " + " AND ".join(conditions)
-        report_query += where_clause
-        summary_query += where_clause
-    
+    else:
+        where_clause = ""
+
+    # Reports query
+    report_query += where_clause
     report_query += " GROUP BY s.name, DATE(wr.date_time) ORDER BY date DESC"
-    
+
     with connection.cursor() as cursor:
         cursor.execute(report_query, params)
         columns = [col[0] for col in cursor.description]
         reports = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        
-        cursor.execute(summary_query, params)
-        summary_row = cursor.fetchone()
+
+        # New min/max + date summary query
+        cursor.execute(summary_query.format(where_clause=where_clause), params)
+        row = cursor.fetchone()
         summary_stats = {
-            'avg_temp': round(summary_row[0], 1) if summary_row[0] is not None else "N/A",
-            'max_wind': round(summary_row[1], 1) if summary_row[1] is not None else "N/A",
-            'avg_humidity': round(summary_row[2], 1) if summary_row[2] is not None else "N/A",
-            'total_rain': round(summary_row[3], 2) if summary_row[3] is not None else "N/A"
+            'min_temp': round(row[0], 1) if row[0] is not None else "N/A",
+            'min_temp_date': row[1],
+            'max_temp': round(row[2], 1) if row[2] is not None else "N/A",
+            'max_temp_date': row[3],
+
+            'min_wind': round(row[4], 1) if row[4] is not None else "N/A",
+            'min_wind_date': row[5],
+            'max_wind': round(row[6], 1) if row[6] is not None else "N/A",
+            'max_wind_date': row[7],
+
+            'min_humidity': round(row[8], 1) if row[8] is not None else "N/A",
+            'min_humidity_date': row[9],
+            'max_humidity': round(row[10], 1) if row[10] is not None else "N/A",
+            'max_humidity_date': row[11],
+
+            'min_rain': round(row[12], 2) if row[12] is not None else "N/A",
+            'min_rain_date': row[13],
+            'max_rain': round(row[14], 2) if row[14] is not None else "N/A",
+            'max_rain_date': row[15],
         }
-        
+
         cursor.execute("SELECT sensor_id, name FROM sensor")
         sensors = [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
+
 
     context = {
         'reports': reports,
@@ -1430,18 +1541,7 @@ def monthly_reports(request):
     month = request.GET.get('month')
     sensor_id = request.GET.get('sensor_id')
 
-    current_date = datetime.now()
-    current_year = current_date.year
-    current_month = current_date.month
-
-    with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT DISTINCT YEAR(date_time) as year 
-            FROM weather_reports 
-            ORDER BY year DESC
-        """)
-        available_years = [row[0] for row in cursor.fetchall()]
-
+    # Main report query for monthly averages
     report_query = """
         SELECT 
             s.name AS name,
@@ -1458,15 +1558,54 @@ def monthly_reports(request):
         JOIN sensor s ON wr.sensor_id = s.sensor_id
     """
     
+    # Monthly summary query (similar to daily but grouped by month)
     summary_query = """
+    WITH monthly AS (
         SELECT 
-            AVG(wr.temperature) AS avg_temp,
-            MAX(wr.wind_speed) AS max_wind,
+            DATE_FORMAT(wr.date_time, '%%Y-%%m') AS month,
+            AVG(wr.temperature) AS avg_temperature,
+            AVG(wr.wind_speed) AS avg_wind_speed,
             AVG(wr.humidity) AS avg_humidity,
             SUM(wr.rain_accumulated) AS total_rain
         FROM weather_reports wr
+        {where_clause}
+        GROUP BY DATE_FORMAT(wr.date_time, '%%Y-%%m')
+    ),
+    minmax AS (
+        SELECT
+            MIN(avg_temperature) AS min_temp,
+            MAX(avg_temperature) AS max_temp,
+            MIN(avg_wind_speed) AS min_wind,
+            MAX(avg_wind_speed) AS max_wind,
+            MIN(avg_humidity) AS min_humidity,
+            MAX(avg_humidity) AS max_humidity,
+            MIN(total_rain) AS min_rain,
+            MAX(total_rain) AS max_rain
+        FROM monthly
+    )
+    SELECT
+        min_temp,
+        (SELECT month FROM monthly WHERE avg_temperature = min_temp LIMIT 1) AS min_temp_date,
+        max_temp,
+        (SELECT month FROM monthly WHERE avg_temperature = max_temp LIMIT 1) AS max_temp_date,
+        
+        min_wind,
+        (SELECT month FROM monthly WHERE avg_wind_speed = min_wind LIMIT 1) AS min_wind_date,
+        max_wind,
+        (SELECT month FROM monthly WHERE avg_wind_speed = max_wind LIMIT 1) AS max_wind_date,
+        
+        min_humidity,
+        (SELECT month FROM monthly WHERE avg_humidity = min_humidity LIMIT 1) AS min_humidity_date,
+        max_humidity,
+        (SELECT month FROM monthly WHERE avg_humidity = max_humidity LIMIT 1) AS max_humidity_date,
+        
+        min_rain,
+        (SELECT month FROM monthly WHERE total_rain = min_rain LIMIT 1) AS min_rain_date,
+        max_rain,
+        (SELECT month FROM monthly WHERE total_rain = max_rain LIMIT 1) AS max_rain_date
+    FROM minmax;
     """
-    
+
     conditions = []
     params = []
     
@@ -1482,15 +1621,15 @@ def monthly_reports(request):
     
     if conditions:
         where_clause = " WHERE " + " AND ".join(conditions)
-        report_query += where_clause
-        summary_query += where_clause
-    
-    report_query += """
-        GROUP BY s.name, YEAR(wr.date_time), MONTH(wr.date_time)
-        ORDER BY YEAR(wr.date_time) DESC, MONTH(wr.date_time) DESC
-    """
-    
+    else:
+        where_clause = ""
+
+    # Reports query
+    report_query += where_clause
+    report_query += " GROUP BY s.name, YEAR(wr.date_time), MONTH(wr.date_time) ORDER BY YEAR(wr.date_time) DESC, MONTH(wr.date_time) DESC"
+
     with connection.cursor() as cursor:
+        # Get monthly reports
         cursor.execute(report_query, params)
         columns = [col[0] for col in cursor.description]
         reports = []
@@ -1498,29 +1637,48 @@ def monthly_reports(request):
             report = dict(zip(columns, row))
             report['month'] = datetime.strptime(report['month'], '%Y-%m').date()
             reports.append(report)
-        
-        cursor.execute(summary_query, params)
-        summary_row = cursor.fetchone()
+
+        # Get monthly summary stats
+        cursor.execute(summary_query.format(where_clause=where_clause), params)
+        row = cursor.fetchone()
         summary_stats = {
-            'avg_temp': round(summary_row[0], 1) if summary_row[0] is not None else "N/A",
-            'max_wind': round(summary_row[1], 1) if summary_row[1] is not None else "N/A",
-            'avg_humidity': round(summary_row[2], 1) if summary_row[2] is not None else "N/A",
-            'total_rain': round(summary_row[3], 2) if summary_row[3] is not None else "N/A"
+            'min_temp': round(row[0], 1) if row[0] is not None else "N/A",
+            'min_temp_date': datetime.strptime(row[1], '%Y-%m').date() if row[1] else None,
+            'max_temp': round(row[2], 1) if row[2] is not None else "N/A",
+            'max_temp_date': datetime.strptime(row[3], '%Y-%m').date() if row[3] else None,
+
+            'min_wind': round(row[4], 1) if row[4] is not None else "N/A",
+            'min_wind_date': datetime.strptime(row[5], '%Y-%m').date() if row[5] else None,
+            'max_wind': round(row[6], 1) if row[6] is not None else "N/A",
+            'max_wind_date': datetime.strptime(row[7], '%Y-%m').date() if row[7] else None,
+
+            'min_humidity': round(row[8], 1) if row[8] is not None else "N/A",
+            'min_humidity_date': datetime.strptime(row[9], '%Y-%m').date() if row[9] else None,
+            'max_humidity': round(row[10], 1) if row[10] is not None else "N/A",
+            'max_humidity_date': datetime.strptime(row[11], '%Y-%m').date() if row[11] else None,
+
+            'min_rain': round(row[12], 2) if row[12] is not None else "N/A",
+            'min_rain_date': datetime.strptime(row[13], '%Y-%m').date() if row[13] else None,
+            'max_rain': round(row[14], 2) if row[14] is not None else "N/A",
+            'max_rain_date': datetime.strptime(row[15], '%Y-%m').date() if row[15] else None,
         }
-        
+
+        # Get available years for filter dropdown
+        cursor.execute("SELECT DISTINCT YEAR(date_time) FROM weather_reports ORDER BY YEAR(date_time) DESC")
+        available_years = [row[0] for row in cursor.fetchall()]
+
         cursor.execute("SELECT sensor_id, name FROM sensor")
         sensors = [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
-
-    month_names = [month_name[i] for i in range(1, 13)]
 
     context = {
         'reports': reports,
         'summary_stats': summary_stats,
         'sensors': sensors,
         'available_years': available_years,
-        'current_year': current_year,
-        'current_month': current_month,
-        'month_names': month_names,
+        'current_year': datetime.now().year,
+        'current_month': datetime.now().month,
+        'month_names': ['January', 'February', 'March', 'April', 'May', 'June', 
+                       'July', 'August', 'September', 'October', 'November', 'December'],
         'admin': {'name': admin_name}
     }
 

@@ -172,23 +172,110 @@
 
         <!-- Summary Cards -->
         <div class="grid summary-grid gap-4 mb-6">
+
+          <!-- Temperature -->
           <div class="bg-white p-4 rounded shadow summary-card">
-            <h5 class="text-gray-500 text-sm font-medium">Avg Temperature</h5>
-            <p class="text-2xl font-bold">{{ summary_stats.avg_temp|default:"N/A" }}°C</p>
+            <h5 class="text-gray-500 text-base font-medium mb-2">Temperature</h5>
+            <div class="flex justify-between items-center">
+              <div>
+                <p class="text-xs text-gray-400">Min</p>
+                <p class="text-lg font-bold">
+                  {{ summary_stats.min_temp|default:"N/A"|floatformat:1 }}°C
+                </p>
+                <p class="text-xs text-gray-400">
+                  {{ summary_stats.min_temp_date|date:"Y-m-d H:i" }}
+                </p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs text-gray-400">Max</p>
+                <p class="text-lg font-bold">
+                  {{ summary_stats.max_temp|default:"N/A"|floatformat:1 }}°C
+                </p>
+                <p class="text-xs text-gray-400">
+                  {{ summary_stats.max_temp_date|date:"Y-m-d H:i" }}
+                </p>
+              </div>
+            </div>
           </div>
+
+          <!-- Wind Speed -->
           <div class="bg-white p-4 rounded shadow summary-card">
-            <h5 class="text-gray-500 text-sm font-medium">Max Wind Speed</h5>
-            <p class="text-2xl font-bold">{{ summary_stats.max_wind|default:"N/A" }} km/h</p>
+            <h5 class="text-gray-500 text-base font-medium mb-2">Wind Speed</h5>
+            <div class="flex justify-between items-center">
+              <div>
+                <p class="text-xs text-gray-400">Min</p>
+                <p class="text-lg font-bold">
+                  {{ summary_stats.min_wind|default:"N/A"|floatformat:1 }} km/h
+                </p>
+                <p class="text-xs text-gray-400">
+                  {{ summary_stats.min_wind_date|date:"Y-m-d H:i" }}
+                </p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs text-gray-400">Max</p>
+                <p class="text-lg font-bold">
+                  {{ summary_stats.max_wind|default:"N/A"|floatformat:1 }} km/h
+                </p>
+                <p class="text-xs text-gray-400">
+                  {{ summary_stats.max_wind_date|date:"Y-m-d H:i" }}
+                </p>
+              </div>
+            </div>
           </div>
+
+          <!-- Humidity -->
           <div class="bg-white p-4 rounded shadow summary-card">
-            <h5 class="text-gray-500 text-sm font-medium">Avg Humidity</h5>
-            <p class="text-2xl font-bold">{{ summary_stats.avg_humidity|default:"N/A" }}%</p>
+            <h5 class="text-gray-500 text-base font-medium mb-2">Humidity</h5>
+            <div class="flex justify-between items-center">
+              <div>
+                <p class="text-xs text-gray-400">Min</p>
+                <p class="text-lg font-bold">
+                  {{ summary_stats.min_humidity|default:"N/A"|floatformat:1 }}%
+                </p>
+                <p class="text-xs text-gray-400">
+                  {{ summary_stats.min_humidity_date|date:"Y-m-d H:i" }}
+                </p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs text-gray-400">Max</p>
+                <p class="text-lg font-bold">
+                  {{ summary_stats.max_humidity|default:"N/A"|floatformat:1 }}%
+                </p>
+                <p class="text-xs text-gray-400">
+                  {{ summary_stats.max_humidity_date|date:"Y-m-d H:i" }}
+                </p>
+              </div>
+            </div>
           </div>
+
+          <!-- Rainfall -->
           <div class="bg-white p-4 rounded shadow summary-card">
-            <h5 class="text-gray-500 text-sm font-medium">Total Rainfall</h5>
-            <p class="text-2xl font-bold">{{ summary_stats.total_rain|default:"N/A" }} mm</p>
+            <h5 class="text-gray-500 text-base font-medium mb-2">Rainfall</h5>
+            <div class="flex justify-between items-center">
+              <div>
+                <p class="text-xs text-gray-400">Min</p>
+                <p class="text-lg font-bold">
+                  {{ summary_stats.min_rain|default:"N/A"|floatformat:2 }} mm
+                </p>
+                <p class="text-xs text-gray-400">
+                  {{ summary_stats.min_rain_date|date:"Y-m-d H:i" }}
+                </p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs text-gray-400">Max</p>
+                <p class="text-lg font-bold">
+                  {{ summary_stats.max_rain|default:"N/A"|floatformat:2 }} mm
+                </p>
+                <p class="text-xs text-gray-400">
+                  {{ summary_stats.max_rain_date|date:"Y-m-d H:i" }}
+                </p>
+              </div>
+            </div>
           </div>
+
         </div>
+
+
 
         <!-- Filter Controls -->
         <div class="bg-white p-4 rounded shadow mb-6">
@@ -588,18 +675,6 @@
         responsive: false,
         dom: 'Bfrtip',
         buttons: [
-            {
-                extend: 'copy',
-                exportOptions: {
-                    columns: ':visible'
-                }
-            },
-            {
-                extend: 'csv',
-                exportOptions: {
-                    columns: ':visible'
-                }
-            },
             {
                 extend: 'excel',
                 exportOptions: {
