@@ -5,61 +5,34 @@ import dht
 from machine import Pin
 
 # WiFi credentials
-ssid = "SIASICO"
-password = "Waykokabalo0831"
+SSID = "SIASICO"
+PASSWORD = "Waykokabalo0831"
 
-# Onboard LED (usually GPIO 2 for ESP8266/ESP32)
-led = Pin(2, Pin.OUT)
-
-# Log to file + console
-def log(message):
-    print(message)
-    try:
-        with open('log.txt', 'a') as f:
-            f.write(f"{time.localtime()} - {message}\n")
-    except:
-        pass
-
-# Blink LED for status
-def blink(times):
-    for _ in range(times):
-        led.off()
-        time.sleep(0.2)
-        led.on()
-        time.sleep(0.2)
+# API endpoint
+URL = "https://bccweather-629d88a334c9.herokuapp.com/api/data/"
 
 # Connect to WiFi
 def connect_wifi():
-    sta = network.WLAN(network.STA_IF)
-    if not sta.active():
-        sta.active(True)
-    
-    if not sta.isconnected():
-        log("Connecting to WiFi...")
-        sta.connect(ssid, password)
-        
-        max_wait = 10
-        while max_wait > 0:
-            if sta.isconnected():
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    if not wlan.isconnected():
+        print("Connecting to WiFi...")
+        wlan.connect(SSID, PASSWORD)
+        for _ in range(15):
+            if wlan.isconnected():
                 break
-            max_wait -= 1
-            log('Waiting for connection...')
             time.sleep(1)
-    
-    if not sta.isconnected():
-        blink(5)  # Error signal
-        raise OSError("Failed to connect to WiFi")
-    
-    log("WiFi connected. IP: " + sta.ifconfig()[0])
-    blink(3)  # Connected signal
-    return sta
+            print("Waiting for connection...")
+    if wlan.isconnected():
+        print("Connected, IP:", wlan.ifconfig()[0])
+    else:
+        raise RuntimeError("WiFi connection failed")
+    return wlan
 
 # Main loop
 try:
-    sta = connect_wifi()
-    
-    sensor = dht.DHT11(Pin(4))
-    url = "https://bccweather-629d88a334c9.herokuapp.com/api/data/"
+    connect_wifi()
+    sensor = dht.DHT11(Pin(4))  # GPIO4 == D4
 
     while True:
         try:
@@ -70,25 +43,19 @@ try:
             payload = {
                 "temperature": temp,
                 "humidity": hum,
-                "sensor_id": "1"
+                "sensor_id": 1
             }
 
-            log(f"Sending data: {payload}")
-            response = urequests.post(url, json=payload)
-            log("Server response: " + response.text)
+            print("Sending data:", payload)
+
+            response = urequests.post(URL, json=payload)
+            print("Response:", response.status_code, response.text)
             response.close()
 
-            blink(1)  # short blink for each successful send
-
         except Exception as e:
-            log("Error: " + str(e))
-            blink(5)  # error blink
-            if not sta.isconnected():
-                log("WiFi disconnected, reconnecting...")
-                sta = connect_wifi()
+            print("Error:", e)
 
         time.sleep(600)  # wait 10 minutes
 
-except OSError as e:
-    log("Fatal error: " + str(e))
-    blink(5)
+except Exception as e:
+    print("Fatal error:", e)
