@@ -1722,7 +1722,6 @@ def receive_sensor_data(request):
         return JsonResponse({"error": "Invalid request method, must be POST"}, status=405)
 
     try:
-        try:
         data = json.loads(request.body)
         temperature = float(data.get('temperature', 0))
         humidity = float(data.get('humidity', 0))
