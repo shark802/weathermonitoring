@@ -1723,17 +1723,13 @@ def receive_sensor_data(request):
 
     try:
         try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError as e:
-            return JsonResponse({"error": f"Invalid JSON: {str(e)}"}, status=400)
-
+        data = json.loads(request.body)
         temperature = float(data.get('temperature', 0))
         humidity = float(data.get('humidity', 0))
         sensor_id = int(data.get('sensor_id', 0))
 
-        # Use rainfall_mm from ESP32 data instead of rain_rate and rain_accumulated
-        rainfall_mm = float(data.get('rainfall_mm', 0))
-        rain_tip_count = int(data.get('rain_tip_count', 0))  # optional if you want to log
+        rainfall_mm = float(data.get('rainfall_mm', 0))  # rain in last 10 mins
+        rain_tip_count = int(data.get('rain_tip_count', 0))  # optional
 
         wind_speed = float(data.get('wind_speed', 0))
         wind_direction = str(data.get('wind_direction', ''))
@@ -1741,7 +1737,11 @@ def receive_sensor_data(request):
 
         dew_point = temperature - ((100 - humidity) / 5)
 
-        intensity_label = get_rain_intensity(rainfall_mm)
+        # Since the interval is fixed at 10 minutes:
+        rain_rate = rainfall_mm      # mm per 10 minutes
+        rain_accumulated = rainfall_mm  # total rain in last 10 minutes (same)
+
+        intensity_label = get_rain_intensity(rain_rate)
 
         with connection.cursor() as cursor:
             cursor.execute("SELECT intensity_id FROM intensity WHERE intensity = %s", [intensity_label])
@@ -1762,9 +1762,7 @@ def receive_sensor_data(request):
             """, [
                 sensor_id, intensity_id, temperature, humidity,
                 wind_speed, wind_direction, pressure,
-                dew_point, ph_time,
-                rainfall_mm,  # you can store rainfall_mm as rain_rate
-                rainfall_mm   # and also as rain_accumulated or adjust accordingly
+                dew_point, ph_time, rain_rate, rain_accumulated
             ])
 
         return JsonResponse({"status": "success"}, status=201)
