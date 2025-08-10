@@ -1697,22 +1697,21 @@ def monthly_reports(request):
     return render(request, 'monthly_reports.html', context)
 
 def get_rain_intensity(amount):
-        if amount == 0:
-            return "No Rain"
-        elif amount > 0 and amount < 2.5:
-            return "Light"
-        elif amount > 2.5 and amount < 7.6:
-            return "Moderate"
-        elif amount > 7.6 and amount < 15:
-            return "Heavy"
-        elif amount > 15 and amount < 30:
-            return "Intense"
-        else:
-            return "Torrential"
+    if amount == 0:
+        return "No Rain"
+    elif 0 < amount < 2.5:
+        return "Light"
+    elif 2.5 <= amount < 7.6:
+        return "Moderate"
+    elif 7.6 <= amount < 15:
+        return "Heavy"
+    elif 15 <= amount < 30:
+        return "Intense"
+    else:
+        return "Torrential"
 
 @csrf_exempt
 def receive_sensor_data(request):
-    # Log method and body for debugging
     print("==== Incoming Request ====")
     print("Method:", request.method)
     print("Headers:", dict(request.headers))
@@ -1723,29 +1722,26 @@ def receive_sensor_data(request):
         return JsonResponse({"error": "Invalid request method, must be POST"}, status=405)
 
     try:
-        # Parse JSON safely
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError as e:
             return JsonResponse({"error": f"Invalid JSON: {str(e)}"}, status=400)
 
-        # Get required fields with defaults
         temperature = float(data.get('temperature', 0))
         humidity = float(data.get('humidity', 0))
         sensor_id = int(data.get('sensor_id', 0))
 
-        # Optional fields
-        rain_rate = float(data.get('rain_rate', 0))
-        rain_accumulated = float(data.get('rain_accumulated', 0))
+        # Use rainfall_mm from ESP32 data instead of rain_rate and rain_accumulated
+        rainfall_mm = float(data.get('rainfall_mm', 0))
+        rain_tip_count = int(data.get('rain_tip_count', 0))  # optional if you want to log
+
         wind_speed = float(data.get('wind_speed', 0))
         wind_direction = str(data.get('wind_direction', ''))
         pressure = float(data.get('barometric_pressure', 0))
 
-        # Derived field
         dew_point = temperature - ((100 - humidity) / 5)
 
-        # Get intensity label
-        intensity_label = get_rain_intensity(rain_rate)
+        intensity_label = get_rain_intensity(rainfall_mm)
 
         with connection.cursor() as cursor:
             cursor.execute("SELECT intensity_id FROM intensity WHERE intensity = %s", [intensity_label])
@@ -1754,7 +1750,6 @@ def receive_sensor_data(request):
                 return JsonResponse({"error": f"Invalid intensity label: {intensity_label}"}, status=400)
             intensity_id = row[0]
 
-        # Save to DB
         ph_time = now().astimezone(pytz.timezone('Asia/Manila'))
 
         with connection.cursor() as cursor:
@@ -1767,13 +1762,14 @@ def receive_sensor_data(request):
             """, [
                 sensor_id, intensity_id, temperature, humidity,
                 wind_speed, wind_direction, pressure,
-                dew_point, ph_time, rain_rate, rain_accumulated
+                dew_point, ph_time,
+                rainfall_mm,  # you can store rainfall_mm as rain_rate
+                rainfall_mm   # and also as rain_accumulated or adjust accordingly
             ])
 
         return JsonResponse({"status": "success"}, status=201)
 
     except Exception as e:
-        # Catch-all for unexpected errors
         return JsonResponse({"error": str(e)}, status=400)
 
 @csrf_exempt
