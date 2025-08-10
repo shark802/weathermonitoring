@@ -1723,16 +1723,46 @@ def receive_sensor_data(request):
 
     try:
         data = json.loads(request.body)
-        temperature = float(data.get('temperature', 0))
-        humidity = float(data.get('humidity', 0))
-        sensor_id = int(data.get('sensor_id', 0))
+        try:
+            temperature = float(data.get('temperature', 0))
+        except (ValueError, TypeError):
+            temperature = 0
 
-        rainfall_mm = float(data.get('rainfall_mm', 0))  # rain in last 10 mins
-        rain_tip_count = int(data.get('rain_tip_count', 0))  # optional
+        try:
+            humidity = float(data.get('humidity', 0))
+        except (ValueError, TypeError):
+            humidity = 0
 
-        wind_speed = float(data.get('wind_speed', 0))
-        wind_direction = str(data.get('wind_direction', ''))
-        pressure = float(data.get('barometric_pressure', 0))
+        try:
+            sensor_id = int(data.get('sensor_id', 0))
+        except (ValueError, TypeError):
+            sensor_id = 0
+
+        try:
+            rainfall_mm = float(data.get('rainfall_mm', 0))
+        except (ValueError, TypeError):
+            rainfall_mm = 0
+
+        try:
+            rain_tip_count = int(data.get('rain_tip_count', 0))
+        except (ValueError, TypeError):
+            rain_tip_count = 0
+
+        try:
+            wind_speed = float(data.get('wind_speed', 0))
+        except (ValueError, TypeError):
+            wind_speed = 0
+
+        try:
+            wind_direction = str(data.get('wind_direction', ''))
+        except (ValueError, TypeError):
+            wind_direction = ''
+
+        try:
+            pressure = float(data.get('barometric_pressure', 0))
+        except (ValueError, TypeError):
+            pressure = 0
+
 
         dew_point = temperature - ((100 - humidity) / 5)
 
