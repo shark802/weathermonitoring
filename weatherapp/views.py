@@ -483,20 +483,12 @@ def admin_dashboard(request):
             if rain_rate is not None:
                 intensity = get_rain_intensity(rain_rate)
                 if intensity in ["Heavy", "Intense", "Torrential"]:
-                    alerts.append({
-                        'text': f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm)",
-                        'datetime': date_time.strftime('%Y-%m-%d %H:%M:%S'),
-                        'sensor_id': sensor_id,
-                        'name': name
+                    alerts.append({f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm) {date_time}"
                     })
                     if sensor_id in locations_dict:
                         locations_dict[sensor_id]['has_alert'] = True
             if wind_speed and wind_speed > 30:
-                alerts.append({
-                    'text': f"⚠️ Wind Advisory for {name} ({wind_speed} m/s)",
-                    'datetime': date_time.strftime('%Y-%m-%d %H:%M:%S'),
-                    'sensor_id': sensor_id,
-                    'name': name
+                alerts.append({f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {date_time}"
                 })
                 if sensor_id in locations_dict:
                     locations_dict[sensor_id]['has_alert'] = True
