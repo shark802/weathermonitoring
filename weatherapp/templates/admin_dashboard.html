@@ -449,11 +449,16 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-// Server-side alerts from Django template
+// Server-side alerts from Django template with datetime
 const serverAlerts = [
   {% if alerts %}
     {% for alert in alerts %}
-      "{{ alert }}"{% if not forloop.last %},{% endif %}
+      {
+        text: "{{ alert.text }}",
+        datetime: "{{ alert.datetime|date:'Y-m-d H:i:s' }}",
+        sensor_id: "{{ alert.sensor_id }}",
+        name: "{{ alert.name }}"
+      }{% if not forloop.last %},{% endif %}
     {% endfor %}
   {% endif %}
 ];
@@ -474,49 +479,64 @@ const locations = [
 ];
 
 const alertSound = document.getElementById('alertSound');
-const alertTimeout = 300000; // 5 minutes
-const fadeDuration = 10000; // 10 seconds
+const fadeDuration = 10000; // 10 seconds for fade effect
+
+// Function to calculate remaining time based on alert datetime
+function calculateAlertRemainingTime(alertDatetime) {
+  const alertDate = new Date(alertDatetime);
+  const now = new Date();
+  const alertAge = now - alertDate; // milliseconds since alert
+  
+  // Set timeout to 5 minutes (300000ms) from alert time
+  const alertTotalDuration = 300000;
+  return Math.max(0, alertTotalDuration - alertAge);
+}
 
 // Function to manage alert states
-function manageAlertState(sensorId, hasServerAlert) {
+function manageAlertState(sensorId, alertDatetime) {
   const storageKey = `alert_${sensorId}`;
-  const now = Date.now();
+  const now = new Date().getTime();
   
-  // Check if we have a stored end time
-  const storedEndTime = localStorage.getItem(storageKey);
-  
-  if (storedEndTime) {
-    if (now < parseInt(storedEndTime)) {
-      // Alert is still active
-      return {
-        isActive: true,
-        timeRemaining: parseInt(storedEndTime) - now
-      };
-    } else {
-      // Alert expired, clear storage
+  if (!alertDatetime) {
+    // No current alert, check if we have a stored one
+    const storedEndTime = localStorage.getItem(storageKey);
+    if (storedEndTime) {
+      if (now < parseInt(storedEndTime)) {
+        return {
+          isActive: true,
+          timeRemaining: parseInt(storedEndTime) - now
+        };
+      }
       localStorage.removeItem(storageKey);
     }
+    return { isActive: false };
   }
   
-  // If there's a new server alert, set new expiration
-  if (hasServerAlert) {
-    const endTime = now + alertTimeout;
+  // Calculate remaining time for current alert
+  const remainingTime = calculateAlertRemainingTime(alertDatetime);
+  
+  if (remainingTime > 0) {
+    const endTime = now + remainingTime;
     localStorage.setItem(storageKey, endTime.toString());
     return {
       isActive: true,
-      timeRemaining: alertTimeout
+      timeRemaining: remainingTime
     };
   }
   
+  // Alert has expired
+  localStorage.removeItem(storageKey);
   return { isActive: false };
 }
 
 // Process each location
 locations.forEach(loc => {
-  // Check if this location has an active server alert
-  const hasServerAlert = serverAlerts.some(alert => alert.includes(loc.name));
-  const alertState = manageAlertState(loc.sensor_id, hasServerAlert);
+  // Find matching alert for this location
+  const locationAlert = serverAlerts.find(alert => 
+    alert.sensor_id === loc.sensor_id || alert.name === loc.name
+  );
   
+  const alertState = manageAlertState(loc.sensor_id, locationAlert?.datetime);
   let marker;
 
   if (alertState.isActive) {
@@ -531,7 +551,10 @@ locations.forEach(loc => {
     });
 
     marker = L.marker([loc.lat, loc.lon], { icon: customHTMLIcon }).addTo(map);
-    marker.bindPopup(`<div class="text-red-600 font-bold">⚠️ Alert at ${loc.name}!</div>`).openPopup();
+    
+    // Find the matching alert text for the popup
+    const alertText = locationAlert?.text || `⚠️ Alert at ${loc.name}`;
+    marker.bindPopup(`<div class="text-red-600 font-bold">${alertText}</div>`).openPopup();
 
     // Play sound only for new alerts
     if (!sessionStorage.getItem(`alert_played_${loc.sensor_id}`)) {
@@ -541,7 +564,7 @@ locations.forEach(loc => {
       // Clear the sound flag after timeout
       setTimeout(() => {
         sessionStorage.removeItem(`alert_played_${loc.sensor_id}`);
-      }, alertTimeout);
+      }, alertState.timeRemaining);
     }
 
     // Calculate when to start fading
@@ -596,8 +619,10 @@ setTimeout(() => map.invalidateSize(), 100);
 
 // Manage alert container visibility
 const anyActiveAlerts = locations.some(loc => {
-  const hasServerAlert = serverAlerts.some(alert => alert.includes(loc.name));
-  const alertState = manageAlertState(loc.sensor_id, hasServerAlert);
+  const locationAlert = serverAlerts.find(alert => 
+    alert.sensor_id === loc.sensor_id || alert.name === loc.name
+  );
+  const alertState = manageAlertState(loc.sensor_id, locationAlert?.datetime);
   return alertState.isActive;
 });
 
