@@ -473,7 +473,7 @@ def admin_dashboard(request):
     alerts = []
     with connection.cursor() as cursor:
         cursor.execute("""
-            SELECT sensor.sensor_id, sensor.name, weather_reports.rain_rate, weather_reports.wind_speed weather_reports.date_time
+            SELECT sensor.sensor_id, sensor.name, weather_reports.rain_rate, weather_reports.wind_speed, weather_reports.date_time
             FROM weather_reports
             JOIN sensor ON weather_reports.sensor_id = sensor.sensor_id
         """)
