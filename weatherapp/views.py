@@ -477,8 +477,10 @@ def admin_dashboard(request):
                 weather_reports.wind_speed, weather_reports.date_time
             FROM weather_reports
             JOIN sensor ON weather_reports.sensor_id = sensor.sensor_id
+            WHERE weather_reports.date_time >= NOW() - INTERVAL 10 MINUTE
         """)
         rows = cursor.fetchall()
+
         for sensor_id, name, rain_rate, wind_speed, date_time in rows:
             if rain_rate is not None:
                 intensity = get_rain_intensity(rain_rate)
@@ -490,6 +492,7 @@ def admin_dashboard(request):
                 alerts.append(f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {date_time}")
                 if sensor_id in locations_dict:
                     locations_dict[sensor_id]['has_alert'] = True
+
 
     with connection.cursor() as cursor:
         cursor.execute("""
