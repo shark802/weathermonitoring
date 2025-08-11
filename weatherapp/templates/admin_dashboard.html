@@ -614,23 +614,6 @@ locations.forEach(loc => {
 // Fix map size after load
 setTimeout(() => map.invalidateSize(), 100);
 
-const anyActiveAlerts = locations.some(loc => {
-  const locationAlert = serverAlerts.find(alert => 
-    alert.sensor_id === loc.sensor_id || alert.name === loc.name
-  );
-  const alertState = manageAlertState(loc.sensor_id, locationAlert?.datetime);
-  return alertState.isActive;
-});
-
-if (!anyActiveAlerts && serverAlerts.length === 0) {
-  const alertBox = document.querySelector('.alert-container');
-  if (alertBox) {
-    alertBox.style.transition = 'opacity 2s';
-    alertBox.style.opacity = '0';
-    setTimeout(() => alertBox.remove(), 2000);
-  }
-}
-
   document.addEventListener('DOMContentLoaded', function () {
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
     tooltipTriggerList.forEach(function (tooltipTriggerEl) {
