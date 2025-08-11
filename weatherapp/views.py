@@ -1758,7 +1758,7 @@ def receive_sensor_data(request):
         except (ValueError, TypeError):
             wind_direction = ''
 
-        try:
+        try:    
             pressure = float(data.get('barometric_pressure', 0))
         except (ValueError, TypeError):
             pressure = 0

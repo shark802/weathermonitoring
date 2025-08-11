@@ -444,61 +444,96 @@ function performLogout() {
     }
   }
 
-    const map = L.map('map').setView([10.508884, 122.957527], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+const map = L.map('map').setView([10.508884, 122.957527], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-    const locations = [
-      {% if locations %}
-        {% for location in locations %}
-          {
-            name: "{{ location.name }}",
-            lat: {{ location.latitude }},
-            lon: {{ location.longitude }},
-            has_alert: {% if location.has_alert %}true{% else %}false{% endif %}
-          }{% if not forloop.last %},{% endif %}
-        {% endfor %}
-      {% endif %}
-    ];
+const locations = [
+  {% if locations %}
+    {% for location in locations %}
+      {
+        name: "{{ location.name }}",
+        lat: {{ location.latitude }},
+        lon: {{ location.longitude }},
+        has_alert: {% if location.has_alert %}true{% else %}false{% endif %}
+      }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  {% endif %}
+];
 
-    const alertSound = document.getElementById('alertSound');
-    let alertTriggered = false;
+const alertSound = document.getElementById('alertSound');
 
-    locations.forEach(loc => {
-      let marker;
+locations.forEach(loc => {
+  let marker;
 
-      if (loc.has_alert) {
-        const customHTMLIcon = L.divIcon({
+  if (loc.has_alert) {
+    const customHTMLIcon = L.divIcon({
+      className: '',
+      html: `<div class="custom-pin" style="color: red; transition: color 3s;">
+              🚨<span class="pin-label">${loc.name}</span>
+            </div>`,
+      iconSize: [32, 40],
+      iconAnchor: [16, 40],
+    });
+
+    marker = L.marker([loc.lat, loc.lon], { icon: customHTMLIcon }).addTo(map);
+    marker.bindPopup(`<div class="text-red-600 font-bold">⚠️ Strong wind or rain at ${loc.name}!</div>`).openPopup();
+
+    if (!sessionStorage.getItem('alertPlayed')) {
+      alertSound.play();
+      sessionStorage.setItem('alertPlayed', 'true');
+    }
+
+    setTimeout(() => {
+      let step = 0;
+      const steps = 20;
+      const interval = setInterval(() => {
+        step++;
+        const fadeRatio = step / steps;
+        const redValue = Math.floor(255 - (255 * fadeRatio));
+        const greenValue = Math.floor(0 + (87 * fadeRatio));
+        const blueValue = Math.floor(0 + (255 * fadeRatio));
+
+        const fadedIcon = L.divIcon({
           className: '',
-          html: `<div class="custom-pin">
+          html: `<div class="custom-pin" style="color: rgb(${redValue},${greenValue},${blueValue});">
                   🚨<span class="pin-label">${loc.name}</span>
                 </div>`,
           iconSize: [32, 40],
           iconAnchor: [16, 40],
         });
 
-        marker = L.marker([loc.lat, loc.lon], { icon: customHTMLIcon }).addTo(map);
+        marker.setIcon(fadedIcon);
 
-        marker.bindPopup(`<div class="text-red-600 font-bold">⚠️ Strong wind or rain at ${loc.name}!</div>`).openPopup();
-
-        if (!sessionStorage.getItem('alertPlayed')) {
-          alertSound.play();
-          sessionStorage.setItem('alertPlayed', 'true');
+        if (step >= steps) {
+          clearInterval(interval);
+          // Final switch to normal blue pin
+          const defaultIcon = L.icon({
+            iconUrl: 'https://unpkg.com/leaflet/dist/images/marker-icon.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+          });
+          marker.setIcon(defaultIcon);
+          marker.setPopupContent(`<div>${loc.name}</div>`);
         }
-      } else {
-        marker = L.marker([loc.lat, loc.lon]).addTo(map);
+      }, 200);
+    }, 300000);
 
-        marker.bindPopup(`<div>${loc.name}</div>`);
-      }
-    });
+  } else {
+    marker = L.marker([loc.lat, loc.lon]).addTo(map);
+    marker.bindPopup(`<div>${loc.name}</div>`);
+  }
+});
 
-    setTimeout(() => map.invalidateSize(), 100);
+setTimeout(() => map.invalidateSize(), 100);
 
-    setTimeout(() => {
-    const alertBox = document.querySelector('.alert-container');
-    if (alertBox) alertBox.remove();
-  }, 300000);
+setTimeout(() => {
+  const alertBox = document.querySelector('.alert-container');
+  if (alertBox) alertBox.remove();
+}, 300000);
+
 
   document.addEventListener('DOMContentLoaded', function () {
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
