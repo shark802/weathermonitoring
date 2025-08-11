@@ -449,6 +449,16 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
+// Server-side alerts from Django template
+const serverAlerts = [
+  {% if alerts %}
+    {% for alert in alerts %}
+      "{{ alert }}"{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  {% endif %}
+];
+
+// Locations data from Django template
 const locations = [
   {% if locations %}
     {% for location in locations %}
@@ -464,25 +474,32 @@ const locations = [
 ];
 
 const alertSound = document.getElementById('alertSound');
-const alertTimeout = 300000;
-const fadeDuration = 10000;
+const alertTimeout = 300000; // 5 minutes
+const fadeDuration = 10000; // 10 seconds
 
-function manageAlertState(sensorId) {
+// Function to manage alert states
+function manageAlertState(sensorId, hasServerAlert) {
   const storageKey = `alert_${sensorId}`;
   const now = Date.now();
   
+  // Check if we have a stored end time
   const storedEndTime = localStorage.getItem(storageKey);
+  
   if (storedEndTime) {
     if (now < parseInt(storedEndTime)) {
+      // Alert is still active
       return {
         isActive: true,
         timeRemaining: parseInt(storedEndTime) - now
       };
+    } else {
+      // Alert expired, clear storage
+      localStorage.removeItem(storageKey);
     }
-    localStorage.removeItem(storageKey);
   }
   
-  if (locations.find(loc => loc.sensor_id === sensorId && loc.has_alert)) {
+  // If there's a new server alert, set new expiration
+  if (hasServerAlert) {
     const endTime = now + alertTimeout;
     localStorage.setItem(storageKey, endTime.toString());
     return {
@@ -494,11 +511,16 @@ function manageAlertState(sensorId) {
   return { isActive: false };
 }
 
+// Process each location
 locations.forEach(loc => {
-  const alertState = manageAlertState(loc.sensor_id);
+  // Check if this location has an active server alert
+  const hasServerAlert = serverAlerts.some(alert => alert.includes(loc.name));
+  const alertState = manageAlertState(loc.sensor_id, hasServerAlert);
+  
   let marker;
 
-  if (loc.has_alert && alertState.isActive) {
+  if (alertState.isActive) {
+    // Create red alert marker
     const customHTMLIcon = L.divIcon({
       className: '',
       html: `<div class="custom-pin" style="color: red; transition: color ${fadeDuration/1000}s;">
@@ -511,15 +533,18 @@ locations.forEach(loc => {
     marker = L.marker([loc.lat, loc.lon], { icon: customHTMLIcon }).addTo(map);
     marker.bindPopup(`<div class="text-red-600 font-bold">⚠️ Alert at ${loc.name}!</div>`).openPopup();
 
+    // Play sound only for new alerts
     if (!sessionStorage.getItem(`alert_played_${loc.sensor_id}`)) {
       alertSound.play();
       sessionStorage.setItem(`alert_played_${loc.sensor_id}`, 'true');
       
+      // Clear the sound flag after timeout
       setTimeout(() => {
         sessionStorage.removeItem(`alert_played_${loc.sensor_id}`);
       }, alertTimeout);
     }
 
+    // Calculate when to start fading
     const fadeStartTime = Math.max(0, alertState.timeRemaining - fadeDuration);
     
     setTimeout(() => {
@@ -528,6 +553,7 @@ locations.forEach(loc => {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / fadeDuration, 1);
         
+        // Transition from red to blue
         const redValue = Math.floor(255 * (1 - progress));
         const greenValue = Math.floor(87 * progress);
         const blueValue = Math.floor(255 * progress);
@@ -559,19 +585,24 @@ locations.forEach(loc => {
     }, fadeStartTime);
 
   } else {
+    // Normal marker (no active alert)
     marker = L.marker([loc.lat, loc.lon]).addTo(map);
     marker.bindPopup(`<div>${loc.name}</div>`);
   }
 });
 
+// Fix map size after load
 setTimeout(() => map.invalidateSize(), 100);
 
+// Manage alert container visibility
 const anyActiveAlerts = locations.some(loc => {
-  const alertState = manageAlertState(loc.sensor_id);
-  return loc.has_alert && alertState.isActive;
+  const hasServerAlert = serverAlerts.some(alert => alert.includes(loc.name));
+  const alertState = manageAlertState(loc.sensor_id, hasServerAlert);
+  return alertState.isActive;
 });
 
-if (!anyActiveAlerts) {
+// Only hide alert container if there are truly no active alerts
+if (!anyActiveAlerts && serverAlerts.length === 0) {
   const alertBox = document.querySelector('.alert-container');
   if (alertBox) {
     alertBox.style.transition = 'opacity 2s';
