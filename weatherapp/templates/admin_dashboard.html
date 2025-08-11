@@ -463,6 +463,8 @@ const locations = [
 ];
 
 const alertSound = document.getElementById('alertSound');
+let alertTimeout = 300000;
+let fadeDuration = 10000;
 
 locations.forEach(loc => {
   let marker;
@@ -470,7 +472,7 @@ locations.forEach(loc => {
   if (loc.has_alert) {
     const customHTMLIcon = L.divIcon({
       className: '',
-      html: `<div class="custom-pin" style="color: red; transition: color 3s;">
+      html: `<div class="custom-pin" style="color: red; transition: color ${fadeDuration/1000}s;">
               🚨<span class="pin-label">${loc.name}</span>
             </div>`,
       iconSize: [32, 40],
@@ -483,17 +485,22 @@ locations.forEach(loc => {
     if (!sessionStorage.getItem('alertPlayed')) {
       alertSound.play();
       sessionStorage.setItem('alertPlayed', 'true');
+      
+      setTimeout(() => {
+        sessionStorage.removeItem('alertPlayed');
+      }, alertTimeout);
     }
 
     setTimeout(() => {
-      let step = 0;
-      const steps = 20;
-      const interval = setInterval(() => {
-        step++;
-        const fadeRatio = step / steps;
-        const redValue = Math.floor(255 - (255 * fadeRatio));
-        const greenValue = Math.floor(0 + (87 * fadeRatio));
-        const blueValue = Math.floor(0 + (255 * fadeRatio));
+      const startTime = Date.now();
+      const fadeInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / fadeDuration, 1);
+        
+        // Calculate color transition from red to blue
+        const redValue = Math.floor(255 * (1 - progress));
+        const greenValue = Math.floor(87 * progress);
+        const blueValue = Math.floor(255 * progress);
 
         const fadedIcon = L.divIcon({
           className: '',
@@ -506,9 +513,8 @@ locations.forEach(loc => {
 
         marker.setIcon(fadedIcon);
 
-        if (step >= steps) {
-          clearInterval(interval);
-          // Final switch to normal blue pin
+        if (progress >= 1) {
+          clearInterval(fadeInterval);
           const defaultIcon = L.icon({
             iconUrl: 'https://unpkg.com/leaflet/dist/images/marker-icon.png',
             iconSize: [25, 41],
@@ -518,8 +524,8 @@ locations.forEach(loc => {
           marker.setIcon(defaultIcon);
           marker.setPopupContent(`<div>${loc.name}</div>`);
         }
-      }, 200);
-    }, 300000);
+      }, 50);
+    }, alertTimeout - fadeDuration);
 
   } else {
     marker = L.marker([loc.lat, loc.lon]).addTo(map);
@@ -531,8 +537,12 @@ setTimeout(() => map.invalidateSize(), 100);
 
 setTimeout(() => {
   const alertBox = document.querySelector('.alert-container');
-  if (alertBox) alertBox.remove();
-}, 300000);
+  if (alertBox) {
+    alertBox.style.transition = 'opacity 2s';
+    alertBox.style.opacity = '0';
+    setTimeout(() => alertBox.remove(), 2000);
+  }
+}, alertTimeout);
 
 
   document.addEventListener('DOMContentLoaded', function () {
