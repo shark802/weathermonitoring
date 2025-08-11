@@ -11,7 +11,7 @@
       </div>
 
       <nav class="space-y-4">
-        <a href="{% url 'admin_dashboard' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'admin_dashboard' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}">
+        <a href="{% url 'admin_dashboard' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'admin_dashboard' %}bg-blue-600{% else %}text-gray-700{% endif %}">
           <i class="fas fa-chart-simple w-5 text-center"></i> Dashboard
         </a>
 
@@ -19,7 +19,7 @@
         <div onclick="toggleRainfallDropdown()"
             class="flex justify-between items-center cursor-pointer px-2 py-2 rounded-md font-medium
                 {% if current_url in 'weather_reports daily_reports monthly_reports' %}
-                  bg-blue-50 text-blue-600
+                  bg-blue-600
                 {% else %}
                   text-gray-700 hover:bg-blue-50 hover:text-blue-600
                 {% endif %}"
@@ -30,7 +30,7 @@
           <i id="rainfallArrow"
             class="fas text-sm transition-transform duration-200
               {% if current_url in 'weather_reports daily_reports monthly_reports' %}
-                fa-chevron-down text-blue-600
+                fa-chevron-down
               {% else %}
                 fa-chevron-right text-gray-700
               {% endif %}">
@@ -40,19 +40,19 @@
             class="{% if current_url in 'weather_reports daily_reports monthly_reports' %}block{% else %}hidden{% endif %}">
           <ul class="nav flex-column ms-4 space-y-1 mt-1">
             <li class="nav-item">
-              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'weather_reports' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}"
+              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'weather_reports' %}bg-blue-600{% else %}text-gray-700{% endif %}"
                 href="{% url 'weather_reports' %}">
                 <span class="text-xs">●</span> All Reports
               </a>
             </li>
             <li class="nav-item">
-              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'daily_reports' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}"
+              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'daily_reports' %}bg-blue-600{% else %}text-gray-700{% endif %}"
                 href="{% url 'daily_reports' %}">
                 <span class="text-xs">●</span> Daily Report
               </a>
             </li>
             <li class="nav-item">
-              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'monthly_reports' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}"
+              <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-50 hover:text-blue-600 {% if current_url == 'monthly_reports' %}bg-blue-600{% else %}text-gray-700{% endif %}"
                 href="{% url 'monthly_reports' %}">
                 <span class="text-xs">●</span> Monthly Report
               </a>
@@ -61,13 +61,13 @@
         </div>
         {% endwith %}
 
-        <a href="{% url 'manage_admins' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'manage_admins' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}">
+        <a href="{% url 'manage_admins' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'manage_admins' %}bg-blue-600{% else %}text-gray-700{% endif %}">
           <i class="fas fa-user-shield w-5 text-center"></i> Manage Admins
         </a>
-        <a href="{% url 'sensors' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'sensors' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}">
+        <a href="{% url 'sensors' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'sensors' %}bg-blue-600{% else %}text-gray-700{% endif %}">
           <i class="fas fa-broadcast-tower w-5 text-center"></i> Sensors
         </a>
-        <a href="{% url 'active_user' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'active_user' %}bg-blue-50 text-blue-600{% else %}text-gray-700{% endif %}">
+        <a href="{% url 'active_user' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 {% if request.resolver_match.url_name == 'active_user' %}bg-blue-600{% else %}text-gray-700{% endif %}">
           <i class="fas fa-user w-5 text-center"></i> Manage Users
         </a>
         
