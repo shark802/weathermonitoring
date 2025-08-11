@@ -453,6 +453,7 @@ const locations = [
   {% if locations %}
     {% for location in locations %}
       {
+        sensor_id: "{{ location.sensor_id }}",
         name: "{{ location.name }}",
         lat: {{ location.latitude }},
         lon: {{ location.longitude }},
@@ -463,13 +464,41 @@ const locations = [
 ];
 
 const alertSound = document.getElementById('alertSound');
-let alertTimeout = 300000;
-let fadeDuration = 10000;
+const alertTimeout = 300000;
+const fadeDuration = 10000;
+
+function manageAlertState(sensorId) {
+  const storageKey = `alert_${sensorId}`;
+  const now = Date.now();
+  
+  const storedEndTime = localStorage.getItem(storageKey);
+  if (storedEndTime) {
+    if (now < parseInt(storedEndTime)) {
+      return {
+        isActive: true,
+        timeRemaining: parseInt(storedEndTime) - now
+      };
+    }
+    localStorage.removeItem(storageKey);
+  }
+  
+  if (locations.find(loc => loc.sensor_id === sensorId && loc.has_alert)) {
+    const endTime = now + alertTimeout;
+    localStorage.setItem(storageKey, endTime.toString());
+    return {
+      isActive: true,
+      timeRemaining: alertTimeout
+    };
+  }
+  
+  return { isActive: false };
+}
 
 locations.forEach(loc => {
+  const alertState = manageAlertState(loc.sensor_id);
   let marker;
 
-  if (loc.has_alert) {
+  if (loc.has_alert && alertState.isActive) {
     const customHTMLIcon = L.divIcon({
       className: '',
       html: `<div class="custom-pin" style="color: red; transition: color ${fadeDuration/1000}s;">
@@ -480,24 +509,25 @@ locations.forEach(loc => {
     });
 
     marker = L.marker([loc.lat, loc.lon], { icon: customHTMLIcon }).addTo(map);
-    marker.bindPopup(`<div class="text-red-600 font-bold">⚠️ Strong wind or rain at ${loc.name}!</div>`).openPopup();
+    marker.bindPopup(`<div class="text-red-600 font-bold">⚠️ Alert at ${loc.name}!</div>`).openPopup();
 
-    if (!sessionStorage.getItem('alertPlayed')) {
+    if (!sessionStorage.getItem(`alert_played_${loc.sensor_id}`)) {
       alertSound.play();
-      sessionStorage.setItem('alertPlayed', 'true');
+      sessionStorage.setItem(`alert_played_${loc.sensor_id}`, 'true');
       
       setTimeout(() => {
-        sessionStorage.removeItem('alertPlayed');
+        sessionStorage.removeItem(`alert_played_${loc.sensor_id}`);
       }, alertTimeout);
     }
 
+    const fadeStartTime = Math.max(0, alertState.timeRemaining - fadeDuration);
+    
     setTimeout(() => {
       const startTime = Date.now();
       const fadeInterval = setInterval(() => {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / fadeDuration, 1);
         
-        // Calculate color transition from red to blue
         const redValue = Math.floor(255 * (1 - progress));
         const greenValue = Math.floor(87 * progress);
         const blueValue = Math.floor(255 * progress);
@@ -515,6 +545,7 @@ locations.forEach(loc => {
 
         if (progress >= 1) {
           clearInterval(fadeInterval);
+          // Switch to normal blue marker
           const defaultIcon = L.icon({
             iconUrl: 'https://unpkg.com/leaflet/dist/images/marker-icon.png',
             iconSize: [25, 41],
@@ -525,7 +556,7 @@ locations.forEach(loc => {
           marker.setPopupContent(`<div>${loc.name}</div>`);
         }
       }, 50);
-    }, alertTimeout - fadeDuration);
+    }, fadeStartTime);
 
   } else {
     marker = L.marker([loc.lat, loc.lon]).addTo(map);
@@ -535,15 +566,19 @@ locations.forEach(loc => {
 
 setTimeout(() => map.invalidateSize(), 100);
 
-setTimeout(() => {
+const anyActiveAlerts = locations.some(loc => {
+  const alertState = manageAlertState(loc.sensor_id);
+  return loc.has_alert && alertState.isActive;
+});
+
+if (!anyActiveAlerts) {
   const alertBox = document.querySelector('.alert-container');
   if (alertBox) {
     alertBox.style.transition = 'opacity 2s';
     alertBox.style.opacity = '0';
     setTimeout(() => alertBox.remove(), 2000);
   }
-}, alertTimeout);
-
+}
 
   document.addEventListener('DOMContentLoaded', function () {
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
