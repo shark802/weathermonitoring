@@ -473,20 +473,20 @@ def admin_dashboard(request):
     alerts = []
     with connection.cursor() as cursor:
         cursor.execute("""
-            SELECT sensor.sensor_id, sensor.name, weather_reports.rain_rate, weather_reports.wind_speed
+            SELECT sensor.sensor_id, sensor.name, weather_reports.rain_rate, weather_reports.wind_speed weather_reports.date_time
             FROM weather_reports
             JOIN sensor ON weather_reports.sensor_id = sensor.sensor_id
         """)
         rows = cursor.fetchall()
-        for sensor_id, name, rain_rate, wind_speed in rows:
+        for sensor_id, name, rain_rate, wind_speed, date_time in rows:
             if rain_rate is not None:
                 intensity = get_rain_intensity(rain_rate)
                 if intensity in ["Heavy", "Intense", "Torrential"]:
-                    alerts.append(f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm)")
+                    alerts.append(f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm) {date_time}")
                     if sensor_id in locations_dict:
                         locations_dict[sensor_id]['has_alert'] = True
             if wind_speed and wind_speed > 30:
-                alerts.append(f"⚠️ Wind Advisory for {name} ({wind_speed} m/s)")
+                alerts.append(f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {date_time}")
                 if sensor_id in locations_dict:
                     locations_dict[sensor_id]['has_alert'] = True
 
