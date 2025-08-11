@@ -92,6 +92,11 @@
         </div>
       </div>
 
+      <div class="bg-white p-4 rounded shadow">
+        <h2 class="text-xl font-semibold mb-2">Weather Station Location</h2>
+        <div id="map" class="h-96 w-full relative z-10"></div>
+      </div>
+
       <script>
       const serverAlerts = JSON.parse('{{ alerts|json_script|escapejs }}');
       const locations = JSON.parse('{{ locations|json_script|escapejs }}');
