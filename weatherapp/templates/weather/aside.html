@@ -48,13 +48,13 @@
             <li class="nav-item">
               <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-600 hover:text-white {% if current_url == 'daily_reports' %}bg-blue-600 text-white{% else %}text-gray-700{% endif %}"
                 href="{% url 'daily_reports' %}">
-                <span class="text-xs">●</span> Daily Report
+                <span class="text-xs">●</span> Daily Reports
               </a>
             </li>
             <li class="nav-item">
               <a class="flex items-center gap-2 px-2 py-2 rounded-md text-sm no-underline hover:bg-blue-600 hover:text-white {% if current_url == 'monthly_reports' %}bg-blue-600 text-white{% else %}text-gray-700{% endif %}"
                 href="{% url 'monthly_reports' %}">
-                <span class="text-xs">●</span> Monthly Report
+                <span class="text-xs">●</span> Monthly Reports
               </a>
             </li>
           </ul>
@@ -65,7 +65,7 @@
           <i class="fas fa-user-shield w-5 text-center"></i> Manage Admins
         </a>
         <a href="{% url 'sensors' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-600 hover:text-white {% if request.resolver_match.url_name == 'sensors' %}bg-blue-600 text-white{% else %}text-gray-700{% endif %}">
-          <i class="fas fa-broadcast-tower w-5 text-center"></i> Sensors
+          <i class="fas fa-broadcast-tower w-5 text-center"></i> Manage Sensors
         </a>
         <a href="{% url 'active_user' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-600 hover:text-white {% if request.resolver_match.url_name == 'active_user' %}bg-blue-600 text-white{% else %}text-gray-700{% endif %}">
           <i class="fas fa-user w-5 text-center"></i> Manage Users
