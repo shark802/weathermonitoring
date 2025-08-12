@@ -73,7 +73,7 @@
         
         <!-- Send Alerts Button - Fixed position -->
         <button type="button" 
-                class="w-full flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-50 hover:text-blue-600 text-gray-700"
+                class="w-full flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-600 hover:text-white text-gray-700"
                 data-bs-toggle="modal" 
                 data-bs-target="#sendAlertModal">
           <i class="fas fa-bell w-5 text-center"></i> Send Alerts
@@ -87,7 +87,7 @@
       <form id="logout-form" action="{% url 'logout' %}" method="POST">
         {% csrf_token %}
         <button type="button" onclick="showLogoutModal()"
-                class="w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm font-medium no-underline hover:bg-gray-100 text-gray-700">
+                class="w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm font-medium no-underline hover:bg-blue-600 hover:text-white text-gray-700">
           <i class="fas fa-sign-out-alt w-5 text-center"></i> Logout
         </button>
       </form>
