@@ -1771,8 +1771,8 @@ def receive_sensor_data(request):
         dew_point = temperature - ((100 - humidity) / 5)
 
         # Since the interval is fixed at 10 minutes:
-        rain_rate = rainfall_mm      # mm per 10 minutes
-        rain_accumulated = rainfall_mm  # total rain in last 10 minutes (same)
+        rain_rate = rainfall_mm * 6
+        rain_accumulated = rainfall_mm
 
         intensity_label = get_rain_intensity(rain_rate)
 
