@@ -481,18 +481,77 @@ def admin_dashboard(request):
         """)
         rows = cursor.fetchall()
 
+        alert_triggered = False
+        message = ""
+
         for sensor_id, name, rain_rate, wind_speed, date_time in rows:
             if rain_rate is not None:
                 intensity = get_rain_intensity(rain_rate)
                 if intensity in ["Heavy", "Intense", "Torrential"]:
-                    alerts.append(f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm) {date_time}")
+                    alert_text = f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm) {date_time}"
+                    alerts.append(alert_text)
+                    message += alert_text + "\n"
+                    alert_triggered = True
                     if sensor_id in locations_dict:
                         locations_dict[sensor_id]['has_alert'] = True
+
             if wind_speed and wind_speed > 30:
-                alerts.append(f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {date_time}")
+                alert_text = f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {date_time}"
+                alerts.append(alert_text)
+                message += alert_text + "\n"
+                alert_triggered = True
                 if sensor_id in locations_dict:
                     locations_dict[sensor_id]['has_alert'] = True
 
+    if alert_triggered and message.strip():
+        try:
+            phone_numbers = []
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT phone_num FROM user")
+                rows = cursor.fetchall()
+                phone_numbers = [
+                    "63" + row[0][1:] if row[0].startswith("0") else row[0]
+                    for row in rows if row[0]
+                ]
+
+            headers = {
+                'apikey': settings.SMS_API_KEY
+            }
+            sent_count = 0
+
+            for number in phone_numbers:
+                if sent_count >= 2:
+                    time.sleep(2)
+                    sent_count = 0
+
+                params = {
+                    'message': message.strip(),
+                    'mobile_number': number,
+                    'device': settings.SMS_DEVICE_ID
+                }
+
+                try:
+                    response = requests.post(
+                        settings.SMS_API_URL,
+                        headers=headers,
+                        data=params,
+                        timeout=2
+                    )
+
+                    if response.status_code == 200:
+                        print(f"[SMS SUCCESS] To: {number}")
+                    else:
+                        print(f"[SMS ERROR] To: {number} - {response.text}")
+
+                    sent_count += 1
+
+                except requests.exceptions.RequestException as e:
+                    print(f"[SMS ERROR] To: {number} - {str(e)}")
+
+            print("All alerts sent successfully!")
+
+        except Exception as e:
+            print(f"[ERROR] Failed to send SMS alerts: {e}")
 
     with connection.cursor() as cursor:
         cursor.execute("""
