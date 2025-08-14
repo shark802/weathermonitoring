@@ -505,7 +505,8 @@ def admin_dashboard(request):
                 'latitude': float(lat) if lat else None,
                 'longitude': float(lon) if lon else None,
                 'has_alert': has_alert,
-                'alert_text': alert_text if has_alert else None
+                'alert_text': alert_text if has_alert else None,
+                'date_time': date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else None
             })
 
     # SMS Alert Logic (Pagenet API)
