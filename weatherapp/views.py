@@ -573,7 +573,7 @@ def admin_dashboard(request):
                             "https://sms.pagenet.info/api/v1/sms/send",
                             headers=headers,
                             data=payload,
-                            timeout=5
+                            timeout=10
                         )
                         if response.status_code == 200:
                             sent_count += 1
