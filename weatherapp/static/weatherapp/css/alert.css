@@ -60,3 +60,38 @@
       cursor: pointer;
       font-size: 14px;
   }
+  .alert-item {
+    transition: opacity 0.3s ease;
+    padding: 8px 12px;
+    border-left: 3px solid;
+}
+
+.alert-item[data-intensity="torrential"] {
+    border-left-color: #dc2626; /* red */
+    background-color: #fee2e2;
+}
+
+.alert-item[data-intensity="intense"] {
+    border-left-color: #ea580c; /* orange */
+    background-color: #ffedd5;
+}
+
+.alert-item[data-intensity="heavy"] {
+    border-left-color: #ca8a04; /* yellow */
+    background-color: #fef9c3;
+}
+
+.alert-item[data-type="wind"] {
+    border-left-color: #2563eb; /* blue */
+    background-color: #dbeafe;
+}
+
+.animate-pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
