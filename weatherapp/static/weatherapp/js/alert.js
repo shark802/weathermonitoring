@@ -8,9 +8,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }).addTo(map);
 
     // Configuration
-    const ALERT_DURATION = 600000; // 10 minutes in milliseconds (matches backend)
-    const FADE_DURATION = 10000;   // 10 seconds for fade effect
-    const POPUP_DURATION = 8000;   // 8 seconds for popup display
+    const ALERT_DURATION = 600000;
+    const FADE_DURATION = 10000;
+    const POPUP_DURATION = 8000;
 
     // Audio setup
     const alertSound = document.getElementById('alertSound');
@@ -64,7 +64,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Check if alert is still active based on timestamp
     function isAlertActive(alertDateTime) {
         if (!alertDateTime) return false;
         
@@ -241,7 +240,6 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => {
             map.invalidateSize();
             
-            // Auto-zoom to show all markers if locations exist
             if (locations.length > 0 && locations.some(loc => loc.latitude && loc.longitude)) {
                 const markerGroup = new L.FeatureGroup(window.mapMarkers);
                 map.fitBounds(markerGroup.getBounds().pad(0.2));

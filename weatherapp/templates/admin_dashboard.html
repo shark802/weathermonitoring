@@ -101,22 +101,25 @@
 
       <div class="alert-container bg-white p-4 rounded shadow">
         <h2 class="text-xl font-semibold mb-4">Alerts & Notifications</h2>
-        {% if alerts %}
-          <ul class="space-y-1">
-            {% for alert in alerts %}
-              <li class="
-                {% if 'Torrential' in alert %}text-red-700 font-bold animate-pulse
-                {% elif 'Intense' in alert %}text-orange-600 font-semibold
-                {% elif 'Heavy' in alert %}text-yellow-600
-                {% elif 'Wind Advisory' in alert %}text-blue-500
-                {% else %}text-gray-700{% endif %}">
-                ⚠️ {{ alert }}
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p class="text-green-600">✅ No active alerts at this time.</p>
-        {% endif %}
+        <div id="alerts-list">
+            {% if alerts %}
+                <ul class="space-y-1">
+                    {% for alert in alerts %}
+                    <li class="alert-item 
+                        {% if alert.type == 'rain' and alert.intensity == 'torrential' %}text-red-700 font-bold animate-pulse
+                        {% elif alert.type == 'rain' and alert.intensity == 'intense' %}text-orange-600 font-semibold
+                        {% elif alert.type == 'rain' and alert.intensity == 'heavy' %}text-yellow-600
+                        {% elif alert.type == 'wind' %}text-blue-500
+                        {% else %}text-gray-700{% endif %}"
+                        data-timestamp="{{ alert.timestamp }}">
+                        ⚠️ {{ alert.text }}
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-green-600">✅ No active alerts at this time.</p>
+            {% endif %}
+        </div>
       </div>
     </main>
   </div>
@@ -260,6 +263,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="{% static 'js/alert.js' %}"></script>
+  <script src="{% static 'js/alertbox.js' %}"></script>
   <script>
     const bagoBarangays = [
     "Abuanan", "Alianza", "Atipuluan", "Bacong-Montilla", "Bagroy", "Balingasag",

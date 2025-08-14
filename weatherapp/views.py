@@ -459,9 +459,9 @@ def admin_dashboard(request):
     if isinstance(forecast, dict) and 'error' in forecast:
         forecast = []
 
-    # Get all sensor locations and alert status
     locations = []
     alerts = []
+    alert_objects = [] 
     message = ""
     alert_triggered = False
     
@@ -487,6 +487,12 @@ def admin_dashboard(request):
                 intensity = get_rain_intensity(rain_rate)
                 if intensity in ["Heavy", "Intense", "Torrential"]:
                     alert_text = f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm) {date_time}"
+                    alert_objects.append({
+                        'text': alert_text,
+                        'timestamp': datetime.now().isoformat(),
+                        'type': 'rain',
+                        'intensity': intensity.lower()
+                    })
                     alerts.append(alert_text)
                     message += alert_text + "\n"
                     has_alert = True
@@ -494,6 +500,12 @@ def admin_dashboard(request):
 
             if wind_speed and wind_speed > 30:
                 alert_text = f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {date_time}"
+                alert_objects.append({
+                    'text': alert_text,
+                    'timestamp': datetime.now().isoformat(),
+                    'type': 'wind',
+                    'intensity': 'high'
+                })
                 alerts.append(alert_text)
                 message += alert_text + "\n"
                 has_alert = True
@@ -591,7 +603,7 @@ def admin_dashboard(request):
         'locations': json.dumps(locations),
         'weather': weather,
         'forecast': forecast,
-        'alerts': alerts,
+        'alerts': alert_objects,
         'labels': json.dumps(labels),
         'data': json.dumps(temps),
         'available_sensors': available_sensors,
