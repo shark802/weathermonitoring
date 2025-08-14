@@ -332,7 +332,7 @@
                 <th>Dew Point (°C)</th>
                 <th>Rain Rate (mm/h)</th>
                 <th>Intensity</th>
-                <th>Rain (mm)</th>
+                <th>Rain (mm/10min)</th>
               </tr>
             </thead>
             <tbody>
@@ -790,7 +790,7 @@
             },
             { 
                 data: 'rain_accumulated', 
-                title: 'Rain (mm)',
+                title: 'Rain (mm/10min)',
                 render: function(data) {
                     return data ? parseFloat(data).toFixed(2) : 'N/A';
                 }
