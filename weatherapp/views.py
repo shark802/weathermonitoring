@@ -503,7 +503,23 @@ def admin_dashboard(request):
                 if sensor_id in locations_dict:
                     locations_dict[sensor_id]['has_alert'] = True
 
-    if alert_triggered and message.strip():
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT sent_at 
+            FROM sms_alert_log
+            WHERE alert_message = %s
+            ORDER BY sent_at DESC
+            LIMIT 1
+        """, [message.strip()])
+        last_sent = cursor.fetchone()
+
+    can_send_sms = True
+    if last_sent:
+        last_sent_time = last_sent[0]
+        if datetime.now() - last_sent_time < timedelta(minutes=10):
+            can_send_sms = False
+
+    if alert_triggered and message.strip() and can_send_sms:
         try:
             phone_numbers = []
             with connection.cursor() as cursor:
@@ -523,7 +539,7 @@ def admin_dashboard(request):
 
             for number in phone_numbers:
                 if sent_count >= 2:
-                    time.sleep(2)
+                    time.sleep(2)  # ✅ Keep 2-second delay
                     sent_count = 0
 
                 payload = {
@@ -536,7 +552,7 @@ def admin_dashboard(request):
                     response = requests.post(
                         settings.SMS_API_URL,
                         headers=headers,
-                        json=payload,  # ✅ Send JSON
+                        json=payload,
                         timeout=5
                     )
 
@@ -549,6 +565,13 @@ def admin_dashboard(request):
 
                 except requests.exceptions.RequestException as e:
                     print(f"[SMS ERROR] To: {number} - {str(e)}")
+
+            # Log the sent alert so it won't resend
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO sms_alert_log (alert_type, alert_message) VALUES (%s, %s)",
+                    ('weather_alert', message.strip())
+                )
 
             print("All alerts sent successfully!")
 
