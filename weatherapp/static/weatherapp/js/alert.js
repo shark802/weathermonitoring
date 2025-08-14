@@ -200,27 +200,53 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize the map with locations
     function initializeMap() {
-        const locations = JSON.parse(document.getElementById('locations-data').textContent || [];
+        const locationsData = document.getElementById('locations-data').textContent;
+        const locations = locationsData ? JSON.parse(locationsData) : [];
         
+        // Clear existing markers if any (for refresh scenarios)
+        if (window.mapMarkers) {
+            window.mapMarkers.forEach(marker => map.removeLayer(marker));
+        }
+        window.mapMarkers = [];
+
         locations.forEach(loc => {
+            // Skip if missing coordinates
             if (!loc.latitude || !loc.longitude) return;
 
-            // Check if this location has an active alert
+            // Check if alert is active (exists and within time window)
             const hasActiveAlert = loc.has_alert && isAlertActive(loc.date_time);
             
+            // Create marker with appropriate icon
             const marker = L.marker([loc.latitude, loc.longitude], {
                 icon: hasActiveAlert ? createAlertIcon(loc) : icons.default
             }).addTo(map);
 
+            // Store reference to marker
+            window.mapMarkers.push(marker);
+
+            // Configure popup based on alert status
             if (hasActiveAlert) {
                 setupAlertMarker(marker, loc);
             } else {
-                marker.bindPopup(`<div>${loc.name}</div>`);
+                marker.bindPopup(`<div class="location-popup">${loc.name}</div>`);
             }
+
+            // Add click event to zoom to marker
+            marker.on('click', function() {
+                map.setView([loc.latitude, loc.longitude], 15);
+            });
         });
 
         // Fix map size after load
-        setTimeout(() => map.invalidateSize(), 100);
+        setTimeout(() => {
+            map.invalidateSize();
+            
+            // Auto-zoom to show all markers if locations exist
+            if (locations.length > 0 && locations.some(loc => loc.latitude && loc.longitude)) {
+                const markerGroup = new L.FeatureGroup(window.mapMarkers);
+                map.fitBounds(markerGroup.getBounds().pad(0.2));
+            }
+        }, 100);
     }
 
     // Initialize everything
