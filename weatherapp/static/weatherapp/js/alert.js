@@ -7,12 +7,15 @@ document.addEventListener('DOMContentLoaded', function() {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
+    // Configuration
+    const ALERT_DURATION = 600000; // 10 minutes in milliseconds (matches backend)
+    const FADE_DURATION = 10000;   // 10 seconds for fade effect
+    const POPUP_DURATION = 8000;   // 8 seconds for popup display
+
     // Audio setup
     const alertSound = document.getElementById('alertSound');
-    const fadeDuration = 10000; // 10 seconds fade effect
-    const alertDuration = 300000; // 5 minutes total alert duration
     const enableAudioBtn = document.getElementById('enableAudio');
-
+    
     // Icon configurations
     const icons = {
         default: L.icon({
@@ -61,7 +64,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Create custom alert icon
+    // Check if alert is still active based on timestamp
+    function isAlertActive(alertDateTime) {
+        if (!alertDateTime) return false;
+        
+        const alertTime = new Date(alertDateTime).getTime();
+        const currentTime = new Date().getTime();
+        return (currentTime - alertTime) < ALERT_DURATION;
+    }
+
+    // Create appropriate alert icon
     function createAlertIcon(location) {
         const alertType = determineAlertType(location.alert_text);
         const iconConfig = icons[alertType];
@@ -79,6 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Determine alert type from alert text
     function determineAlertType(alertText) {
+        if (!alertText) return 'general';
         if (alertText.includes('Rainfall')) return 'rain';
         if (alertText.includes('Wind')) return 'wind';
         return 'general';
@@ -103,18 +116,16 @@ document.addEventListener('DOMContentLoaded', function() {
             playAlertSound(location.sensor_id);
         }
 
-        // Set up fade effect if alert is time-bound
-        if (location.alert_datetime) {
-            setupFadeEffect(marker, location, popup, alertType);
-        }
+        // Set up fade effect
+        setupFadeEffect(marker, location, popup, alertType);
 
-        // Auto-close popup after 8 seconds
-        setTimeout(() => popup.closePopup(), 8000);
+        // Auto-close popup after duration
+        setTimeout(() => popup.closePopup(), POPUP_DURATION);
     }
 
     // Play alert sound with session tracking
     function playAlertSound(sensorId) {
-        if (sessionStorage.getItem(`alert_played_${sensorId}`)) return;
+        if (!sensorId || sessionStorage.getItem(`alert_played_${sensorId}`)) return;
         
         alertSound.currentTime = 0;
         alertSound.play()
@@ -122,26 +133,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 sessionStorage.setItem(`alert_played_${sensorId}`, 'true');
                 setTimeout(() => {
                     sessionStorage.removeItem(`alert_played_${sensorId}`);
-                }, alertDuration);
+                }, ALERT_DURATION);
             })
             .catch(e => console.error("Audio playback failed:", e));
     }
 
     // Set up color fade effect for alert markers
     function setupFadeEffect(marker, location, popup, alertType) {
-        const alertEndTime = new Date(location.alert_datetime).getTime() + alertDuration;
-        const now = new Date().getTime();
-        const remainingTime = alertEndTime - now;
+        const alertTime = new Date(location.date_time).getTime();
+        const currentTime = new Date().getTime();
+        const alertEndTime = alertTime + ALERT_DURATION;
+        const remainingTime = alertEndTime - currentTime;
         
         if (remainingTime <= 0) return;
 
-        const fadeStartTime = Math.max(0, remainingTime - fadeDuration);
+        const fadeStartTime = Math.max(0, remainingTime - FADE_DURATION);
         
         setTimeout(() => {
             const startTime = Date.now();
             const fadeInterval = setInterval(() => {
                 const elapsed = Date.now() - startTime;
-                const progress = Math.min(elapsed / fadeDuration, 1);
+                const progress = Math.min(elapsed / FADE_DURATION, 1);
                 
                 const currentColor = calculateFadedColor(alertType, progress);
                 
@@ -188,16 +200,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize the map with locations
     function initializeMap() {
-        const locations = JSON.parse(document.getElementById('locations-data').textContent);
+        const locations = JSON.parse(document.getElementById('locations-data').textContent || [];
         
         locations.forEach(loc => {
             if (!loc.latitude || !loc.longitude) return;
 
+            // Check if this location has an active alert
+            const hasActiveAlert = loc.has_alert && isAlertActive(loc.date_time);
+            
             const marker = L.marker([loc.latitude, loc.longitude], {
-                icon: loc.has_alert ? createAlertIcon(loc) : icons.default
+                icon: hasActiveAlert ? createAlertIcon(loc) : icons.default
             }).addTo(map);
 
-            if (loc.has_alert) {
+            if (hasActiveAlert) {
                 setupAlertMarker(marker, loc);
             } else {
                 marker.bindPopup(`<div>${loc.name}</div>`);
@@ -211,4 +226,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize everything
     initAudioControls();
     initializeMap();
+
+    // Optional: Auto-refresh every 5 minutes
+    setTimeout(() => {
+        window.location.reload();
+    }, 300000);
 });
