@@ -510,7 +510,7 @@ def admin_dashboard(request):
                 cursor.execute("SELECT phone_num FROM user")
                 rows = cursor.fetchall()
                 phone_numbers = [
-                    "63" + row[0][1:] if row[0].startswith("0") else row[0]
+                    "+63" + row[0][1:] if row[0].startswith("0") else row[0]
                     for row in rows if row[0]
                 ]
 
