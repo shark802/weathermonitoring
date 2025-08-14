@@ -371,64 +371,141 @@ def reset_password(request):
 
     return render(request, 'reset_password.html')
 
-@cache_control(no_cache=True, must_revalidate=True, no_store=True)
-def admin_dashboard(request):
-    if 'admin_id' not in request.session:
-        return redirect('home')
-    
-    admin_id = request.session['admin_id']
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [admin_id])
-        row = cursor.fetchone()
-        admin_name = row[0] if row else 'Admin'
-    
-    def get_rain_intensity(amount):
-        if amount == 0:
-            return "None"
-        elif 0 < amount < 2.5:
-            return "Light"
-        elif 2.5 <= amount < 7.6:
-            return "Moderate"
-        elif 7.6 <= amount < 15:
-            return "Heavy"
-        elif 15 <= amount < 30:
-            return "Intense"
-        else:
-            return "Torrential"
-    
-    selected_sensor_id = request.GET.get('sensor_id')
-    
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [admin_id])
-        row = cursor.fetchone()
-        admin_name = row[0] if row else 'Admin'
+SMS_TIMEOUT = 10  # seconds
+SMS_MAX_RETRIES = 2
+MIN_ALERT_INTERVAL = timedelta(minutes=10)
 
-        cursor.execute("SELECT sensor_id, name FROM sensor ORDER BY name")
-        available_sensors = [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
+def get_rain_intensity(amount):
+    """Classify rain intensity based on amount in mm."""
+    if amount == 0:
+        return "None"
+    elif 0 < amount < 2.5:
+        return "Light"
+    elif 2.5 <= amount < 7.6:
+        return "Moderate"
+    elif 7.6 <= amount < 15:
+        return "Heavy"
+    elif 15 <= amount < 30:
+        return "Intense"
+    else:
+        return "Torrential"
 
-        if selected_sensor_id:
-            cursor.execute("""
-                SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name, s.latitude, s.longitude
-                FROM weather_reports wr
-                JOIN sensor s ON wr.sensor_id = s.sensor_id
-                WHERE wr.sensor_id = %s
-                ORDER BY wr.date_time DESC
-                LIMIT 1
-            """, [selected_sensor_id])
-        else:
-            cursor.execute("""
-                SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name, s.latitude, s.longitude
-                FROM weather_reports wr
-                JOIN sensor s ON wr.sensor_id = s.sensor_id
-                ORDER BY wr.date_time DESC
-                LIMIT 1
-            """)
+def send_sms(message, phone_numbers):
+    """Send SMS messages to multiple phone numbers."""
+    headers = {
+        "apikey": settings.SMS_API_KEY,
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    session = requests.Session()
+    session.verify = certifi.where()
+    
+    success_count = 0
+    for number in phone_numbers:
+        payload = {
+            "message": message.strip(),
+            "mobile_number": number,
+            "device": settings.SMS_DEVICE_ID,
+            "device_sim": "1"
+        }
         
+        try:
+            response = session.post(
+                "https://sms.pagenet.info/api/v1/sms/send",
+                headers=headers,
+                data=payload,
+                timeout=SMS_TIMEOUT
+            )
+            if response.status_code == 200:
+                success_count += 1
+                time.sleep(0.5)  # Brief pause between messages
+        except requests.exceptions.Timeout:
+            print(f"Timeout occurred while sending to {number}")
+            continue
+        except requests.exceptions.SSLError as e:
+            print(f"SSL Error for {number}: {str(e)}")
+            try:
+                # Fallback with verify=False
+                response = requests.post(
+                    "https://sms.pagenet.info/api/v1/sms/send",
+                    headers=headers,
+                    data=payload,
+                    timeout=SMS_TIMEOUT,
+                    verify=False
+                )
+                if response.status_code == 200:
+                    success_count += 1
+            except Exception as fallback_error:
+                print(f"Fallback failed for {number}: {str(fallback_error)}")
+        except Exception as e:
+            print(f"Failed to send to {number}: {str(e)}")
+    
+    return success_count
+
+def should_send_alert(message):
+    """Check if we should send this alert based on last sent time."""
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT sent_at FROM alerts 
+            WHERE message = %s 
+            AND sent_at > NOW() - INTERVAL %s MINUTE
+            LIMIT 1
+        """, [message.strip(), MIN_ALERT_INTERVAL.total_seconds() / 60])
+        return cursor.fetchone() is None
+
+def get_verified_phone_numbers():
+    """Retrieve all verified phone numbers from database."""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
+        return [
+            "+63" + row[0][1:] if row[0].startswith("0") else row[0]
+            for row in cursor.fetchall()
+        ]
+
+def log_alert(message):
+    """Record sent alert in database."""
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO alerts (alert_type, message, sent_at)
+            VALUES (%s, %s, NOW())
+        """, ('weather_alert', message.strip()))
+
+def get_admin_name(admin_id):
+    """Get admin name from database."""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [admin_id])
         row = cursor.fetchone()
+        return row[0] if row else 'Admin'
+
+def get_available_sensors():
+    """Get list of all available sensors."""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT sensor_id, name FROM sensor ORDER BY name")
+        return [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
+
+def get_weather_data(sensor_id=None):
+    """Get latest weather data for a specific sensor or all sensors."""
+    query = """
+        SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
+               wr.wind_speed, wr.date_time, s.name, s.latitude, s.longitude
+        FROM weather_reports wr
+        JOIN sensor s ON wr.sensor_id = s.sensor_id
+        {where_clause}
+        ORDER BY wr.date_time DESC
+        LIMIT 1
+    """
+    
+    params = []
+    where_clause = "WHERE wr.sensor_id = %s" if sensor_id else ""
+    if sensor_id:
+        params.append(sensor_id)
+    
+    with connection.cursor() as cursor:
+        cursor.execute(query.format(where_clause=where_clause), params)
+        row = cursor.fetchone()
+        
         if row:
-            weather = {
+            return {
                 'temperature': row[0],
                 'humidity': row[1],
                 'rain_rate': row[2],
@@ -440,9 +517,8 @@ def admin_dashboard(request):
                 'longitude': row[8],
                 'error': None
             }
-            current_sensor_id = selected_sensor_id if selected_sensor_id else available_sensors[0]['sensor_id']
         else:
-            weather = {
+            return {
                 'error': 'No weather data available',
                 'temperature': 'N/A',
                 'humidity': 'N/A',
@@ -454,17 +530,12 @@ def admin_dashboard(request):
                 'latitude': None,
                 'longitude': None
             }
-            current_sensor_id = None
 
-    forecast = get_five_day_forecast()
-    if isinstance(forecast, dict) and 'error' in forecast:
-        forecast = []
-
+def get_sensor_locations():
+    """Get all sensor locations with their latest data."""
     locations = []
     alerts = []
-    alert_objects = [] 
-    message = ""
-    alert_triggered = False
+    message_parts = []
     
     with connection.cursor() as cursor:
         cursor.execute("""
@@ -488,29 +559,25 @@ def admin_dashboard(request):
                 intensity = get_rain_intensity(rain_rate)
                 if intensity in ["Heavy", "Intense", "Torrential"]:
                     alert_text = f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm) {date_time}"
-                    alert_objects.append({
+                    alerts.append({
                         'text': alert_text,
                         'timestamp': datetime.now().isoformat(),
                         'type': 'rain',
                         'intensity': intensity.lower()
                     })
-                    alerts.append(alert_text)
-                    message += alert_text + "\n"
+                    message_parts.append(alert_text)
                     has_alert = True
-                    alert_triggered = True
 
             if wind_speed and wind_speed > 30:
                 alert_text = f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {date_time}"
-                alert_objects.append({
+                alerts.append({
                     'text': alert_text,
                     'timestamp': datetime.now().isoformat(),
                     'type': 'wind',
                     'intensity': 'high'
                 })
-                alerts.append(alert_text)
-                message += alert_text + "\n"
+                message_parts.append(alert_text)
                 has_alert = True
-                alert_triggered = True
 
             locations.append({
                 'sensor_id': sensor_id,
@@ -521,90 +588,11 @@ def admin_dashboard(request):
                 'alert_text': alert_text if has_alert else None,
                 'date_time': date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else None
             })
+    
+    return locations, alerts, "\n".join(message_parts) if message_parts else ""
 
-    # SMS Alert Logic (Pagenet API)
-    if alert_triggered and message.strip():
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT sent_at FROM alerts 
-                WHERE message = %s 
-                ORDER BY sent_at DESC 
-                LIMIT 1
-            """, [message.strip()])
-            last_sent = cursor.fetchone()
-
-        can_send_sms = True
-        if last_sent and (datetime.now() - last_sent[0]) < timedelta(minutes=10):
-            can_send_sms = False
-
-        if can_send_sms:
-            try:
-                with connection.cursor() as cursor:
-                    cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
-                    phone_numbers = [
-                        "+63" + row[0][1:] if row[0].startswith("0") else row[0]
-                        for row in cursor.fetchall()
-                    ]
-
-                headers = {
-                    "apikey": settings.SMS_API_KEY,
-                    "Content-Type": "application/x-www-form-urlencoded"
-                }
-
-                # Create verified session
-                session = requests.Session()
-                session.verify = certifi.where()
-                
-                sent_count = 0
-                for number in phone_numbers:
-                    if sent_count >= 2:
-                        time.sleep(1)
-                        sent_count = 0
-
-                    payload = {
-                        "message": message.strip(),
-                        "mobile_number": number,
-                        "device": settings.SMS_DEVICE_ID,
-                        "device_sim": "1"
-                    }
-
-                    try:
-                        response = session.post(
-                            "https://sms.pagenet.info/api/v1/sms/send",
-                            headers=headers,
-                            data=payload,
-                            timeout=5
-                        )
-                        if response.status_code == 200:
-                            sent_count += 1
-                    except requests.exceptions.SSLError as e:
-                        print(f"SSL Error: {str(e)}")
-                        # Fallback to unverified connection if needed
-                        try:
-                            response = requests.post(
-                                "https://sms.pagenet.info/api/v1/sms/send",
-                                headers=headers,
-                                data=payload,
-                                timeout=5,
-                                verify=False
-                            )
-                            if response.status_code == 200:
-                                sent_count += 1
-                        except Exception as fallback_error:
-                            print(f"Fallback SMS Error: {str(fallback_error)}")
-                    except Exception as e:
-                        print(f"SMS Error: {str(e)}")
-
-                with connection.cursor() as cursor:
-                    cursor.execute("""
-                        INSERT INTO alerts (alert_type, message, sent_at)
-                        VALUES (%s, %s, NOW())
-                    """, ('weather_alert', message.strip()))
-
-            except Exception as e:
-                print(f"Alert processing error: {str(e)}")
-
-    # Prepare chart data
+def get_chart_data():
+    """Get data for temperature chart."""
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT DATE_FORMAT(date_time, '%a %b %d') AS label, temperature
@@ -613,26 +601,58 @@ def admin_dashboard(request):
             LIMIT 10
         """)
         rows = cursor.fetchall()
+    
+    return [row[0] for row in rows], [float(row[1]) for row in rows]
 
-    labels = [row[0] for row in rows]
-    temps = [float(row[1]) for row in rows]
-
+@cache_control(no_cache=True, must_revalidate=True, no_store=True)
+def admin_dashboard(request):
+    """Admin dashboard view."""
+    if 'admin_id' not in request.session:
+        return redirect('home')
+    
+    admin_id = request.session['admin_id']
+    admin_name = get_admin_name(admin_id)
+    selected_sensor_id = request.GET.get('sensor_id')
+    
+    # Get all required data
+    available_sensors = get_available_sensors()
+    weather = get_weather_data(selected_sensor_id)
+    forecast = get_five_day_forecast()
+    if isinstance(forecast, dict) and 'error' in forecast:
+        forecast = []
+    locations, alerts, alert_message = get_sensor_locations()
+    labels, temps = get_chart_data()
+    
+    # Process alerts if any
+    if alert_message and should_send_alert(alert_message):
+        try:
+            phone_numbers = get_verified_phone_numbers()
+            success_count = send_sms(alert_message, phone_numbers)
+            
+            if success_count > 0:
+                log_alert(alert_message)
+        except Exception as e:
+            print(f"Failed to send alerts: {str(e)}")
+    
+    # Prepare context
     context = {
         'admin': {'name': admin_name},
         'locations': json.dumps(locations),
         'weather': weather,
-        'forecast': forecast,
-        'alerts': alert_objects,
+        'forecast': forecast if isinstance(forecast, list) else [],
+        'alerts': alerts,
         'labels': json.dumps(labels),
         'data': json.dumps(temps),
         'available_sensors': available_sensors,
-        'current_sensor_id': current_sensor_id,
+        'current_sensor_id': selected_sensor_id if selected_sensor_id else (
+            available_sensors[0]['sensor_id'] if available_sensors else None
+        ),
         'map_center': {
             'lat': weather['latitude'] if weather['latitude'] else 10.508884,
             'lng': weather['longitude'] if weather['longitude'] else 122.957527
         }
     }
-
+    
     return render(request, 'admin_dashboard.html', context)
 
 
