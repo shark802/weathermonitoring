@@ -464,7 +464,6 @@ def admin_dashboard(request):
         rows = cursor.fetchall()
         for sensor_id, name, lat, lon in rows:
             locations_dict[sensor_id] = {
-                'sensor_id': str(sensor_id),
                 'name': name,
                 'latitude': lat,
                 'longitude': lon,
@@ -479,40 +478,27 @@ def admin_dashboard(request):
             FROM weather_reports
             JOIN sensor ON weather_reports.sensor_id = sensor.sensor_id
             WHERE weather_reports.date_time >= NOW() - INTERVAL 10 MINUTE
-            ORDER BY weather_reports.date_time DESC
         """)
         rows = cursor.fetchall()
 
         alert_triggered = False
-        sms_message = ""
+        message = ""
 
         for sensor_id, name, rain_rate, wind_speed, date_time in rows:
-            alert_data = {
-                'sensor_id': str(sensor_id),
-                'name': name,
-                'datetime': date_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'text': '',
-                'type': None
-            }
-            
             if rain_rate is not None:
                 intensity = get_rain_intensity(rain_rate)
                 if intensity in ["Heavy", "Intense", "Torrential"]:
-                    alert_text = f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm)"
-                    alert_data['text'] = alert_text
-                    alert_data['type'] = 'rain'
-                    alerts.append(alert_data)
-                    sms_message += alert_text + f" at {date_time}\n"
+                    alert_text = f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm) {date_time}"
+                    alerts.append(alert_text)
+                    message += alert_text + "\n"
                     alert_triggered = True
                     if sensor_id in locations_dict:
                         locations_dict[sensor_id]['has_alert'] = True
 
             if wind_speed and wind_speed > 30:
-                alert_text = f"⚠️ Wind Advisory for {name} ({wind_speed} m/s)"
-                alert_data['text'] = alert_text
-                alert_data['type'] = 'wind'
-                alerts.append(alert_data)
-                sms_message += alert_text + f" at {date_time}\n"
+                alert_text = f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {date_time}"
+                alerts.append(alert_text)
+                message += alert_text + "\n"
                 alert_triggered = True
                 if sensor_id in locations_dict:
                     locations_dict[sensor_id]['has_alert'] = True
@@ -524,7 +510,7 @@ def admin_dashboard(request):
             WHERE message = %s
             ORDER BY sent_at DESC
             LIMIT 1
-        """, [sms_message.strip()])
+        """, [message.strip()])
         last_sent = cursor.fetchone()
 
     can_send_sms = True
@@ -533,7 +519,7 @@ def admin_dashboard(request):
         if datetime.now() - last_sent_time < timedelta(minutes=10):
             can_send_sms = False
 
-    if alert_triggered and sms_message.strip() and can_send_sms:
+    if alert_triggered and message.strip() and can_send_sms:
         try:
             phone_numbers = []
             with connection.cursor() as cursor:
@@ -558,7 +544,7 @@ def admin_dashboard(request):
                 payload = {
                     "device": settings.SMS_DEVICE_ID,
                     "mobile_number": number,
-                    "message": sms_message.strip()
+                    "message": message.strip()
                 }
 
                 try:
@@ -584,7 +570,7 @@ def admin_dashboard(request):
                 cursor.execute("""
                     INSERT INTO alerts (alert_type, message, sent_at)
                     VALUES (%s, %s, NOW())
-                """, ('weather_alert', sms_message.strip()))
+                """, ('weather_alert', message.strip()))
 
             print("All alerts sent successfully!")
 
