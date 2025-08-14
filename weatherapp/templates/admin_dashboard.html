@@ -444,175 +444,126 @@ function performLogout() {
     }
   }
 
-const map = L.map('map').setView([10.508884, 122.957527], 12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+document.addEventListener('DOMContentLoaded', function() {
+  const map = L.map('map').setView([10.508884, 122.957527], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
 
-// Server-side alerts from Django template with datetime
-const serverAlerts = [
-  {% if alerts %}
-    {% for alert in alerts %}
-      {
-        text: "{{ alert.text }}",
-        datetime: "{{ alert.datetime|date:'Y-m-d H:i:s' }}",
-        sensor_id: "{{ alert.sensor_id }}",
-        name: "{{ alert.name }}"
-      }{% if not forloop.last %},{% endif %}
-    {% endfor %}
-  {% endif %}
-];
+  const alertSound = document.getElementById('alertSound');
+  const fadeDuration = 10000; // 10 seconds for fade effect
 
-// Locations data from Django template
-const locations = [
-  {% if locations %}
-    {% for location in locations %}
-      {
-        sensor_id: "{{ location.sensor_id }}",
-        name: "{{ location.name }}",
-        lat: {{ location.latitude }},
-        lon: {{ location.longitude }},
-        has_alert: {% if location.has_alert %}true{% else %}false{% endif %}
-      }{% if not forloop.last %},{% endif %}
-    {% endfor %}
-  {% endif %}
-];
-
-const alertSound = document.getElementById('alertSound');
-const fadeDuration = 10000; // 10 seconds for fade effect
-
-// Function to calculate remaining time based on alert datetime
-function calculateAlertRemainingTime(alertDatetime) {
-  const alertDate = new Date(alertDatetime);
-  const now = new Date();
-  const alertAge = now - alertDate; // milliseconds since alert
-  
-  const alertTotalDuration = 300000;
-  return Math.max(0, alertTotalDuration - alertAge);
-}
-
-function manageAlertState(sensorId, alertDatetime) {
-  const storageKey = `alert_${sensorId}`;
-  const now = new Date().getTime();
-  
-  if (!alertDatetime) {
-    const storedEndTime = localStorage.getItem(storageKey);
-    if (storedEndTime) {
-      if (now < parseInt(storedEndTime)) {
-        return {
-          isActive: true,
-          timeRemaining: parseInt(storedEndTime) - now
-        };
-      }
-      localStorage.removeItem(storageKey);
+  // Preload and handle audio
+  function prepareAudio() {
+    if (alertSound) {
+      alertSound.volume = 0.7; // Set appropriate volume
+      alertSound.load(); // Force load audio
     }
-    return { isActive: false };
   }
-  
-  // Calculate remaining time for current alert
-  const remainingTime = calculateAlertRemainingTime(alertDatetime);
-  
-  if (remainingTime > 0) {
-    const endTime = now + remainingTime;
-    localStorage.setItem(storageKey, endTime.toString());
-    return {
-      isActive: true,
-      timeRemaining: remainingTime
-    };
-  }
-  
-  // Alert has expired
-  localStorage.removeItem(storageKey);
-  return { isActive: false };
-}
+  prepareAudio();
 
-// Process each location
-locations.forEach(loc => {
-  // Find matching alert for this location
-  const locationAlert = serverAlerts.find(alert => 
-    alert.sensor_id === loc.sensor_id || alert.name === loc.name
-  );
-  
-  const alertState = manageAlertState(loc.sensor_id, locationAlert?.datetime);
-  let marker;
-
-  if (alertState.isActive) {
-    // Create red alert marker
-    const customHTMLIcon = L.divIcon({
-      className: '',
-      html: `<div class="custom-pin" style="color: red; transition: color ${fadeDuration/1000}s;">
-              🚨<span class="pin-label">${loc.name}</span>
-            </div>`,
-      iconSize: [32, 40],
-      iconAnchor: [16, 40],
-    });
-
-    marker = L.marker([loc.lat, loc.lon], { icon: customHTMLIcon }).addTo(map);
+  // Process each location
+  locations.forEach(loc => {
+    // Improved alert matching
+    const locationAlert = serverAlerts.find(alert => 
+      String(alert.sensor_id) === String(loc.sensor_id) || 
+      String(alert.name).trim().toLowerCase() === String(loc.name).trim().toLowerCase()
+    );
     
-    // Find the matching alert text for the popup
-    const alertText = locationAlert?.text || `⚠️ Alert at ${loc.name}`;
-    marker.bindPopup(`<div class="text-red-600 font-bold">${alertText}</div>`).openPopup();
+    const alertState = manageAlertState(loc.sensor_id, locationAlert?.datetime);
+    let marker;
 
-    // Play sound only for new alerts
-    if (!sessionStorage.getItem(`alert_played_${loc.sensor_id}`)) {
-      alertSound.play();
-      sessionStorage.setItem(`alert_played_${loc.sensor_id}`, 'true');
+    if (alertState.isActive) {
+      // Create alert marker
+      const customHTMLIcon = L.divIcon({
+        className: 'alert-pin',
+        html: `<div class="custom-pin" style="color: red;">
+                🚨<span class="pin-label">${loc.name}</span>
+              </div>`,
+        iconSize: [32, 40],
+        iconAnchor: [16, 40],
+      });
+
+      marker = L.marker([loc.lat, loc.lon], { icon: customHTMLIcon }).addTo(map);
       
-      // Clear the sound flag after timeout
-      setTimeout(() => {
-        sessionStorage.removeItem(`alert_played_${loc.sensor_id}`);
-      }, alertState.timeRemaining);
-    }
+      const alertText = locationAlert?.text || `⚠️ Alert at ${loc.name}`;
+      const popup = marker.bindPopup(`<div class="alert-popup">${alertText}</div>`, {
+        autoClose: false, // Prevent automatic closing
+        closeOnClick: false // Prevent closing on map click
+      }).openPopup();
 
-    // Calculate when to start fading
-    const fadeStartTime = Math.max(0, alertState.timeRemaining - fadeDuration);
-    
-    setTimeout(() => {
-      const startTime = Date.now();
-      const fadeInterval = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / fadeDuration, 1);
-        
-        // Transition from red to blue
-        const redValue = Math.floor(255 * (1 - progress));
-        const greenValue = Math.floor(87 * progress);
-        const blueValue = Math.floor(255 * progress);
-
-        const fadedIcon = L.divIcon({
-          className: '',
-          html: `<div class="custom-pin" style="color: rgb(${redValue},${greenValue},${blueValue});">
-                  🚨<span class="pin-label">${loc.name}</span>
-                </div>`,
-          iconSize: [32, 40],
-          iconAnchor: [16, 40],
-        });
-
-        marker.setIcon(fadedIcon);
-
-        if (progress >= 1) {
-          clearInterval(fadeInterval);
-          // Switch to normal blue marker
-          const defaultIcon = L.icon({
-            iconUrl: 'https://unpkg.com/leaflet/dist/images/marker-icon.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-          });
-          marker.setIcon(defaultIcon);
-          marker.setPopupContent(`<div>${loc.name}</div>`);
+      // Play sound with proper error handling
+      if (alertSound && !sessionStorage.getItem(`alert_played_${loc.sensor_id}`)) {
+        try {
+          alertSound.currentTime = 0; // Reset to start
+          alertSound.play()
+            .then(() => {
+              sessionStorage.setItem(`alert_played_${loc.sensor_id}`, 'true');
+              // Clear flag when sound should stop
+              setTimeout(() => {
+                sessionStorage.removeItem(`alert_played_${loc.sensor_id}`);
+              }, alertState.timeRemaining);
+            })
+            .catch(e => {
+              console.error("Audio playback failed:", e);
+              // Fallback: at least show visual alert
+            });
+        } catch (e) {
+          console.error("Audio error:", e);
         }
-      }, 50);
-    }, fadeStartTime);
+      }
 
-  } else {
-    // Normal marker (no active alert)
-    marker = L.marker([loc.lat, loc.lon]).addTo(map);
-    marker.bindPopup(`<div>${loc.name}</div>`);
-  }
+      // Fade effect
+      const fadeStartTime = Math.max(0, alertState.timeRemaining - fadeDuration);
+      
+      setTimeout(() => {
+        const startTime = Date.now();
+        const fadeInterval = setInterval(() => {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / fadeDuration, 1);
+          
+          const redValue = Math.floor(255 * (1 - progress));
+          const greenValue = Math.floor(87 * progress);
+          const blueValue = Math.floor(255 * progress);
+
+          marker.setIcon(L.divIcon({
+            className: 'fading-pin',
+            html: `<div class="custom-pin" style="color: rgb(${redValue},${greenValue},${blueValue});">
+                    🚨<span class="pin-label">${loc.name}</span>
+                  </div>`,
+            iconSize: [32, 40],
+            iconAnchor: [16, 40],
+          }));
+
+          if (progress >= 1) {
+            clearInterval(fadeInterval);
+            // Switch to normal marker
+            marker.setIcon(L.icon({
+              iconUrl: 'https://unpkg.com/leaflet/dist/images/marker-icon.png',
+              iconSize: [25, 41],
+              iconAnchor: [12, 41],
+            }));
+            marker.setPopupContent(`<div>${loc.name}</div>`);
+            popup.closePopup();
+          }
+        }, 50);
+      }, fadeStartTime);
+
+      // Close popup after 8 seconds (adjust as needed)
+      setTimeout(() => {
+        popup.closePopup();
+      }, 8000);
+
+    } else {
+      // Normal marker (no active alert)
+      marker = L.marker([loc.lat, loc.lon]).addTo(map);
+      marker.bindPopup(`<div>${loc.name}</div>`);
+    }
+  });
+
+  // Fix map size after load
+  setTimeout(() => map.invalidateSize(), 100);
 });
-
-// Fix map size after load
-setTimeout(() => map.invalidateSize(), 100);
 
   document.addEventListener('DOMContentLoaded', function () {
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
