@@ -515,8 +515,8 @@ def admin_dashboard(request):
                 ]
 
             headers = {
-                'apikey': settings.SMS_API_KEY,  # Make sure it's in settings.py
-                'Content-Type': 'application/json'
+                "apikey": settings.SMS_API_KEY,
+                "Content-Type": "application/json"
             }
 
             sent_count = 0
@@ -527,20 +527,20 @@ def admin_dashboard(request):
                     sent_count = 0
 
                 payload = {
-                    'message': message.strip(),
-                    'mobile_number': number,
-                    'device': settings.SMS_DEVICE_ID
+                    "device": settings.SMS_DEVICE_ID,
+                    "mobile_number": number,
+                    "message": message.strip()
                 }
 
                 try:
                     response = requests.post(
                         settings.SMS_API_URL,
                         headers=headers,
-                        json=payload,
+                        json=payload,  # ✅ Send JSON
                         timeout=5
                     )
 
-                    if response.status_code == 200:
+                    if response.status_code == 200 and "success" in response.text.lower():
                         print(f"[SMS SUCCESS] To: {number}")
                     else:
                         print(f"[SMS ERROR] To: {number} - {response.text}")
