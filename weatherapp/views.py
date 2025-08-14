@@ -505,7 +505,7 @@ def admin_dashboard(request):
 
     with connection.cursor() as cursor:
         cursor.execute("""
-            SELECT sent_at 
+            SELECT sent_at
             FROM alerts
             WHERE message = %s
             ORDER BY sent_at DESC
@@ -523,11 +523,11 @@ def admin_dashboard(request):
         try:
             phone_numbers = []
             with connection.cursor() as cursor:
-                cursor.execute("SELECT phone_num FROM user")
+                cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
                 rows = cursor.fetchall()
                 phone_numbers = [
                     "+63" + row[0][1:] if row[0].startswith("0") else row[0]
-                    for row in rows if row[0]
+                    for row in rows
                 ]
 
             headers = {
@@ -536,10 +536,9 @@ def admin_dashboard(request):
             }
 
             sent_count = 0
-
             for number in phone_numbers:
                 if sent_count >= 2:
-                    time.sleep(2) 
+                    time.sleep(2)  # avoid SMS API rate limit
                     sent_count = 0
 
                 payload = {
@@ -566,12 +565,12 @@ def admin_dashboard(request):
                 except requests.exceptions.RequestException as e:
                     print(f"[SMS ERROR] To: {number} - {str(e)}")
 
-            # Log the sent alert so it won't resend
+            # Store log with timestamp
             with connection.cursor() as cursor:
-                cursor.execute(
-                    "INSERT INTO alerts (alert_type, message) VALUES (%s, %s)",
-                    ('weather_alert', message.strip())
-                )
+                cursor.execute("""
+                    INSERT INTO alerts (alert_type, message, sent_at)
+                    VALUES (%s, %s, NOW())
+                """, ('weather_alert', message.strip()))
 
             print("All alerts sent successfully!")
 
