@@ -43,9 +43,9 @@ def register_user(request):
     errors = {}
 
     # Get and format name components
-    first_name = request.POST.get('firstName', '').strip().title()
-    middle_name = request.POST.get('middleName', '').strip().title()
-    last_name = request.POST.get('lastName', '').strip().title()
+    first_name = request.POST.get('firstName', '').strip().upper()
+    middle_name = request.POST.get('middleName', '').strip().upper()
+    last_name = request.POST.get('lastName', '').strip().upper()
     name = ' '.join(filter(None, [first_name, middle_name, last_name]))
 
     # Get and format address components
