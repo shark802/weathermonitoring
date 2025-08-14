@@ -13,75 +13,63 @@ document.addEventListener('DOMContentLoaded', function() {
     const alertDuration = 300000; // 5 minutes total alert duration
     const enableAudioBtn = document.getElementById('enableAudio');
 
-    // Default marker icon
-    const defaultIcon = L.icon({
-        iconUrl: 'https://unpkg.com/leaflet/dist/images/marker-icon.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41]
-    });
+    // Icon configurations
+    const icons = {
+        default: L.icon({
+            iconUrl: 'https://unpkg.com/leaflet/dist/images/marker-icon.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41]
+        }),
+        rain: {
+            color: '#2563eb',
+            symbol: '🌧️',
+            className: 'rain-alert'
+        },
+        wind: {
+            color: '#f59e0b',
+            symbol: '💨',
+            className: 'wind-alert'
+        },
+        general: {
+            color: '#dc2626',
+            symbol: '⚠️',
+            className: 'general-alert'
+        }
+    };
 
-    // Audio control setup
-    if (enableAudioBtn) {
-        enableAudioBtn.addEventListener('click', initAudio);
+    // Initialize audio controls
+    function initAudioControls() {
+        if (!enableAudioBtn) return;
+        
+        enableAudioBtn.addEventListener('click', function() {
+            alertSound.volume = 0.7;
+            alertSound.play()
+                .then(() => {
+                    alertSound.pause();
+                    alertSound.currentTime = 0;
+                    this.style.display = 'none';
+                    localStorage.setItem('audioEnabled', 'true');
+                })
+                .catch(e => {
+                    console.error("Audio initialization failed:", e);
+                    this.textContent = "🔇 Click to enable sound (browser blocked)";
+                });
+        });
+
         if (localStorage.getItem('audioEnabled') === 'true') {
             enableAudioBtn.style.display = 'none';
         }
     }
 
-    function initAudio() {
-        alertSound.volume = 0.7;
-        alertSound.play()
-            .then(() => {
-                alertSound.pause();
-                alertSound.currentTime = 0;
-                enableAudioBtn.style.display = 'none';
-                localStorage.setItem('audioEnabled', 'true');
-            })
-            .catch(e => {
-                console.error("Audio initialization failed:", e);
-                enableAudioBtn.textContent = "🔇 Click to enable sound (browser blocked)";
-            });
-    }
-
-    // Process locations from Django template
-    const locations = JSON.parse(document.getElementById('locations-data').textContent);
-    const serverAlerts = JSON.parse(document.getElementById('alerts-data').textContent);
-
-    locations.forEach(loc => {
-        if (!loc.latitude || !loc.longitude) return;
-
-        const marker = L.marker([loc.latitude, loc.longitude], {
-            icon: loc.has_alert ? createAlertIcon(loc) : defaultIcon
-        }).addTo(map);
-
-        if (loc.has_alert) {
-            setupAlertMarker(marker, loc);
-        } else {
-            marker.bindPopup(`<div>${loc.name}</div>`);
-        }
-    });
-
-    // Create appropriate alert icon based on alert type
+    // Create custom alert icon
     function createAlertIcon(location) {
-        const alertType = location.alert_text.includes('Rainfall') ? 'rain' : 
-                         location.alert_text.includes('Wind') ? 'wind' : 'general';
+        const alertType = determineAlertType(location.alert_text);
+        const iconConfig = icons[alertType];
         
-        const iconColor = {
-            rain: '#2563eb',
-            wind: '#f59e0b',
-            general: '#dc2626'
-        }[alertType];
-
-        const iconSymbol = {
-            rain: '🌧️',
-            wind: '💨',
-            general: '⚠️'
-        }[alertType];
-
         return L.divIcon({
             className: 'alert-pin',
-            html: `<div class="custom-pin" style="color: ${iconColor};">
-                    <span class="alert-icon">${iconSymbol}</span>
+            html: `<div class="custom-pin" style="color: ${iconConfig.color};">
+                    <span class="alert-icon">${iconConfig.symbol}</span>
                     <span class="pin-label">${location.name}</span>
                   </div>`,
             iconSize: [32, 40],
@@ -89,12 +77,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Determine alert type from alert text
+    function determineAlertType(alertText) {
+        if (alertText.includes('Rainfall')) return 'rain';
+        if (alertText.includes('Wind')) return 'wind';
+        return 'general';
+    }
+
     // Configure alert marker behavior
     function setupAlertMarker(marker, location) {
-        const alertType = location.alert_text.includes('Rainfall') ? 'rain' : 
-                         location.alert_text.includes('Wind') ? 'wind' : 'general';
+        const alertType = determineAlertType(location.alert_text);
+        const popupClass = icons[alertType].className;
         
-        const popupClass = `${alertType}-alert`;
         const popup = marker.bindPopup(
             `<div class="alert-popup ${popupClass}">${location.alert_text}</div>`, 
             {
@@ -111,28 +105,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Set up fade effect if alert is time-bound
         if (location.alert_datetime) {
-            setupFadeEffect(marker, location, popup);
+            setupFadeEffect(marker, location, popup, alertType);
         }
 
         // Auto-close popup after 8 seconds
         setTimeout(() => popup.closePopup(), 8000);
     }
 
+    // Play alert sound with session tracking
     function playAlertSound(sensorId) {
-        if (!sessionStorage.getItem(`alert_played_${sensorId}`)) {
-            alertSound.currentTime = 0;
-            alertSound.play()
-                .then(() => {
-                    sessionStorage.setItem(`alert_played_${sensorId}`, 'true');
-                    setTimeout(() => {
-                        sessionStorage.removeItem(`alert_played_${sensorId}`);
-                    }, alertDuration);
-                })
-                .catch(e => console.error("Audio playback failed:", e));
-        }
+        if (sessionStorage.getItem(`alert_played_${sensorId}`)) return;
+        
+        alertSound.currentTime = 0;
+        alertSound.play()
+            .then(() => {
+                sessionStorage.setItem(`alert_played_${sensorId}`, 'true');
+                setTimeout(() => {
+                    sessionStorage.removeItem(`alert_played_${sensorId}`);
+                }, alertDuration);
+            })
+            .catch(e => console.error("Audio playback failed:", e));
     }
 
-    function setupFadeEffect(marker, location, popup) {
+    // Set up color fade effect for alert markers
+    function setupFadeEffect(marker, location, popup, alertType) {
         const alertEndTime = new Date(location.alert_datetime).getTime() + alertDuration;
         const now = new Date().getTime();
         const remainingTime = alertEndTime - now;
@@ -147,12 +143,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const elapsed = Date.now() - startTime;
                 const progress = Math.min(elapsed / fadeDuration, 1);
                 
-                // Calculate fading color
-                const currentColor = getFadedColor(location, progress);
+                const currentColor = calculateFadedColor(alertType, progress);
                 
                 marker.setIcon(L.divIcon({
                     html: `<div class="custom-pin" style="color: rgb(${currentColor.r},${currentColor.g},${currentColor.b});">
-                            <span class="alert-icon">${location.alert_text.includes('Rainfall') ? '🌧️' : '💨'}</span>
+                            <span class="alert-icon">${icons[alertType].symbol}</span>
                             <span class="pin-label">${location.name}</span>
                           </div>`,
                     iconSize: [32, 40],
@@ -161,7 +156,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (progress >= 1) {
                     clearInterval(fadeInterval);
-                    marker.setIcon(defaultIcon);
+                    marker.setIcon(icons.default);
                     marker.setPopupContent(`<div>${location.name}</div>`);
                     popup.closePopup();
                 }
@@ -169,12 +164,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }, fadeStartTime);
     }
 
-    function getFadedColor(location, progress) {
-        const alertType = location.alert_text.includes('Rainfall') ? 'rain' : 'wind';
-        const baseColor = alertType === 'rain' ? 
-            { r: 37, g: 99, b: 235 } : // blue
-            { r: 245, g: 158, b: 11 };  // amber
-        
+    // Calculate faded color based on progress
+    function calculateFadedColor(alertType, progress) {
+        const baseColor = hexToRgb(icons[alertType].color);
         const targetColor = { r: 59, g: 130, b: 246 }; // blue-500
         
         return {
@@ -184,6 +176,39 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    // Fix map size after load
-    setTimeout(() => map.invalidateSize(), 100);
+    // Convert hex color to RGB
+    function hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : {r: 0, g: 0, b: 0};
+    }
+
+    // Initialize the map with locations
+    function initializeMap() {
+        const locations = JSON.parse(document.getElementById('locations-data').textContent);
+        
+        locations.forEach(loc => {
+            if (!loc.latitude || !loc.longitude) return;
+
+            const marker = L.marker([loc.latitude, loc.longitude], {
+                icon: loc.has_alert ? createAlertIcon(loc) : icons.default
+            }).addTo(map);
+
+            if (loc.has_alert) {
+                setupAlertMarker(marker, loc);
+            } else {
+                marker.bindPopup(`<div>${loc.name}</div>`);
+            }
+        });
+
+        // Fix map size after load
+        setTimeout(() => map.invalidateSize(), 100);
+    }
+
+    // Initialize everything
+    initAudioControls();
+    initializeMap();
 });
