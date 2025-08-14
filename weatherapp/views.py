@@ -23,6 +23,7 @@ from calendar import month_name
 import pytz
 from decimal import Decimal
 import requests
+import certifi
 import time
 from django.conf import settings
 import jwt
@@ -550,6 +551,10 @@ def admin_dashboard(request):
                     "Content-Type": "application/x-www-form-urlencoded"
                 }
 
+                # Create verified session
+                session = requests.Session()
+                session.verify = certifi.where()
+                
                 sent_count = 0
                 for number in phone_numbers:
                     if sent_count >= 2:
@@ -564,15 +569,29 @@ def admin_dashboard(request):
                     }
 
                     try:
-                        response = requests.post(
+                        response = session.post(
                             "https://sms.pagenet.info/api/v1/sms/send",
                             headers=headers,
                             data=payload,
-                            timeout=5,
-                            verify=False
+                            timeout=5
                         )
                         if response.status_code == 200:
                             sent_count += 1
+                    except requests.exceptions.SSLError as e:
+                        print(f"SSL Error: {str(e)}")
+                        # Fallback to unverified connection if needed
+                        try:
+                            response = requests.post(
+                                "https://sms.pagenet.info/api/v1/sms/send",
+                                headers=headers,
+                                data=payload,
+                                timeout=5,
+                                verify=False
+                            )
+                            if response.status_code == 200:
+                                sent_count += 1
+                        except Exception as fallback_error:
+                            print(f"Fallback SMS Error: {str(fallback_error)}")
                     except Exception as e:
                         print(f"SMS Error: {str(e)}")
 
