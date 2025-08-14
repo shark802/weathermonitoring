@@ -515,8 +515,10 @@ def admin_dashboard(request):
                 ]
 
             headers = {
-                'apikey': settings.SMS_API_KEY
+                'apikey': settings.SMS_API_KEY,  # Make sure it's in settings.py
+                'Content-Type': 'application/json'
             }
+
             sent_count = 0
 
             for number in phone_numbers:
@@ -524,7 +526,7 @@ def admin_dashboard(request):
                     time.sleep(2)
                     sent_count = 0
 
-                params = {
+                payload = {
                     'message': message.strip(),
                     'mobile_number': number,
                     'device': settings.SMS_DEVICE_ID
@@ -534,8 +536,8 @@ def admin_dashboard(request):
                     response = requests.post(
                         settings.SMS_API_URL,
                         headers=headers,
-                        data=params,
-                        timeout=2
+                        json=payload,
+                        timeout=5
                     )
 
                     if response.status_code == 200:
