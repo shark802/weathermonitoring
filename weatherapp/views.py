@@ -506,8 +506,8 @@ def admin_dashboard(request):
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT sent_at 
-            FROM sms_alert_log
-            WHERE alert_message = %s
+            FROM alerts
+            WHERE message = %s
             ORDER BY sent_at DESC
             LIMIT 1
         """, [message.strip()])
@@ -539,7 +539,7 @@ def admin_dashboard(request):
 
             for number in phone_numbers:
                 if sent_count >= 2:
-                    time.sleep(2)  # ✅ Keep 2-second delay
+                    time.sleep(2) 
                     sent_count = 0
 
                 payload = {
@@ -569,7 +569,7 @@ def admin_dashboard(request):
             # Log the sent alert so it won't resend
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "INSERT INTO sms_alert_log (alert_type, alert_message) VALUES (%s, %s)",
+                    "INSERT INTO alerts (alert_type, message) VALUES (%s, %s)",
                     ('weather_alert', message.strip())
                 )
 
