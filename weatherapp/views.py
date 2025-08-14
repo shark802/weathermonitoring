@@ -384,13 +384,13 @@ def admin_dashboard(request):
     def get_rain_intensity(amount):
         if amount == 0:
             return "None"
-        elif amount > 0 and amount < 2.5:
+        elif 0 < amount < 2.5:
             return "Light"
-        elif amount > 2.5 and amount < 7.6:
+        elif 2.5 <= amount < 7.6:
             return "Moderate"
-        elif amount > 7.6 and amount < 15:
+        elif 7.6 <= amount < 15:
             return "Heavy"
-        elif amount > 15 and amount < 30:
+        elif 15 <= amount < 30:
             return "Intense"
         else:
             return "Torrential"
@@ -398,20 +398,17 @@ def admin_dashboard(request):
     selected_sensor_id = request.GET.get('sensor_id')
     
     with connection.cursor() as cursor:
-        # Get admin name
         cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [admin_id])
         row = cursor.fetchone()
         admin_name = row[0] if row else 'Admin'
 
-        # Get all available sensors
         cursor.execute("SELECT sensor_id, name FROM sensor ORDER BY name")
         available_sensors = [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
 
-        # Get weather data for selected sensor (or first sensor if none selected)
         if selected_sensor_id:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name
+                       wr.wind_speed, wr.date_time, s.name, s.latitude, s.longitude
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 WHERE wr.sensor_id = %s
@@ -421,7 +418,7 @@ def admin_dashboard(request):
         else:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name
+                       wr.wind_speed, wr.date_time, s.name, s.latitude, s.longitude
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 ORDER BY wr.date_time DESC
@@ -438,6 +435,8 @@ def admin_dashboard(request):
                 'wind_speed': row[4],
                 'date_time': row[5].strftime('%Y-%m-%d %H:%M:%S'),
                 'location': row[6],
+                'latitude': row[7],
+                'longitude': row[8],
                 'error': None
             }
             current_sensor_id = selected_sensor_id if selected_sensor_id else available_sensors[0]['sensor_id']
@@ -450,7 +449,9 @@ def admin_dashboard(request):
                 'dew_point': 'N/A',
                 'wind_speed': 'N/A',
                 'date_time': 'N/A',
-                'location': 'Unknown'
+                'location': 'Unknown',
+                'latitude': None,
+                'longitude': None
             }
             current_sensor_id = None
 
@@ -458,125 +459,120 @@ def admin_dashboard(request):
     if isinstance(forecast, dict) and 'error' in forecast:
         forecast = []
 
-    locations_dict = {}
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT sensor_id, name, latitude, longitude FROM sensor")
-        rows = cursor.fetchall()
-        for sensor_id, name, lat, lon in rows:
-            locations_dict[sensor_id] = {
-                'name': name,
-                'latitude': lat,
-                'longitude': lon,
-                'has_alert': False
-            }
-
+    # Get all sensor locations and alert status
+    locations = []
     alerts = []
+    message = ""
+    alert_triggered = False
+    
     with connection.cursor() as cursor:
         cursor.execute("""
-            SELECT sensor.sensor_id, sensor.name, weather_reports.rain_rate, 
-                weather_reports.wind_speed, weather_reports.date_time
-            FROM weather_reports
-            JOIN sensor ON weather_reports.sensor_id = sensor.sensor_id
-            WHERE weather_reports.date_time >= NOW() - INTERVAL 10 MINUTE
+            SELECT s.sensor_id, s.name, s.latitude, s.longitude, 
+                   wr.rain_rate, wr.wind_speed, wr.date_time
+            FROM sensor s
+            LEFT JOIN weather_reports wr ON s.sensor_id = wr.sensor_id
+            WHERE wr.date_time = (
+                SELECT MAX(date_time) 
+                FROM weather_reports 
+                WHERE sensor_id = s.sensor_id
+            ) OR wr.date_time IS NULL
         """)
-        rows = cursor.fetchall()
-
-        alert_triggered = False
-        message = ""
-
-        for sensor_id, name, rain_rate, wind_speed, date_time in rows:
+        
+        for row in cursor.fetchall():
+            sensor_id, name, lat, lon, rain_rate, wind_speed, date_time = row
+            has_alert = False
+            alert_text = ""
+            
             if rain_rate is not None:
                 intensity = get_rain_intensity(rain_rate)
                 if intensity in ["Heavy", "Intense", "Torrential"]:
                     alert_text = f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm) {date_time}"
                     alerts.append(alert_text)
                     message += alert_text + "\n"
+                    has_alert = True
                     alert_triggered = True
-                    if sensor_id in locations_dict:
-                        locations_dict[sensor_id]['has_alert'] = True
 
             if wind_speed and wind_speed > 30:
                 alert_text = f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {date_time}"
                 alerts.append(alert_text)
                 message += alert_text + "\n"
+                has_alert = True
                 alert_triggered = True
-                if sensor_id in locations_dict:
-                    locations_dict[sensor_id]['has_alert'] = True
 
-    with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT sent_at
-            FROM alerts
-            WHERE message = %s
-            ORDER BY sent_at DESC
-            LIMIT 1
-        """, [message.strip()])
-        last_sent = cursor.fetchone()
+            locations.append({
+                'sensor_id': sensor_id,
+                'name': name,
+                'latitude': float(lat) if lat else None,
+                'longitude': float(lon) if lon else None,
+                'has_alert': has_alert,
+                'alert_text': alert_text if has_alert else None
+            })
 
-    can_send_sms = True
-    if last_sent:
-        last_sent_time = last_sent[0]
-        if datetime.now() - last_sent_time < timedelta(minutes=10):
+    # SMS Alert Logic (Pagenet API)
+    if alert_triggered and message.strip():
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT sent_at FROM alerts 
+                WHERE message = %s 
+                ORDER BY sent_at DESC 
+                LIMIT 1
+            """, [message.strip()])
+            last_sent = cursor.fetchone()
+
+        can_send_sms = True
+        if last_sent and (datetime.now() - last_sent[0]) < timedelta(minutes=10):
             can_send_sms = False
 
-    if alert_triggered and message.strip() and can_send_sms:
-        try:
-            phone_numbers = []
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
-                rows = cursor.fetchall()
-                phone_numbers = [
-                    "+63" + row[0][1:] if row[0].startswith("0") else row[0]
-                    for row in rows
-                ]
+        if can_send_sms:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
+                    phone_numbers = [
+                        "+63" + row[0][1:] if row[0].startswith("0") else row[0]
+                        for row in cursor.fetchall()
+                    ]
 
-            headers = {
-                "apikey": settings.SMS_API_KEY,
-                "Content-Type": "application/json"
-            }
-
-            sent_count = 0
-            for number in phone_numbers:
-                if sent_count >= 2:
-                    time.sleep(2)  # avoid SMS API rate limit
-                    sent_count = 0
-
-                payload = {
-                    "device": settings.SMS_DEVICE_ID,
-                    "mobile_number": number,
-                    "message": message.strip()
+                headers = {
+                    "apikey": settings.SMS_API_KEY,
+                    "Content-Type": "application/x-www-form-urlencoded"
                 }
 
-                try:
-                    response = requests.post(
-                        settings.SMS_API_URL,
-                        headers=headers,
-                        json=payload,
-                        timeout=5
-                    )
+                sent_count = 0
+                for number in phone_numbers:
+                    if sent_count >= 2:
+                        time.sleep(1)
+                        sent_count = 0
 
-                    if response.status_code == 200 and "success" in response.text.lower():
-                        print(f"[SMS SUCCESS] To: {number}")
-                    else:
-                        print(f"[SMS ERROR] To: {number} - {response.text}")
+                    payload = {
+                        "message": message.strip(),
+                        "mobile_number": number,
+                        "device": settings.SMS_DEVICE_ID,
+                        "device_sim": "1"
+                    }
 
-                    sent_count += 1
+                    try:
+                        response = requests.post(
+                            "https://sms.pagenet.info/api/v1/sms/send",
+                            headers=headers,
+                            data=payload,
+                            timeout=5,
+                            verify=False
+                        )
+                        if response.status_code == 200:
+                            sent_count += 1
+                    except Exception as e:
+                        print(f"SMS Error: {str(e)}")
 
-                except requests.exceptions.RequestException as e:
-                    print(f"[SMS ERROR] To: {number} - {str(e)}")
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO alerts (alert_type, message, sent_at)
+                        VALUES (%s, %s, NOW())
+                    """, ('weather_alert', message.strip()))
 
-            # Store log with timestamp
-            with connection.cursor() as cursor:
-                cursor.execute("""
-                    INSERT INTO alerts (alert_type, message, sent_at)
-                    VALUES (%s, %s, NOW())
-                """, ('weather_alert', message.strip()))
+            except Exception as e:
+                print(f"Alert processing error: {str(e)}")
 
-            print("All alerts sent successfully!")
-
-        except Exception as e:
-            print(f"[ERROR] Failed to send SMS alerts: {e}")
-
+    # Prepare chart data
     with connection.cursor() as cursor:
         cursor.execute("""
             SELECT DATE_FORMAT(date_time, '%a %b %d') AS label, temperature
@@ -591,14 +587,18 @@ def admin_dashboard(request):
 
     context = {
         'admin': {'name': admin_name},
-        'locations': list(locations_dict.values()),
+        'locations': json.dumps(locations),
         'weather': weather,
         'forecast': forecast,
         'alerts': alerts,
         'labels': json.dumps(labels),
         'data': json.dumps(temps),
         'available_sensors': available_sensors,
-        'current_sensor_id': current_sensor_id
+        'current_sensor_id': current_sensor_id,
+        'map_center': {
+            'lat': weather['latitude'] if weather['latitude'] else 10.508884,
+            'lng': weather['longitude'] if weather['longitude'] else 122.957527
+        }
     }
 
     return render(request, 'admin_dashboard.html', context)
