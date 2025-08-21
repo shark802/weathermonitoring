@@ -27,8 +27,31 @@
 
     <div class="space-y-4 text-base text-gray-800">
       <p><span class="font-semibold text-gray-700">Username:</span> {{ user_profile.username }}</p>
-      <p><span class="font-semibold text-gray-700">Email:</span> {{ user_profile.email }}</p>
-      <p><span class="font-semibold text-gray-700">Phone Number:</span> {{ user_profile.phone_num }}</p>
+      <p>
+        <span class="font-semibold text-gray-700">Email:</span> {{ user_profile.email }}
+        {% if user_profile.email_verified %}
+          <span class="text-green-600 font-bold ml-2">✔ Verified</span>
+        {% else %}
+          <span class="text-red-600 font-bold ml-2">✖ Not Verified</span>
+          <form method="POST" action="{% url 'send_otp' 'email' %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="ml-2 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700">Verify</button>
+          </form>
+        {% endif %}
+      </p>
+
+      <p>
+        <span class="font-semibold text-gray-700">Phone Number:</span> {{ user_profile.phone_num }}
+        {% if user_profile.phone_verified %}
+          <span class="text-green-600 font-bold ml-2">✔ Verified</span>
+        {% else %}
+          <span class="text-red-600 font-bold ml-2">✖ Not Verified</span>
+          <form method="POST" action="{% url 'send_otp' 'phone' %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="ml-2 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700">Verify</button>
+          </form>
+        {% endif %}
+      </p>
       <p><span class="font-semibold text-gray-700">Name:</span> {{ user_profile.name }}</p>
     </div>
 
