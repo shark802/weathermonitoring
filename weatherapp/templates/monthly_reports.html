@@ -13,7 +13,6 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
   <link rel="stylesheet" href="{% static 'css/logout.css' %}">
   <style>
-    /* Mobile styles */
     @media (max-width: 767px) {
       /* Table scrolling fixes */
       .dataTables_wrapper .dataTables_scroll {
@@ -39,19 +38,16 @@
         max-width: 100vw;
       }
       
-      /* Force table to be at least as wide as its content */
       #monthlyTable {
         min-width: 1000px;
         width: auto !important;
       }
       
-      /* Fix header alignment */
       .dataTables_scrollHead table {
         margin-bottom: 0 !important;
         border-collapse: collapse !important;
       }
       
-      /* Ensure header cells match body cells */
       .dataTables_scrollHead th {
         position: relative;
         white-space: nowrap;
@@ -99,7 +95,6 @@
       }
     }
     
-    /* Desktop styles */
     @media (min-width: 768px) {
       .summary-grid {
         grid-template-columns: repeat(4, 1fr);
@@ -142,7 +137,6 @@
       position: relative;
     }
     
-    /* Fix for DataTables scroll header */
     .dataTables_scrollHeadInner {
       width: auto !important;
     }
@@ -168,7 +162,7 @@
     <main class="transition-margin duration-300 flex-1 w-full md:ml-64 mt-0 p-4 md:p-6 space-y-6">
       <div class="info-box w-full">
         <div class="d-flex align-items-center justify-content-center position-relative mb-3 mt-4">
-          <h4 class="m-0 text-center w-100">Average Monthly Reports</h4>           
+          <h4 class="m-0 text-center w-100">Average Reports per Month</h4>           
         </div>
 
         <!-- Summary Cards -->

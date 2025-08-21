@@ -158,11 +158,19 @@ def register_user(request):
     with connection.cursor() as cursor:
         cursor.execute("SELECT user_id FROM user WHERE username = %s", [username])
         if cursor.fetchone():
-            errors['regUsername'] = "Username already exists."
+            errors['regUsername'] = "Username already taken."
 
         cursor.execute("SELECT user_id FROM user WHERE name = %s", [name])
         if cursor.fetchone():
             errors['name'] = "Name already exists."
+            
+        cursor.execute("SELECT user_id FROM user WHERE phone_num = %s", [phone])
+        if cursor.fetchone():
+            errors['regPhone'] = "Phone number already taken."
+            
+        cursor.execute("SELECT user_id FROM user WHERE email = %s", [email])
+        if cursor.fetchone():
+            errors['regEmail'] = "Email already taken."
 
     if errors:
         return JsonResponse({'success': False, 'errors': errors})
@@ -205,26 +213,54 @@ def register_user(request):
         return JsonResponse({'success': False, 'errors': {'database': str(e)}})
 
 def check_username(request):
-    username = request.GET.get('username')
-    if not username:
-        return JsonResponse({'exists': False})
+     username = request.GET.get('username')
+     if not username:
+         return JsonResponse({'exists': False})
     
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT user_id FROM user WHERE username = %s", [username])
-        exists = cursor.fetchone() is not None
+     with connection.cursor() as cursor:
+         cursor.execute("SELECT user_id FROM user WHERE username = %s", [username])
+         exists = cursor.fetchone() is not None
     
-    return JsonResponse({'exists': exists})
-
+     return JsonResponse({'exists': exists})
+ 
 def check_name(request):
-    name = request.GET.get('name')
+    first_name = request.GET.get('firstName', '').strip().upper()
+    middle_name = request.GET.get('middleName', '').strip().upper()
+    last_name = request.GET.get('lastName', '').strip().upper()
+
+    # Construct full name exactly how you store it in DB
+    name = ' '.join(filter(None, [first_name, middle_name, last_name]))
+
     if not name:
         return JsonResponse({'exists': False})
     
     with connection.cursor() as cursor:
         cursor.execute("SELECT user_id FROM user WHERE name = %s", [name])
         exists = cursor.fetchone() is not None
-    
+
     return JsonResponse({'exists': exists})
+ 
+def check_phone(request):
+     phone_num = request.GET.get('phone_num')
+     if not phone_num:
+         return JsonResponse({'exists': False})
+    
+     with connection.cursor() as cursor:
+         cursor.execute("SELECT user_id FROM user WHERE phone_num = %s", [phone_num])
+         exists = cursor.fetchone() is not None
+    
+     return JsonResponse({'exists': exists})
+ 
+def check_email(request):
+     email = request.GET.get('email')
+     if not email:
+         return JsonResponse({'exists': False})
+    
+     with connection.cursor() as cursor:
+         cursor.execute("SELECT user_id FROM user WHERE email = %s", [email])
+         exists = cursor.fetchone() is not None
+    
+     return JsonResponse({'exists': exists})
 
 
 def home(request):

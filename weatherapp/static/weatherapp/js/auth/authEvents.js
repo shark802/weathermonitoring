@@ -121,8 +121,8 @@ function setupFormValidation() {
   const fieldMap = {
     firstName:   () => validateField('firstName', Validators.name,    { fieldName: 'First name' }),
     lastName:    () => validateField('lastName',  Validators.name,    { fieldName: 'Last name' }),
-    regEmail:    () => validateField('regEmail',  Validators.email),
-    regPhone:    () => validateField('regPhone',  Validators.phone),
+    regEmail:    () => validateField('regEmail',  Validators.email,    { fieldName: 'Email' }),
+    regPhone:    () => validateField('regPhone',  Validators.phone,    { fieldName: 'Phone Number' }),
     regUsername: () => validateField('regUsername', Validators.required, { fieldName: 'Username' }),
     regPassword: () => validateField('regPassword', Validators.password),
     confirm_Password: () => {
@@ -141,21 +141,55 @@ function setupFormValidation() {
 
   setupPasswordStrengthIndicator();
 
-  document.getElementById('regUsername')?.addEventListener('blur', function() {
-    const u = this.value.trim();
-    if (!u) return;
-    fetch(`/check-username?username=${encodeURIComponent(u)}`)
-      .then(r => r.json())
-      .then(d => d.exists ? showError('regUsername','Username already exists.') : clearError('regUsername'));
-  });
+  function attachCheck(fieldIds, urlParam, urlPath, message, extraFields = []) {
+  if (!Array.isArray(fieldIds)) fieldIds = [fieldIds];
 
-  document.getElementById('regName')?.addEventListener('blur', function() {
-    const n = this.value.trim();
-    if (!n) return;
-    fetch(`/check-name?name=${encodeURIComponent(n)}`)
-      .then(r => r.json())
-      .then(d => d.exists ? showError('regName','Name already exists.') : clearError('regName'));
+  fieldIds.forEach(fieldId => {
+    const field = document.getElementById(fieldId);
+    if (!field) return;
+
+    field.addEventListener('blur', function() {
+      let params = new URLSearchParams();
+
+      if (!extraFields.length) {
+        const val = this.value.trim();
+        if (!val) return;
+        params.append(urlParam, val);
+      } 
+      else {
+        let hasValue = false;
+        extraFields.forEach(f => {
+          const el = document.getElementById(f.id);
+          if (el && el.value.trim()) {
+            params.append(f.param, el.value.trim());
+            hasValue = true;
+          }
+        });
+        if (!hasValue) return;
+      }
+
+      fetch(`/${urlPath}?${params.toString()}`)
+        .then(r => r.json())
+        .then(d => d.exists ? showError(fieldIds[0], message) : clearError(fieldIds[0]));
+    });
   });
+}
+
+// Attach checks
+attachCheck('regUsername', 'username', 'check-username', 'Username already exists.');
+attachCheck('regEmail', 'email', 'check-email', 'Email already exists.');
+attachCheck('regPhone', 'phone_num', 'check-phone', 'Phone number already exists.');
+attachCheck(
+  ['firstName', 'middleName', 'lastName'], 
+  null, 
+  'check-name', 
+  'Name already exists.', 
+  [
+    {id: 'firstName', param: 'firstName'},
+    {id: 'middleName', param: 'middleName'},
+    {id: 'lastName', param: 'lastName'}
+  ]
+);
 }
 
 function setupEventListeners() {
@@ -248,8 +282,8 @@ function validateAllFields() {
   if (!validateField('barangay', Validators.required, { fieldName: 'Barangay' })) isValid = false;
   
   // Contact info
-  if (!validateField('regEmail', Validators.email)) isValid = false;
-  if (!validateField('regPhone', Validators.phone)) isValid = false;
+  if (!validateField('regEmail', Validators.email, { fieldName: 'Email' })) isValid = false;
+  if (!validateField('regPhone', Validators.phone, { fieldName: 'Phone Number' })) isValid = false;
   
   // Credentials
   if (!validateField('regUsername', Validators.required, { fieldName: 'Username' })) isValid = false;
