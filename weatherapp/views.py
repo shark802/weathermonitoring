@@ -790,15 +790,31 @@ def user_profile(request):
         """, [request.session['user_id']])
         row = cursor.fetchone()
 
+    user_profile = {}
     if row:
+        name, email, phone, username = row
         user_profile = {
-            'name': row[0],
-            'email': row[1],
-            'phone_num': row[2],
-            'username': row[3]
+            'name': name,
+            'email': email,
+            'phone_num': phone,
+            'username': username,
+            'email_verified': False,
+            'phone_verified': False,
         }
-    else:
-        user_profile = {}
+
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT contact_type, contact_value 
+                FROM verified_contacts 
+                WHERE user_id = %s
+            """, [request.session['user_id']])
+            verified = cursor.fetchall()
+
+        for ctype, cvalue in verified:
+            if ctype == 'email' and cvalue == email:
+                user_profile['email_verified'] = True
+            if ctype == 'phone' and cvalue == phone:
+                user_profile['phone_verified'] = True
 
     form_userSuccess = request.session.pop('form_userSuccess', None)
     form_userError = request.session.pop('form_userError', None)
@@ -810,6 +826,91 @@ def user_profile(request):
     }
     
     return render(request, 'user_profile.html', context)
+
+def send_otp(request, contact_type):
+    if 'user_id' not in request.session:
+        return redirect('home')
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT email, phone_num FROM user WHERE user_id = %s", [request.session['user_id']])
+        row = cursor.fetchone()
+        if not row:
+            messages.error(request, "User not found.")
+            return redirect("user_profile")
+
+    email, phone = row
+    otp = random.randint(100000, 999999)
+
+    # Store OTP in session
+    request.session['otp'] = str(otp)
+    request.session['otp_type'] = contact_type
+    request.session['otp_value'] = email if contact_type == "email" else phone
+
+    try:
+        if contact_type == "email":
+            # Send OTP via Email
+            send_mail(
+                subject="WeatherAlert Verification OTP",
+                message=f"Your OTP for verifying your email is: {otp}",
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+            messages.success(request, "OTP has been sent to your email.")
+
+        elif contact_type == "phone":
+            # Send OTP via SMS API
+            url = "https://sms.pagenet.info/api/v1/sms/send"
+            parameters = {
+                'message': f'Your OTP for verifying your phone is: {otp}',
+                'mobile_number': phone,
+                'device': '97e8c4360d11fa51',   # ⚡ replace with your device ID
+                'device_sim': '1'
+            }
+            headers = {
+                'apikey': '6PLX3NFL2A2FLQ81RI7X6C4PJP68ANLJNYQ7XAR6'  # ⚡ replace with your API key
+            }
+            response = requests.post(url, headers=headers, data=parameters, verify=False)
+
+            if response.status_code == 200:
+                messages.success(request, "OTP has been sent to your phone.")
+            else:
+                messages.error(request, f"Failed to send SMS: {response.text}")
+                return redirect("user_profile")
+
+        else:
+            messages.error(request, "Invalid contact type.")
+            return redirect("user_profile")
+
+    except Exception as e:
+        messages.error(request, f"Failed to send OTP: {str(e)}")
+        return redirect("user_profile")
+
+    return redirect("userverify_otp")
+
+def userverify_otp(request):
+    if request.method == "POST":
+        entered_otp = request.POST.get("otp")
+        if entered_otp == request.session.get("otp"):
+            contact_type = request.session.get("otp_type")
+            contact_value = request.session.get("otp_value")
+            user_id = request.session['user_id']
+
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO verified_contacts (user_id, contact_type, contact_value)
+                    VALUES (%s, %s, %s)
+                """, [user_id, contact_type, contact_value])
+
+            request.session['form_userSuccess'] = f"{contact_type.capitalize()} verified successfully!"
+            request.session.pop("otp", None)
+            return redirect("user_profile")
+        else:
+            request.session['form_userError'] = "Invalid OTP"
+            return redirect("userverify_otp")
+
+    return render(request, "userverify_otp.html")
+
     
 def admin_profile(request):
     if 'admin_id' not in request.session:

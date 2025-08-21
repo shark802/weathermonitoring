@@ -34,4 +34,6 @@ urlpatterns = [
     path('monthly-reports/', views.monthly_reports, name='monthly_reports'),
     path('api/data/', views.receive_sensor_data, name='receive_sensor_data'),
     path('send-alert/', views.send_alert, name='send_alert'),
+    path('send-otp/<str:contact_type>/', views.send_otp, name='send_otp'),
+    path('user-verify-otp/', views.userverify_otp, name='userverify_otp'),
 ]
