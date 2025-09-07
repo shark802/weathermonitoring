@@ -573,7 +573,7 @@ def admin_dashboard(request):
                         phone_numbers.append(num)
 
                 headers = {
-                    "apikey": settings.SMS_API_KEY,
+                    "apikey": '6PLX3NFL2A2FLQ81RI7X6C4PJP68ANLJNYQ7XAR6',
                     "Content-Type": "application/x-www-form-urlencoded"
                 }
 
@@ -606,7 +606,7 @@ def admin_dashboard(request):
                         payload = {
                             "message": message,
                             "mobile_number": number,
-                            "device": settings.SMS_DEVICE_ID,
+                            "device": '97e8c4360d11fa51',
                             "device_sim": "1"
                         }
 
@@ -1002,11 +1002,11 @@ def send_otp(request, contact_type):
             parameters = {
                 'message': f'Your OTP for verifying your phone is: {otp}',
                 'mobile_number': phone,
-                'device': '97e8c4360d11fa51',   # ⚡ replace with your device ID
+                'device': '97e8c4360d11fa51',
                 'device_sim': '1'
             }
             headers = {
-                'apikey': '6PLX3NFL2A2FLQ81RI7X6C4PJP68ANLJNYQ7XAR6'  # ⚡ replace with your API key
+                'apikey': '6PLX3NFL2A2FLQ81RI7X6C4PJP68ANLJNYQ7XAR6'
             }
             response = requests.post(url, headers=headers, data=parameters, verify=False)
 
