@@ -520,6 +520,65 @@ function performLogout() {
     initSidebar();
 });
 
+document.addEventListener("DOMContentLoaded", () => {
+  // Weather + Chart refresh
+  const weatherContainer = document.getElementById("weatherDataContainer");
+  const tempChartCtx = document.getElementById("tempChart").getContext("2d");
+
+  // Initialize Chart with existing data
+  const tempChart = new Chart(tempChartCtx, {
+    type: "line",
+    data: {
+      labels: {{ labels|safe }},
+      datasets: [{
+        label: "Temperature (°C)",
+        data: {{ data|safe }},
+        borderColor: "rgb(59,130,246)",
+        backgroundColor: "rgba(59,130,246,0.2)",
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: false } }
+    }
+  });
+
+  function fetchWeatherData() {
+    fetch("{% url 'latest_weather' %}?sensor_id={{ current_sensor_id }}")
+      .then(res => res.json())
+      .then(data => {
+        // Update weather display
+        weatherContainer.innerHTML = `
+          <ul class="space-y-2 mr-2 list-none text-left">
+            <li><i class="fas fa-thermometer-half text-red-700 ml-2"></i> Temperature: ${data.temperature}°C</li>
+            <li><i class="fas fa-tint text-blue-700 ml-2"></i> Humidity: ${data.humidity}%</li>
+            <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: ${data.dew_point}°C</li>
+            <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: ${data.wind_speed ?? "N/A"} km/h</li>
+            <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: ${data.rain_rate ?? "N/A"} mm/h</li>
+          </ul>
+        `;
+        document.querySelector("p.text-gray-600.text-center.mt-4").innerHTML =
+          `Last Updated: ${data.date_time}<br><span class="text-sm text-gray-500">Location: ${data.location}</span>`;
+
+        // Update chart (keep last 10 points)
+        tempChart.data.labels.push(data.date_time);
+        tempChart.data.datasets[0].data.push(data.temperature);
+        if (tempChart.data.labels.length > 10) {
+          tempChart.data.labels.shift();
+          tempChart.data.datasets[0].data.shift();
+        }
+        tempChart.update();
+      })
+      .catch(err => console.error("Weather fetch error:", err));
+  }
+
+  // Auto-refresh every 10s
+  setInterval(() => {
+    fetchWeatherData();
+  }, 10000);
+});
+
   </script>
 </body>
 </html>
