@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>User Profile</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://kit.fontawesome.com/a2e0f1f0c5.js" crossorigin="anonymous"></script>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-blue-100 to-white flex items-center justify-center font-sans text-gray-800">
 
@@ -11,50 +12,73 @@
   <div style="z-index: 999;" class="alert-message fixed top-20 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded shadow-lg text-center w-auto max-w-md">
     {{ form_userSuccess }}
   </div>
-{% endif %}
+  {% endif %}
 
-{% if form_userError %}
+  {% if form_userError %}
   <div style="z-index: 999;" class="alert-message fixed top-20 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded shadow-lg text-center w-auto max-w-md">
     {{ form_userError }}
   </div>
-{% endif %}
+  {% endif %}
 
-  <div class="bg-white bg-opacity-95 border border-gray-200 rounded-2xl shadow-xl p-8 w-full max-w-md transition-all">
+  <div class="bg-white bg-opacity-95 border border-gray-200 rounded-2xl shadow-xl p-8 w-full max-w-lg transition-all">
+    <!-- Header -->
     <div class="text-center mb-6">
       <h2 class="text-3xl font-bold text-blue-600 tracking-wide">User Profile</h2>
       <p class="text-sm text-gray-600 mt-1">Manage your account information below</p>
     </div>
 
+    <!-- User Info -->
     <div class="space-y-4 text-base text-gray-800">
-      <p><span class="font-semibold text-gray-700">Username:</span> {{ user_profile.username }}</p>
-      <p>
-        <span class="font-semibold text-gray-700">Email:</span> {{ user_profile.email }}
-        {% if user_profile.email_verified %}
-          <span class="text-green-600 font-bold ml-2">✔ Verified</span>
-        {% else %}
-          <span class="text-red-600 font-bold ml-2">✖ Not Verified</span>
-          <form method="POST" action="{% url 'send_otp' 'email' %}" class="inline">
-            {% csrf_token %}
-            <button type="submit" class="ml-2 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700">Verify</button>
-          </form>
-        {% endif %}
-      </p>
+      <div class="flex items-center flex-wrap">
+        <i class="fas fa-user text-gray-600 mr-2"></i>
+        <span class="font-semibold text-gray-700 mr-1">Username:</span> 
+        <span>{{ user_profile.username }}</span>
+      </div>
 
-      <p>
-        <span class="font-semibold text-gray-700">Phone Number:</span> {{ user_profile.phone_num }}
-        {% if user_profile.phone_verified %}
-          <span class="text-green-600 font-bold ml-2">✔ Verified</span>
+      <div class="flex items-center flex-wrap">
+        <i class="fas fa-envelope text-gray-600 mr-2"></i>
+        <span class="font-semibold text-gray-700 mr-1">Email:</span> 
+        <span>{{ user_profile.email }}</span>
+        {% if user_profile.email_verified %}
+          <span class="text-green-600 font-bold ml-2">Verified</span>
         {% else %}
-          <span class="text-red-600 font-bold ml-2">✖ Not Verified</span>
-          <form method="POST" action="{% url 'send_otp' 'phone' %}" class="inline">
+          <span class="text-red-600 font-bold ml-2">Not Verified</span>
+          <form method="POST" action="{% url 'send_otp' 'email' %}" class="ml-2 flex items-center">
             {% csrf_token %}
-            <button type="submit" class="ml-2 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700">Verify</button>
+            <button type="submit" 
+                    class="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+              Verify
+            </button>
           </form>
         {% endif %}
-      </p>
-      <p><span class="font-semibold text-gray-700">Name:</span> {{ user_profile.name }}</p>
+      </div>
+
+      <div class="flex items-center flex-wrap">
+        <i class="fas fa-phone text-gray-600 mr-2"></i>
+        <span class="font-semibold text-gray-700 mr-1">Phone Number:</span> 
+        <span>{{ user_profile.phone_num }}</span>
+        {% if user_profile.phone_verified %}
+          <span class="text-green-600 font-bold ml-2">Verified</span>
+        {% else %}
+          <span class="text-red-600 font-bold ml-2">Not Verified</span>
+          <form method="POST" action="{% url 'send_otp' 'phone' %}" class="ml-2 flex items-center">
+            {% csrf_token %}
+            <button type="submit" 
+                    class="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+              Verify
+            </button>
+          </form>
+        {% endif %}
+      </div>
+
+      <div class="flex items-center flex-wrap">
+        <i class="fas fa-id-card text-gray-600 mr-2"></i>
+        <span class="font-semibold text-gray-700 mr-1">Name:</span> 
+        <span>{{ user_profile.name }}</span>
+      </div>
     </div>
 
+    <!-- Buttons -->
     <div class="text-center mt-8 flex flex-col sm:flex-row sm:justify-center gap-4">
       <a href="{% url 'user_dashboard' %}" class="px-6 py-2 bg-gray-500 text-white font-semibold rounded-full shadow hover:bg-gray-600 transition">
         ← Dashboard
@@ -65,12 +89,13 @@
     </div>
   </div>
 
-
+  <!-- Change Password Modal -->
   <div id="changePasswordModal" class="fixed inset-0 hidden items-center justify-center bg-black bg-opacity-50 z-50">
     <div class="bg-gray-200 rounded-xl shadow-lg w-full max-w-sm mx-auto">
       <form method="POST" action="{% url 'change_password' %}" class="flex flex-col">
         {% csrf_token %}
 
+        <!-- Modal Header -->
         <div class="relative px-6 py-4 border-b border-gray-300">
           <h5 class="text-center text-blue-600 text-lg font-bold">Change Password</h5>
           <button type="button" onclick="closeModal()" class="absolute right-4 top-3 text-gray-600 hover:text-red-600 text-xl font-bold">&times;</button>
@@ -78,6 +103,7 @@
 
         <p class="text-sm text-gray-600 text-center mt-2 px-6">Update your account password securely.</p>
 
+        <!-- Modal Body -->
         <div class="px-6 py-4 space-y-4">
           <div>
             <label for="old_password" class="block text-sm font-semibold text-gray-700 mb-1">Current Password <span class="text-red-500">*</span></label>
@@ -98,6 +124,7 @@
           </div>
         </div>
 
+        <!-- Modal Footer -->
         <div class="bg-gray-300 px-6 py-4 flex flex-col space-y-2">
           <button type="submit"
                   class="bg-blue-600 text-white px-4 py-2 rounded-md font-semibold hover:bg-blue-700 transition w-full">
@@ -107,8 +134,6 @@
       </form>
     </div>
   </div>
-
-
 
   <script>
     function openModal() {
@@ -128,11 +153,12 @@
       }
     }
 
-  setTimeout(() => {
-    document.querySelectorAll('.alert-message').forEach(el => {
-      el.style.display = 'none';
-    });
-  }, 3000);
+    // Auto-hide flash messages
+    setTimeout(() => {
+      document.querySelectorAll('.alert-message').forEach(el => {
+        el.style.display = 'none';
+      });
+    }, 3000);
   </script>
 </body>
 </html>

@@ -31,6 +31,7 @@ import base64
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 import logging
+from .ai.predictor import predict_rain
 
 logger = logging.getLogger(__name__)
 
@@ -407,13 +408,6 @@ def reset_password(request):
 
     return render(request, 'reset_password.html')
 
-from django.shortcuts import render, redirect
-from django.views.decorators.cache import cache_control
-from django.db import connection
-from django.conf import settings
-from datetime import datetime, timedelta
-import requests, certifi, time, json
-
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
 def admin_dashboard(request):
     if 'admin_id' not in request.session:
@@ -495,8 +489,22 @@ def admin_dashboard(request):
             }
             current_sensor_id = None
 
-    forecast = get_five_day_forecast()
-    if isinstance(forecast, dict) and 'error' in forecast:
+    if weather and weather.get('temperature') != 'N/A':
+        try:
+            rain_rate, duration, intensity = predict_rain(
+                weather['temperature'],
+                weather['humidity'],
+                weather['wind_speed'],
+                weather['dew_point'] if weather['dew_point'] else 1013
+            )
+            forecast = [{
+                'prediction': round(rain_rate, 2),
+                'intensity': intensity,
+                'duration': round(duration, 1)
+            }]
+        except Exception as e:
+            forecast = [{'prediction': None, 'error': str(e)}]
+    else:
         forecast = []
 
     locations = []
@@ -561,9 +569,13 @@ def admin_dashboard(request):
         # SMS Alert Logic (Pagenet API) - per alert
         if alert_triggered and alert_objects:
             try:
-                # Get phone numbers
+                # ✅ Get only verified numbers from verified_contacts
                 with connection.cursor() as cursor:
-                    cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
+                    cursor.execute("""
+                        SELECT contact_value 
+                        FROM verified_contacts 
+                        WHERE contact_type = 'number'
+                    """)
                     rows = cursor.fetchall()
                     phone_numbers = []
                     for row in rows:
