@@ -45,7 +45,7 @@
           <!-- Alerts list -->
           <ul id="alertList" 
               class="divide-y divide-gray-200 max-h-60 overflow-y-auto flex-1 flex flex-col">
-            <li class="p-3 text-sm text-gray-500 text-center flex-1 flex items-center justify-center">
+            <li class="px-3 py-2 text-sm text-gray-500 text-center flex-1 flex items-center justify-center">
               No new alerts
             </li>
           </ul>
@@ -272,13 +272,21 @@
         if (alerts.length > 0) {
           alerts.forEach(alert => {
             let li = document.createElement("li");
-            li.className = "p-3 text-sm hover:bg-gray-100 w-full text-left";
-            li.innerHTML = `<div class="truncate max-w-[240px]">${alert.text}</div>
-                            <div class="text-xs text-gray-500">${alert.timestamp}</div>`;
+            li.className = "px-3 py-2 text-sm hover:bg-gray-100 w-full text-left";
+
+            // Color code alerts (optional)
+            let textColor = "text-gray-800";
+            if (alert.type === "warning") textColor = "text-yellow-700";
+            if (alert.type === "critical") textColor = "text-red-700";
+            if (alert.type === "info") textColor = "text-blue-700";
+
+            li.innerHTML = `
+              <div class="truncate max-w-[240px] ${textColor}">${alert.text}</div>
+              <div class="text-xs text-gray-500">${alert.timestamp}</div>`;
             alertList.appendChild(li);
           });
         } else {
-          alertList.innerHTML = '<li class="p-3 text-sm text-gray-500 text-center w-full">No new alerts</li>';
+          alertList.innerHTML = '<li class="px-3 py-2 text-sm text-gray-500 text-center w-full">No new alerts</li>';
         }
 
       } catch (err) {
