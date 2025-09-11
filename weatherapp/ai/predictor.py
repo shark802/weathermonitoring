@@ -1,7 +1,3 @@
-# predict_rain.py
-# This script predicts rainfall using a pre-trained model and fetches live data from
-# a MySQL database and a public weather API.
-
 import numpy as np
 import joblib
 import tensorflow as tf
