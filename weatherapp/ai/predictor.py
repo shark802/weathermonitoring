@@ -1,3 +1,7 @@
+# predict_rain.py
+# This script predicts rainfall using a pre-trained model and fetches live data from
+# a MySQL database and a public weather API.
+
 import numpy as np
 import joblib
 import tensorflow as tf
@@ -130,27 +134,16 @@ def predict_rain(temperature, humidity, wind_speed, barometric_pressure):
 def main():
     """Main function to orchestrate data fetching and prediction."""
     print("\n--- Live Rainfall Prediction Demo with API Integration ---")
-
-    # === CONFIGURATION FROM ENVIRONMENT VARIABLES ===
-    # For security, database credentials and API keys should not be hardcoded.
-    # Set these environment variables before running the script:
-    # export MYSQL_USER='your_mysql_username'
-    # export MYSQL_PASSWORD='your_mysql_password'
-    # export MYSQL_HOST='your_mysql_host'
-    # export MYSQL_DATABASE='your_mysql_database'
-    # export OPENWEATHERMAP_API_KEY='your_api_key'
-    # export LATITUDE='35.7796'
-    # export LONGITUDE='-78.6382'
     
     db_config = {
-        'user': os.environ.get('u520834156_uWApp2024'),
-        'password': os.environ.get('bIxG2Z$In#8'),
-        'host': os.environ.get('153.92.15.8'),
-        'database': os.environ.get('u520834156_dbweatherApp')
+        'user': os.environ.get('MYSQL_USER'),
+        'password': os.environ.get('MYSQL_PASSWORD'),
+        'host': os.environ.get('MYSQL_HOST'),
+        'database': os.environ.get('MYSQL_DATABASE')
     }
-    api_key = os.environ.get('c340398fbf11b1f8ccd73c40f006a0fe')
-    latitude = os.environ.get('10.5283')
-    longitude = os.environ.get('122.8338')
+    api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
+    latitude = os.environ.get('LATITUDE')
+    longitude = os.environ.get('LONGITUDE')
     
     # --- Step 1: Fetch data from your database ---
     latest_temp, latest_humidity = get_latest_sensor_data(db_config)
@@ -163,6 +156,13 @@ def main():
         print("Error: Missing API key or coordinates in environment variables. Exiting.")
         return
         
+    try:
+        latitude = float(latitude)
+        longitude = float(longitude)
+    except (ValueError, TypeError):
+        print("Error: Latitude or Longitude environment variables are not valid numbers. Exiting.")
+        return
+
     wind_speed, barometric_pressure = fetch_weather_data_from_api(api_key, latitude, longitude)
     if wind_speed is None or barometric_pressure is None:
         print("Failed to fetch wind speed or pressure from API. Exiting.")
