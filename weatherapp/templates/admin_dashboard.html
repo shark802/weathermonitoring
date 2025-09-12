@@ -82,8 +82,9 @@
                       <p>⚠️ Prediction Error: {{ item.error }}</p>
                   </div>
                 {% elif item.prediction is not None %}
-                  {% if item.prediction == 0 %}
-                    <p class="text-gray-600">✅ No rain expected in the forecast period.</p>
+                  <!-- Fix: Check if prediction is below a small threshold instead of exactly 0 -->
+                  {% if item.prediction < 0.1 %}
+                    <p class="text-gray-600">✅ No significant rain expected in the forecast period.</p>
                   {% else %}
                     <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
                       <span class="font-medium text-gray-700">🌧 Predicted Rainfall</span>
@@ -114,7 +115,7 @@
           {% else %}
             <p class="text-gray-500 text-medium">No AI prediction available.</p>
           {% endif %}
-      </div>      
+        </div>             
 
         <div class="bg-white p-4 rounded shadow">
           <h2 class="text-xl font-semibold mb-2">Temperature Trends</h2>
