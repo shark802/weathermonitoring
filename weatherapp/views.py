@@ -798,9 +798,22 @@ def user_dashboard(request):
             }
             current_sensor_id = None
 
-    # ✅ Forecast
-    forecast = get_five_day_forecast()
-    if isinstance(forecast, dict) and 'error' in forecast:
+    if weather and weather.get('temperature') != 'N/A':
+        try:
+            rain_rate, duration, intensity = predict_rain(
+                weather['temperature'],
+                weather['humidity'],
+                weather['wind_speed'],
+                weather['dew_point'] if weather['dew_point'] else 1013
+            )
+            forecast = [{
+                'prediction': round(rain_rate, 2),
+                'intensity': intensity,
+                'duration': round(duration, 1)
+            }]
+        except Exception as e:
+            forecast = [{'prediction': None, 'error': str(e)}]
+    else:
         forecast = []
 
     # ✅ Chart data (last 10 records)
