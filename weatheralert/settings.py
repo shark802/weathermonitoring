@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'weatherapp',
+    'celery',
 ]
 
 MIDDLEWARE = [
@@ -170,6 +171,31 @@ SESSION_SAVE_EVERY_REQUEST = True
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Manila'  # Set to your desired timezone
+
+# CELERY BEAT SCHEDULE
+# This is where you configure the periodic tasks.
+# It's a dictionary where each key is a task name.
+CELERY_BEAT_SCHEDULE = {
+    'add-every-minute': {
+        # 'task' points to the task function you want to run.
+        # Format: 'your_app.tasks.your_task_function_name'
+        'task': 'weather_monitoring.tasks.fetch_weather_data',
+        # 'schedule' defines how often the task should run.
+        # You can use a timedelta, crontab, or a solar schedule.
+        # Here we use timedelta to run every 60 seconds.
+        'schedule': 60.0,
+        # 'args' is an optional tuple of arguments to pass to the task.
+        'args': (16, 16),
+    },
+}
 
 # SMS Configuration
 SMS_API_URL = os.environ.get('SMS_API_URL', 'https://sms.pagenet.info/api/v1/sms/send')

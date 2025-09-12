@@ -11,6 +11,7 @@ from django.conf import settings
 from django.db import connection
 from dotenv import load_dotenv
 
+# ❗ NEW: Call load_dotenv() to load variables from the .env file
 load_dotenv()
 
 # Define file paths for the model and scalers.
