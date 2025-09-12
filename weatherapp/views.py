@@ -588,7 +588,31 @@ def admin_dashboard(request):
                             elif not num.startswith("+"):
                                 num = "+63" + num
                             phone_numbers.append(num)
+                    
+                    print(f"Found {len(phone_numbers)} verified phone numbers: {phone_numbers}")
+                    
+                    # Fallback: If no verified contacts, get all user phone numbers
+                    if not phone_numbers:
+                        print("No verified contacts found, getting all user phone numbers...")
+                        cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
+                        fallback_rows = cursor.fetchall()
+                        for row in fallback_rows:
+                            num = row[0]
+                            if num:
+                                # Format phone number properly
+                                if num.startswith("0"):
+                                    num = "+63" + num[1:]
+                                elif not num.startswith("+"):
+                                    num = "+63" + num
+                                phone_numbers.append(num)
+                        print(f"Found {len(phone_numbers)} fallback phone numbers: {phone_numbers}")
 
+                if not phone_numbers:
+                    print("❌ No phone numbers found for SMS alerts")
+                    return  # Exit the function if no phone numbers
+                
+                print(f"📱 Sending SMS alerts to {len(phone_numbers)} numbers")
+                
                 headers = {
                     "apikey": settings.SMS_API_KEY,
                     "Content-Type": "application/x-www-form-urlencoded"
@@ -628,20 +652,31 @@ def admin_dashboard(request):
                         }
 
                         try:
+                            print(f"Sending SMS to {number}: {message}")
                             response = session.post(
                                 settings.SMS_API_URL,
                                 headers=headers,
                                 data=payload,
                                 timeout=10
                             )
+                            print(f"SMS Response Status: {response.status_code}")
+                            print(f"SMS Response Text: {response.text}")
+                            
                             try:
                                 result = response.json()
+                                print(f"SMS Response JSON: {result}")
                             except:
                                 result = {}
+                                print("SMS Response is not JSON")
+                            
                             if response.status_code == 200 and result.get("success", True):
                                 sent_count += 1
+                                print(f"✅ SMS sent successfully to {number}")
+                            else:
+                                print(f"❌ SMS failed to {number}: Status {response.status_code}, Result: {result}")
+                                
                         except requests.exceptions.SSLError as e:
-                            print(f"SSL Error: {str(e)}")
+                            print(f"SSL Error for {number}: {str(e)}")
                             try:
                                 response = requests.post(
                                     settings.SMS_API_URL,
@@ -650,12 +685,17 @@ def admin_dashboard(request):
                                     timeout=10,
                                     verify=False
                                 )
+                                print(f"Fallback SMS Response Status: {response.status_code}")
+                                print(f"Fallback SMS Response Text: {response.text}")
                                 if response.status_code == 200:
                                     sent_count += 1
+                                    print(f"✅ SMS sent successfully (fallback) to {number}")
+                                else:
+                                    print(f"❌ Fallback SMS failed to {number}: Status {response.status_code}")
                             except Exception as fallback_error:
-                                print(f"Fallback SMS Error: {str(fallback_error)}")
+                                print(f"Fallback SMS Error for {number}: {str(fallback_error)}")
                         except Exception as e:
-                            print(f"SMS Error: {str(e)}")
+                            print(f"SMS Error for {number}: {str(e)}")
 
                     # Insert into alerts table (per alert)
                     with connection.cursor() as cursor:
@@ -876,36 +916,8 @@ def user_dashboard(request):
 
 # 🔔 AJAX endpoint for auto-refresh alerts
 def get_alerts(request):
-    alerts = []
-    with connection.cursor() as cursor:
-        cursor.execute("""
-            SELECT s.name, wr.rain_rate, wr.wind_speed, wr.date_time
-            FROM weather_reports wr
-            JOIN sensor s ON wr.sensor_id = s.sensor_id
-            WHERE wr.date_time = (
-                SELECT MAX(date_time) 
-                FROM weather_reports 
-                WHERE sensor_id = s.sensor_id
-            )
-        """)
-        for row in cursor.fetchall():
-            name, rain_rate, wind_speed, date_time = row
-            if rain_rate and rain_rate >= 7.6:
-                alerts.append({
-                    'text': f"⚠️ Heavy Rainfall Alert in {name} ({rain_rate} mm)",
-                    'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S')
-                })
-            if wind_speed and wind_speed > 30:
-                alerts.append({
-                    'text': f"⚠️ Strong Wind Alert in {name} ({wind_speed} km/h)",
-                    'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S')
-                })
-
-    return JsonResponse({'alerts': alerts})
-
-@csrf_exempt
-def mark_alerts_read(request):
-    if request.method == "POST":
+    try:
+        alerts = []
         with connection.cursor() as cursor:
             cursor.execute("""
                 SELECT s.name, wr.rain_rate, wr.wind_speed, wr.date_time
@@ -917,20 +929,132 @@ def mark_alerts_read(request):
                     WHERE sensor_id = s.sensor_id
                 )
             """)
-            alerts = []
             for row in cursor.fetchall():
                 name, rain_rate, wind_speed, date_time = row
                 if rain_rate and rain_rate >= 7.6:
-                    alerts.append(f"⚠️ Heavy Rainfall Alert in {name} ({rain_rate} mm)")
+                    alerts.append({
+                        'text': f"⚠️ Heavy Rainfall Alert in {name} ({rain_rate} mm)",
+                        'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'type': 'rain',
+                        'severity': 'heavy'
+                    })
                 if wind_speed and wind_speed > 30:
-                    alerts.append(f"⚠️ Strong Wind Alert in {name} ({wind_speed} km/h)")
+                    alerts.append({
+                        'text': f"⚠️ Strong Wind Alert in {name} ({wind_speed} km/h)",
+                        'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S'),
+                        'type': 'wind',
+                        'severity': 'strong'
+                    })
 
-        # Save read alerts in session
-        request.session["read_alerts"] = alerts
-        request.session.modified = True
+        # Check if user has marked alerts as read
+        read_alerts_data = request.session.get('read_alerts', {})
+        read_alerts = read_alerts_data.get('alerts', [])
+        marked_at = read_alerts_data.get('marked_at', None)
+        
+        return JsonResponse({
+            'alerts': alerts,
+            'read_alerts': read_alerts,
+            'marked_at': marked_at,
+            'total_count': len(alerts),
+            'read_count': len(read_alerts)
+        })
+        
+    except Exception as e:
+        print(f"Error in get_alerts: {str(e)}")
+        return JsonResponse({
+            'alerts': [],
+            'error': str(e)
+        }, status=500)
 
-        return JsonResponse({"status": "success"})
-    return JsonResponse({"status": "error"}, status=400)
+@csrf_exempt
+def mark_alerts_read(request):
+    if request.method == "POST":
+        try:
+            # Get current alerts using the same logic as get_alerts function
+            alerts = []
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT s.name, wr.rain_rate, wr.wind_speed, wr.date_time
+                    FROM weather_reports wr
+                    JOIN sensor s ON wr.sensor_id = s.sensor_id
+                    WHERE wr.date_time = (
+                        SELECT MAX(date_time) 
+                        FROM weather_reports 
+                        WHERE sensor_id = s.sensor_id
+                    )
+                """)
+                for row in cursor.fetchall():
+                    name, rain_rate, wind_speed, date_time = row
+                    # Use consistent alert thresholds
+                    if rain_rate and rain_rate >= 7.6:
+                        alerts.append({
+                            'text': f"⚠️ Heavy Rainfall Alert in {name} ({rain_rate} mm)",
+                            'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S'),
+                            'type': 'rain',
+                            'severity': 'heavy'
+                        })
+                    if wind_speed and wind_speed > 30:
+                        alerts.append({
+                            'text': f"⚠️ Strong Wind Alert in {name} ({wind_speed} km/h)",
+                            'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S'),
+                            'type': 'wind',
+                            'severity': 'strong'
+                        })
+
+            # Save read alerts in session with timestamp
+            current_time = datetime.now().isoformat()
+            request.session["read_alerts"] = {
+                'alerts': alerts,
+                'marked_at': current_time,
+                'count': len(alerts)
+            }
+            request.session.modified = True
+
+            return JsonResponse({
+                "status": "success",
+                "message": f"Marked {len(alerts)} alerts as read",
+                "marked_count": len(alerts),
+                "marked_at": current_time
+            })
+            
+        except Exception as e:
+            print(f"Error in mark_alerts_read: {str(e)}")
+            return JsonResponse({
+                "status": "error",
+                "message": f"Failed to mark alerts as read: {str(e)}"
+            }, status=500)
+    
+    return JsonResponse({
+        "status": "error",
+        "message": "Invalid request method. POST required."
+    }, status=405)
+
+@csrf_exempt
+def clear_read_alerts(request):
+    """Clear all read alerts from session"""
+    if request.method == "POST":
+        try:
+            # Clear read alerts from session
+            if 'read_alerts' in request.session:
+                del request.session['read_alerts']
+                request.session.modified = True
+            
+            return JsonResponse({
+                "status": "success",
+                "message": "Read alerts cleared successfully"
+            })
+            
+        except Exception as e:
+            print(f"Error in clear_read_alerts: {str(e)}")
+            return JsonResponse({
+                "status": "error",
+                "message": f"Failed to clear read alerts: {str(e)}"
+            }, status=500)
+    
+    return JsonResponse({
+        "status": "error",
+        "message": "Invalid request method. POST required."
+    }, status=405)
 
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
 def logout_view(request):
@@ -2419,6 +2543,95 @@ def test_sms(request):
                 'response_text': response.text,
                 'formatted_phone': formatted_phone,
                 'success': response.status_code == 200
+            })
+            
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    
+    return JsonResponse({'error': 'POST request required'}, status=405)
+
+def test_alert_sms(request):
+    """Test SMS alert functionality like in admin dashboard"""
+    if request.method == 'POST':
+        try:
+            # Get phone numbers (same logic as admin dashboard)
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT contact_value 
+                    FROM verified_contacts 
+                    WHERE contact_type = 'number'
+                """)
+                rows = cursor.fetchall()
+                phone_numbers = []
+                for row in rows:
+                    num = row[0]
+                    if num:
+                        if num.startswith("0"):
+                            num = "+63" + num[1:]
+                        elif not num.startswith("+"):
+                            num = "+63" + num
+                        phone_numbers.append(num)
+                
+                # Fallback to all users if no verified contacts
+                if not phone_numbers:
+                    cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
+                    fallback_rows = cursor.fetchall()
+                    for row in fallback_rows:
+                        num = row[0]
+                        if num:
+                            if num.startswith("0"):
+                                num = "+63" + num[1:]
+                            elif not num.startswith("+"):
+                                num = "+63" + num
+                            phone_numbers.append(num)
+            
+            if not phone_numbers:
+                return JsonResponse({'error': 'No phone numbers found'}, status=400)
+            
+            # Send test alert SMS
+            message = "🚨 TEST ALERT: This is a test weather alert from WeatherAlert system. SMS functionality is working correctly!"
+            
+            headers = {
+                "apikey": settings.SMS_API_KEY,
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+            
+            results = []
+            for number in phone_numbers[:3]:  # Limit to first 3 numbers for testing
+                payload = {
+                    "message": message,
+                    "mobile_number": number,
+                    "device": settings.SMS_DEVICE_ID,
+                    "device_sim": "1"
+                }
+                
+                try:
+                    response = requests.post(
+                        settings.SMS_API_URL,
+                        headers=headers,
+                        data=payload,
+                        timeout=10,
+                        verify=False
+                    )
+                    
+                    results.append({
+                        'phone': number,
+                        'status_code': response.status_code,
+                        'response_text': response.text,
+                        'success': response.status_code == 200
+                    })
+                    
+                except Exception as e:
+                    results.append({
+                        'phone': number,
+                        'error': str(e),
+                        'success': False
+                    })
+            
+            return JsonResponse({
+                'total_numbers': len(phone_numbers),
+                'tested_numbers': len(results),
+                'results': results
             })
             
         except Exception as e:

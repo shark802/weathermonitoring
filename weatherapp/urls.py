@@ -39,6 +39,8 @@ urlpatterns = [
     path('user-verify-otp/', views.userverify_otp, name='userverify_otp'),
     path('get-alerts/', views.get_alerts, name='get_alerts'),
     path("mark-alerts-read/", views.mark_alerts_read, name="mark_alerts_read"),
+    path("clear-read-alerts/", views.clear_read_alerts, name="clear_read_alerts"),
     path('debug/', views.debug_view, name='debug_view'),
     path('test-sms/', views.test_sms, name='test_sms'),
+    path('test-alert-sms/', views.test_alert_sms, name='test_alert_sms'),
 ]
