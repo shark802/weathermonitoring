@@ -539,6 +539,8 @@ def admin_dashboard(request):
         locations = []
         alert_objects = []
         alert_triggered = False
+
+        sent_alerts_cache = {}
         
         for row in cursor.fetchall():
             sensor_id, name, lat, lon, rain_rate, wind_speed, date_time = row
@@ -580,106 +582,123 @@ def admin_dashboard(request):
             })
 
         # 6. Fetch phone numbers for SMS alerts
-        phone_numbers = []
-        cursor.execute("SELECT contact_value FROM verified_contacts WHERE contact_type = 'number'")
-        rows = cursor.fetchall()
-        for row in rows:
-            num = row[0]
-            if num:
-                if num.startswith("0"):
-                    num = "+63" + num[1:]
-                elif not num.startswith("+"):
-                    num = "+63" + num
-                phone_numbers.append(num)
-        
-        if not phone_numbers:
-            cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
-            fallback_rows = cursor.fetchall()
-            for row in fallback_rows:
-                num = row[0]
-                if num:
-                    if num.startswith("0"):
-                        num = "+63" + num[1:]
-                    elif not num.startswith("+"):
-                        num = "+63" + num
-                    phone_numbers.append(num)
+        if alert_triggered and alert_objects:
+            try:
+                # 1. Get all phone numbers outside the loop for efficiency
+                with connection.cursor() as cursor:
+                    # Prioritize verified numbers
+                    cursor.execute("""
+                        SELECT contact_value
+                        FROM verified_contacts
+                        WHERE contact_type = 'number'
+                    """)
+                    phone_numbers = [row[0] for row in cursor.fetchall() if row[0]]
 
-    # 7. SMS Alert Logic (moved outside the `with` block to not hold the connection)
-    if alert_triggered and alert_objects and phone_numbers:
-        # The rest of the SMS logic remains the same from the previous correction
-        print(f"📱 Sending SMS alerts to {len(phone_numbers)} numbers")
-        
-        headers = {
-            "apikey": settings.SMS_API_KEY,
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
+                    # Fallback: If no verified contacts, get all user numbers
+                    if not phone_numbers:
+                        print("No verified contacts found, getting all user phone numbers...")
+                        cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
+                        phone_numbers = [row[0] for row in cursor.fetchall() if row[0]]
 
-        session = requests.Session()
-        session.verify = certifi.where()
-
-        for alert in alert_objects:
-            alert_type = alert['type']
-            severity = alert['intensity'].capitalize()
-            message = alert['text']
-
-            # Check for duplicate alerts using a new cursor context for each API call
-            with connection.cursor() as cursor:
-                cursor.execute("""
-                    SELECT sent_at FROM alerts 
-                    WHERE alert_type = %s AND severity = %s
-                      AND TIMESTAMPDIFF(MINUTE, sent_at, NOW()) < 10
-                    ORDER BY sent_at DESC LIMIT 1
-                """, [alert_type, severity])
-                if cursor.fetchone():
-                    print(f"Skipping duplicate alert: {alert_type} - {severity}")
-                    continue
-
-            # Send SMS to each number
-            sent_count = 0
-            for number in phone_numbers:
-                if sent_count >= 2:
-                    time.sleep(2)  # Wait 2 seconds between batches
-                    sent_count = 0
-
-                payload = {
-                    "message": message,
-                    "mobile_number": number,
-                    "device": settings.SMS_DEVICE_ID,
-                    "device_sim": "1"
-                }
-
-                try:
-                    print(f"Sending SMS to {number}: {message}")
-                    response = session.post(
-                        settings.SMS_API_URL,
-                        headers=headers,
-                        data=payload,
-                        timeout=10
-                    )
+                if not phone_numbers:
+                    print("❌ No phone numbers found for SMS alerts")
+                else:
+                    formatted_numbers = []
+                    for num in phone_numbers:
+                        if num.startswith("09"):
+                            formatted_numbers.append("+63" + num[1:])
+                        elif not num.startswith("+63"):
+                            formatted_numbers.append("+63" + num)
+                        else:
+                            formatted_numbers.append(num)
                     
-                    if response.status_code == 200:
-                        sent_count += 1
-                        print(f"✅ SMS sent successfully to {number}")
-                    else:
-                        print(f"❌ SMS failed to {number}: Status {response.status_code}, Text: {response.text}")
-                except requests.exceptions.RequestException as e:
-                    print(f"SMS Error for {number}: {str(e)}")
-            
-            # Insert into alerts table
-            with connection.cursor() as cursor:
-                cursor.execute("""
-                    INSERT INTO alerts (alert_type, severity, message, sent_at)
-                    VALUES (%s, %s, %s, NOW())
-                """, [alert_type, severity, message])
-                connection.commit() # Ensure the insert is committed
-    else:
-        if not alert_triggered:
-            print("No alerts to send.")
-        elif not alert_objects:
-            print("Alerts triggered but no alert objects created.")
-        elif not phone_numbers:
-            print("No phone numbers found for SMS alerts.")
+                    print(f"📱 Sending SMS alerts to {len(formatted_numbers)} numbers")
 
+                    # 2. Process and send alerts
+                    headers = {
+                        "apikey": settings.SMS_API_KEY,
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    }
+
+                    session = requests.Session()
+                    session.verify = certifi.where()
+
+                    for alert in alert_objects:
+                        alert_type = alert['type']
+                        severity = alert['intensity'].capitalize()
+                        message = alert['text']
+                        
+                        # More robust duplicate check using a cache for this request
+                        # and a database query for past 10 minutes.
+                        cache_key = f"{alert_type}-{severity}-{alert['sensor_id']}"
+                        if cache_key in sent_alerts_cache:
+                            print(f"Skipping duplicate alert (cached): {message}")
+                            continue
+                        
+                        with connection.cursor() as cursor:
+                            cursor.execute("""
+                                SELECT 1
+                                FROM alerts
+                                WHERE alert_type = %s AND severity = %s AND message = %s
+                                    AND TIMESTAMPDIFF(MINUTE, sent_at, NOW()) < 10
+                                LIMIT 1
+                            """, [alert_type, severity, message])
+                            if cursor.fetchone():
+                                print(f"Skipping duplicate alert (database): {message}")
+                                continue
+
+                        # Mark this alert as processed for the current request
+                        sent_alerts_cache[cache_key] = True
+
+                        sent_count = 0
+                        for number in formatted_numbers:
+                            if sent_count >= 2:
+                                time.sleep(2)
+                                sent_count = 0
+
+                            payload = {
+                                "message": message,
+                                "mobile_number": number,
+                                "device": settings.SMS_DEVICE_ID,
+                                "device_sim": "1"
+                            }
+                            
+                            try:
+                                print(f"Sending SMS to {number}: {message}")
+                                response = session.post(
+                                    settings.SMS_API_URL,
+                                    headers=headers,
+                                    data=payload,
+                                    timeout=10
+                                )
+                                print(f"SMS Response Status: {response.status_code}")
+                                print(f"SMS Response Text: {response.text}")
+                                
+                                try:
+                                    result = response.json()
+                                    print(f"SMS Response JSON: {result}")
+                                except ValueError:
+                                    result = {}
+                                    print("SMS Response is not JSON")
+
+                                if response.status_code == 200 and result.get("success", True):
+                                    sent_count += 1
+                                    print(f"✅ SMS sent successfully to {number}")
+                                else:
+                                    print(f"❌ SMS failed to {number}: Status {response.status_code}, Result: {result}")
+                                    
+                            except requests.exceptions.RequestException as e:
+                                print(f"SMS Error for {number}: {str(e)}")
+                                
+                        # Insert into alerts table
+                        with connection.cursor() as cursor:
+                            cursor.execute("""
+                                INSERT INTO alerts (alert_type, severity, message, sent_at)
+                                VALUES (%s, %s, %s, NOW())
+                            """, [alert_type, severity, message])
+
+            except Exception as e:
+                print(f"Alert processing error: {str(e)}")
     # 8. Weather Forecast Logic
     forecast = []
     if weather and weather.get('temperature') != 'N/A':
