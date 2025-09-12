@@ -5,8 +5,8 @@ import dht
 import ujson
 from machine import Pin
 
-ssid = "SIASICO"
-password = "Waykokabalo0831"
+ssid = "Genesis"
+password = "@bccbsis2024"
 
 # Setup rain gauge input pin and counter with debounce
 RAIN_PIN_NUM = 5
