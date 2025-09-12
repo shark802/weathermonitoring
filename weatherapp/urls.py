@@ -13,7 +13,6 @@ urlpatterns = [
     path('verify-otp/', views.verify_otp, name='verify_otp'),
     path('reset-password/', views.reset_password, name='reset_password'),
     path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
-    path("latest-weather/", views.latest_weather, name="latest_weather"),
     path('user-dashboard/', views.user_dashboard, name='user_dashboard'),
     path('logout/', views.logout_view, name='logout'),
     path('user-profile/', views.user_profile, name='user_profile'),
@@ -43,4 +42,5 @@ urlpatterns = [
     path('debug/', views.debug_view, name='debug_view'),
     path('test-sms/', views.test_sms, name='test_sms'),
     path('test-alert-sms/', views.test_alert_sms, name='test_alert_sms'),
+    path('api/dashboard-data/', views.latest_dashboard_data, name='latest_dashboard_data'),
 ]

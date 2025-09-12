@@ -32,7 +32,6 @@ from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 import logging
 import sys
-from .ai.predictor import predict_rain, get_latest_sensor_data, fetch_weather_data_from_api, get_rain_intensity
 
 logger = logging.getLogger(__name__)
 
@@ -424,11 +423,136 @@ def get_rain_intensity(amount):
     else:
         return "Torrential"
 
+def latest_dashboard_data(request):
+    """
+    Returns all dashboard data (weather, charts, alerts, AI forecast)
+    as a single JSON response for AJAX auto-refresh.
+    """
+    selected_sensor_id = request.GET.get('sensor_id')
+
+    with connection.cursor() as cursor:
+        # 1. Fetch Latest Weather Data
+        if selected_sensor_id:
+            cursor.execute("""
+                SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
+                       wr.wind_speed, wr.date_time, s.name, s.sensor_id
+                FROM weather_reports wr
+                JOIN sensor s ON wr.sensor_id = s.sensor_id
+                WHERE wr.sensor_id = %s
+                ORDER BY wr.date_time DESC
+                LIMIT 1
+            """, [selected_sensor_id])
+        else:
+            cursor.execute("""
+                SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
+                       wr.wind_speed, wr.date_time, s.name, s.sensor_id
+                FROM weather_reports wr
+                JOIN sensor s ON wr.sensor_id = s.sensor_id
+                ORDER BY wr.date_time DESC
+                LIMIT 1
+            """)
+        
+        row = cursor.fetchone()
+        weather = {}
+        if row:
+            weather = {
+                'temperature': row[0],
+                'humidity': row[1],
+                'rain_rate': row[2],
+                'dew_point': row[3],
+                'wind_speed': row[4],
+                'date_time': row[5].strftime('%Y-%m-%d %H:%M:%S'),
+                'location': row[6],
+                'error': None
+            }
+            if not selected_sensor_id:
+                selected_sensor_id = row[7]
+        else:
+            weather = {'error': 'No weather data available'}
+
+        # 2. Prepare Chart Data (only for the selected sensor)
+        chart_labels = []
+        chart_data = []
+        if selected_sensor_id:
+            cursor.execute("""
+                SELECT DATE_FORMAT(date_time, '%%a %%b %%d') AS label, temperature
+                FROM weather_reports
+                WHERE sensor_id = %s
+                ORDER BY date_time DESC
+                LIMIT 10
+            """, [selected_sensor_id])
+            rows = cursor.fetchall()
+            for row in reversed(rows):
+                chart_labels.append(row[0])
+                chart_data.append(float(row[1]))
+
+        # 3. Fetch AI Prediction
+        forecast = {}
+        cursor.execute("""
+            SELECT predicted_rain, duration, intensity
+            FROM ai_predictions
+            ORDER BY created_at DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        if row:
+            forecast = {
+                'prediction': float(row[0]),
+                'duration': float(row[1]),
+                'intensity': row[2],
+                'error': None
+            }
+        else:
+            forecast = {'error': 'No AI prediction data available.'}
+
+        # 4. Fetch Alerts (the logic is copied directly from your original admin_dashboard view)
+        alerts = []
+        cursor.execute("""
+            SELECT s.sensor_id, s.name, wr.rain_rate, wr.wind_speed, wr.date_time
+            FROM sensor s
+            LEFT JOIN weather_reports wr ON s.sensor_id = wr.sensor_id
+            WHERE wr.date_time = (
+                SELECT MAX(date_time) 
+                FROM weather_reports 
+                WHERE sensor_id = s.sensor_id
+            ) OR wr.date_time IS NULL
+        """)
+        
+        for row in cursor.fetchall():
+            sensor_id, name, rain_rate, wind_speed, date_time = row
+            if rain_rate is not None:
+                intensity = get_rain_intensity(rain_rate)
+                if intensity in ["Heavy", "Intense", "Torrential"]:
+                    alerts.append({
+                        'text': f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm) {date_time.strftime('%Y-%m-%d %H:%M:%S')}",
+                        'timestamp': datetime.now().isoformat(),
+                        'type': 'rain',
+                        'intensity': intensity.lower(),
+                        'sensor_id': sensor_id
+                    })
+            if wind_speed and wind_speed > 30:
+                alerts.append({
+                    'text': f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {date_time.strftime('%Y-%m-%d %H:%M:%S')}",
+                    'timestamp': datetime.now().isoformat(),
+                    'type': 'wind',
+                    'intensity': 'high',
+                    'sensor_id': sensor_id
+                })
+    
+    # Return all data as a single JSON response
+    return JsonResponse({
+        'weather': weather,
+        'alerts': alerts,
+        'forecast': [forecast] if forecast.get('error') is None else [],
+        'chart_labels': chart_labels,
+        'chart_data': chart_data,
+    })
+
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
 def admin_dashboard(request):
     """
-    Renders the admin dashboard with real-time weather data, forecasts, alerts,
-    and a map of sensor locations.
+    Renders the admin dashboard with real-time weather data, alerts,
+    and a map of sensor locations. AI prediction is now handled by a Celery task.
     """
     if 'admin_id' not in request.session:
         return redirect('home')
@@ -436,7 +560,7 @@ def admin_dashboard(request):
     admin_id = request.session['admin_id']
     selected_sensor_id = request.GET.get('sensor_id')
 
-    # Use a single `with` block for ALL database operations to prevent cursor issues and improve efficiency.
+    # Use a single `with` block for ALL database operations
     with connection.cursor() as cursor:
         # 1. Fetch admin name
         cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [admin_id])
@@ -501,7 +625,6 @@ def admin_dashboard(request):
             }
 
         # 4. Prepare chart data
-        # Now that we have a `current_sensor_id`, we can fetch the specific data for the chart.
         if current_sensor_id:
             cursor.execute("""
                 SELECT DATE_FORMAT(date_time, '%%a %%b %%d') AS label, temperature
@@ -511,7 +634,6 @@ def admin_dashboard(request):
                 LIMIT 10
             """, [current_sensor_id])
         else:
-            # Fallback if no sensor data is found
             cursor.execute("""
                 SELECT DATE_FORMAT(date_time, '%%a %%b %%d') AS label, temperature
                 FROM weather_reports
@@ -556,7 +678,7 @@ def admin_dashboard(request):
                         'timestamp': datetime.now().isoformat(),
                         'type': 'rain',
                         'intensity': intensity.lower(),
-                        'sensor_id': sensor_id # ❗ Added sensor_id for the cache
+                        'sensor_id': sensor_id
                     })
                     has_alert = True
                     alert_triggered = True
@@ -568,7 +690,7 @@ def admin_dashboard(request):
                     'timestamp': datetime.now().isoformat(),
                     'type': 'wind',
                     'intensity': 'high',
-                    'sensor_id': sensor_id # ❗ Added sensor_id for the cache
+                    'sensor_id': sensor_id
                 })
                 has_alert = True
                 alert_triggered = True
@@ -586,9 +708,7 @@ def admin_dashboard(request):
         # 6. Fetch phone numbers for SMS alerts
         if alert_triggered and alert_objects:
             try:
-                # 1. Get all phone numbers outside the loop for efficiency
                 with connection.cursor() as cursor:
-                    # Prioritize verified numbers
                     cursor.execute("""
                         SELECT contact_value
                         FROM verified_contacts
@@ -596,7 +716,6 @@ def admin_dashboard(request):
                     """)
                     phone_numbers = [row[0] for row in cursor.fetchall() if row[0]]
 
-                    # Fallback: If no verified contacts, get all user numbers
                     if not phone_numbers:
                         print("No verified contacts found, getting all user phone numbers...")
                         cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
@@ -616,7 +735,6 @@ def admin_dashboard(request):
                     
                     print(f"📱 Sending SMS alerts to {len(formatted_numbers)} numbers")
 
-                    # 2. Process and send alerts
                     headers = {
                         "apikey": settings.SMS_API_KEY,
                         "Content-Type": "application/x-www-form-urlencoded"
@@ -630,8 +748,6 @@ def admin_dashboard(request):
                         severity = alert['intensity'].capitalize()
                         message = alert['text']
                         
-                        # More robust duplicate check using a cache for this request
-                        # and a database query for past 10 minutes.
                         cache_key = f"{alert_type}-{severity}-{alert['sensor_id']}"
                         if cache_key in sent_alerts_cache:
                             print(f"Skipping duplicate alert (cached): {message}")
@@ -649,9 +765,7 @@ def admin_dashboard(request):
                                 print(f"Skipping duplicate alert (database): {message}")
                                 continue
 
-                        # Mark this alert as processed for the current request
                         sent_alerts_cache[cache_key] = True
-
                         sent_count = 0
                         for number in formatted_numbers:
                             if sent_count >= 2:
@@ -692,7 +806,6 @@ def admin_dashboard(request):
                             except requests.exceptions.RequestException as e:
                                 print(f"SMS Error for {number}: {str(e)}")
                                 
-                        # Insert into alerts table
                         with connection.cursor() as cursor:
                             cursor.execute("""
                                 INSERT INTO alerts (alert_type, severity, message, sent_at)
@@ -701,54 +814,12 @@ def admin_dashboard(request):
 
             except Exception as e:
                 print(f"Alert processing error: {str(e)}")
-    
-    # 8. Weather Forecast Logic
-    forecast = []
-    # ❗ Updated the forecast logic to correctly call the prediction model
-    if weather and weather.get('temperature') != 'N/A' and weather.get('latitude') and weather.get('longitude'):
-        try:
-            # First, get the missing data from the API
-            api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
-            wind_speed_api, barometric_pressure = fetch_weather_data_from_api(
-                api_key,
-                weather['latitude'],
-                weather['longitude']
-            )
-            
-            # Use the wind speed from the API for consistency with the model input
-            wind_speed = wind_speed_api if wind_speed_api is not None else weather['wind_speed']
-            
-            # ❗ Use a fallback value if barometric pressure is not available
-            barometric_pressure_final = barometric_pressure if barometric_pressure is not None else 1013.25
-            print(f"Using Barometric Pressure: {barometric_pressure_final}")
-                
-            # Get the current hour as the fifth feature
-            current_hour = time.localtime().tm_hour
-
-            # Now, call the prediction model with all 5 features
-            rain_rate, duration, intensity = predict_rain(
-                temperature=weather['temperature'],
-                humidity=weather['humidity'],
-                wind_speed=wind_speed,
-                barometric_pressure=barometric_pressure_final,
-                current_hour=current_hour
-            )
-            
-            forecast.append({
-                'prediction': round(rain_rate, 2),
-                'intensity': intensity,
-                'duration': round(duration, 1)
-            })
-        except Exception as e:
-            forecast.append({'prediction': None, 'error': str(e)})
-            print(f"Prediction error: {e}")
 
     # Prepare context for the template
     context = {
         'admin': {'name': admin_name},
         'locations': json.dumps(locations),
         'weather': weather,
-        'forecast': forecast,
         'alerts': alert_objects,
         'labels': json.dumps(labels),
         'data': json.dumps(temps),
@@ -761,45 +832,6 @@ def admin_dashboard(request):
     }
 
     return render(request, 'admin_dashboard.html', context)
-
-def latest_weather(request):
-    selected_sensor_id = request.GET.get('sensor_id')
-    
-    with connection.cursor() as cursor:
-        if selected_sensor_id:
-            cursor.execute("""
-                SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name
-                FROM weather_reports wr
-                JOIN sensor s ON wr.sensor_id = s.sensor_id
-                WHERE wr.sensor_id = %s
-                ORDER BY wr.date_time DESC
-                LIMIT 1
-            """, [selected_sensor_id])
-        else:
-            cursor.execute("""
-                SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name
-                FROM weather_reports wr
-                JOIN sensor s ON wr.sensor_id = s.sensor_id
-                ORDER BY wr.date_time DESC
-                LIMIT 1
-            """)
-
-        row = cursor.fetchone()
-        if row:
-            return JsonResponse({
-                "temperature": row[0],
-                "humidity": row[1],
-                "rain_rate": row[2],
-                "dew_point": row[3],
-                "wind_speed": row[4],
-                "date_time": row[5].strftime('%Y-%m-%d %H:%M:%S'),
-                "location": row[6],
-                "error": None
-            })
-        else:
-            return JsonResponse({"error": "No weather data available"})
 
 
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
