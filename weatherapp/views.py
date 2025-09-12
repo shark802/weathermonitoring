@@ -409,19 +409,6 @@ def reset_password(request):
 
     return render(request, 'reset_password.html')
 
-import time
-import json
-from datetime import datetime
-import requests
-import certifi
-from django.conf import settings
-from django.shortcuts import render, redirect
-from django.db import connection
-from django.views.decorators.cache import cache_control
-
-# Assuming predict_rain is a function you've defined elsewhere
-# from .your_prediction_module import predict_rain
-
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
 def admin_dashboard(request):
     if 'admin_id' not in request.session:
