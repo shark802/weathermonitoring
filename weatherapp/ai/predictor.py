@@ -6,6 +6,7 @@ import requests
 import json
 import time
 from django.db import connection
+from apscheduler.schedulers.blocking import BlockingScheduler
 
 # Define file paths for the model and scalers.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -16,34 +17,34 @@ SCALER_Y_FILE = os.path.join(BASE_DIR, "scaler_y.pkl")
 # =======================================================
 # 1. Database and API Functions
 # =======================================================
-def get_latest_sensor_data():
+def get_recent_sensor_data(limit=6):
     """
-    Fetches the latest temperature and humidity from the database using Django's connection.
+    Fetches the latest 'limit' number of temperature and humidity readings
+    from the database, ordered by date_time.
     """
     try:
         with connection.cursor() as cursor:
-            query = "SELECT temperature, humidity FROM weather_reports ORDER BY date_time DESC LIMIT 1"
+            query = f"SELECT temperature, humidity, date_time FROM weather_reports ORDER BY date_time DESC LIMIT {limit}"
             cursor.execute(query)
-            data = cursor.fetchone()
-            return data if data else (None, None)
+            data = cursor.fetchall()
+            # Ensure chronological order (oldest to newest)
+            data.reverse() 
+            return data
     except Exception as e:
         print(f"Error connecting to database: {e}")
-        print("Please check your database configuration.")
-        return None, None
+        return []
 
 def fetch_weather_data_from_api(api_key, latitude, longitude):
     """
     Fetches wind speed and barometric pressure from a weather API (e.g., OpenWeatherMap).
-    This function is no longer a mock. It performs an actual API call.
     """
     print("Fetching missing data from weather API...")
     url = f"https://api.openweathermap.org/data/2.5/weather?lat={latitude}&lon={longitude}&appid={api_key}&units=metric"
     try:
         response = requests.get(url, timeout=10)
-        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
+        response.raise_for_status()
         data = response.json()
         
-        # Check if the required data exists in the response
         wind_speed = data.get('wind', {}).get('speed')
         pressure = data.get('main', {}).get('pressure')
         
@@ -55,7 +56,6 @@ def fetch_weather_data_from_api(api_key, latitude, longitude):
             
     except requests.exceptions.RequestException as e:
         print(f"Error connecting to the weather API: {e}")
-        print("Please check your API key and network connection.")
         return None, None
     except Exception as e:
         print(f"An unexpected error occurred during the API call: {e}")
@@ -77,7 +77,6 @@ try:
     print("✅ Scalers loaded successfully.")
 except FileNotFoundError as e:
     print(f"Warning: One of the required files was not found: {e.filename}")
-    print("Please ensure 'rain_model.h5', 'scaler_X.pkl', and 'scaler_y.pkl' are in the same directory.")
     print("ML prediction will be disabled.")
 except Exception as e:
     print(f"Warning: An unexpected error occurred during file loading: {e}")
@@ -88,9 +87,9 @@ except Exception as e:
 # =======================================================
 def get_rain_intensity(amount):
     """Categorizes rainfall amount into a label."""
-    if amount <= 0:
+    if amount <= 0.01:
         return "None"
-    elif 0 < amount < 2.5:
+    elif 0.01 < amount < 2.5:
         return "Light"
     elif 2.5 <= amount < 7.6:
         return "Moderate"
@@ -101,37 +100,39 @@ def get_rain_intensity(amount):
     else:
         return "Torrential"
 
-def predict_rain(temperature, humidity, wind_speed, barometric_pressure):
-    """Predicts rainfall rate and duration using the loaded model."""
+def predict_multiple_points(recent_data, wind_speed, barometric_pressure):
+    """
+    Predicts rainfall for a sequence of data points.
+    """
     if model is None or scaler_X is None or scaler_y is None:
-        print("Warning: ML model not loaded. Using fallback prediction.")
-        # Simple fallback prediction based on humidity and temperature
-        if humidity > 80 and temperature < 30:
-            rain_rate = 5.0
-            duration = 30.0
-        elif humidity > 70:
-            rain_rate = 2.0
-            duration = 15.0
-        else:
-            rain_rate = 0.5
-            duration = 5.0
-        
-        intensity = get_rain_intensity(rain_rate)
-        return rain_rate, duration, intensity
+        print("Model not loaded. Cannot perform sequential prediction.")
+        return None, None, "Error"
     
     PAST_STEPS = 6
-    # Note: The model's input features must be in the same order as when it was trained.
-    input_features = np.array([[temperature, humidity, barometric_pressure, wind_speed, 0]])
-    input_scaled = scaler_X.transform(input_features)
-    X_seq = np.repeat(input_scaled, PAST_STEPS, axis=0).reshape(1, PAST_STEPS, -1)
+    if len(recent_data) < PAST_STEPS:
+        print(f"Not enough data points. Need {PAST_STEPS}, but got {len(recent_data)}. Cannot predict.")
+        return None, None, "Error"
+
+    input_sequence = []
+    for temp, humidity, _ in recent_data:
+        input_sequence.append([temp, humidity, wind_speed, barometric_pressure])
     
-    y_pred_scaled = model.predict(X_seq, verbose=0)
+    input_array = np.array(input_sequence).reshape(1, PAST_STEPS, -1)
+    
+    try:
+        scaled_input = scaler_X.transform(input_array.reshape(-1, input_array.shape[-1]))
+        scaled_input = scaled_input.reshape(1, PAST_STEPS, -1)
+    except ValueError as e:
+        print(f"Error during scaling: {e}")
+        return None, None, "Error"
+
+    y_pred_scaled = model.predict(scaled_input, verbose=0)
     y_pred = scaler_y.inverse_transform(y_pred_scaled)
     
-    rain_rate = float(y_pred[0][0])
-    duration = float(y_pred[0][1])
-    
+    rain_rate = max(0, float(y_pred[0][0]))
+    duration = max(0, float(y_pred[0][1]))
     intensity = get_rain_intensity(rain_rate)
+    
     return rain_rate, duration, intensity
 
 # =======================================================
@@ -140,18 +141,11 @@ def predict_rain(temperature, humidity, wind_speed, barometric_pressure):
 def main():
     """Main function to orchestrate data fetching and prediction."""
     print("\n--- Live Rainfall Prediction Demo with API Integration ---")
-    
+
     api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
     latitude = os.environ.get('LATITUDE')
     longitude = os.environ.get('LONGITUDE')
     
-    # --- Step 1: Fetch data from your database ---
-    latest_temp, latest_humidity = get_latest_sensor_data()
-    if latest_temp is None or latest_humidity is None:
-        print("Could not fetch temperature or humidity from the database. Exiting.")
-        return
-        
-    # --- Step 2: Fetch missing data from a weather API ---
     if not all([api_key, latitude, longitude]):
         print("Error: Missing API key or coordinates in environment variables. Exiting.")
         return
@@ -163,22 +157,24 @@ def main():
         print("Error: Latitude or Longitude environment variables are not valid numbers. Exiting.")
         return
 
+    # Fetch the required number of data points
+    recent_sensor_data = get_recent_sensor_data(limit=6)
+
+    # Fetch missing data from a weather API
     wind_speed, barometric_pressure = fetch_weather_data_from_api(api_key, latitude, longitude)
     if wind_speed is None or barometric_pressure is None:
         print("Failed to fetch wind speed or pressure from API. Exiting.")
         return
 
-    print("\nData collected from all sources:")
-    print(f"From your device: Temperature={latest_temp}°C, Humidity={latest_humidity}%")
-    print(f"From external API: Wind Speed={wind_speed} m/s, Barometric Pressure={barometric_pressure} hPa")
-
-    # --- Step 3: Combine all data and make the prediction ---
-    predicted_rain_rate, predicted_duration, intensity_label = predict_rain(
-        temperature=latest_temp,
-        humidity=latest_humidity,
-        wind_speed=wind_speed,
-        barometric_pressure=barometric_pressure
+    # Perform the prediction on the entire sequence
+    predicted_rain_rate, predicted_duration, intensity_label = predict_multiple_points(
+        recent_sensor_data,
+        wind_speed,
+        barometric_pressure
     )
+
+    if predicted_rain_rate is None:
+        return
 
     print("\n--- Prediction Results ---")
     print(f"Predicted Rainfall: {predicted_rain_rate:.2f} mm")
@@ -186,4 +182,11 @@ def main():
     print(f"Rainfall Intensity: {intensity_label}")
 
 if __name__ == "__main__":
-    main()
+    scheduler = BlockingScheduler()
+    # Schedule the main function to run at the top of every hour (e.g., 1:00, 2:00, etc.)
+    scheduler.add_job(main, 'cron', hour='*')
+    print("Scheduler started. Prediction will run at the start of every hour.")
+    try:
+        scheduler.start()
+    except (KeyboardInterrupt, SystemExit):
+        pass
