@@ -77,38 +77,44 @@
           {% if forecast %}
             <div class="space-y-3 text-medium">
               {% for item in forecast %}
-                {% if item.prediction == 0 %}
-                  <p class="text-gray-600">✅ No rain expected in the forecast period.</p>
-                {% else %}
-                  <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                    <span class="font-medium text-gray-700">🌧 Predicted Rainfall</span>
-                    <span class="text-right text-gray-600">{{ item.prediction }} mm</span>
+                {% if item.error %}
+                  <div class="text-red-600 font-medium p-2 bg-red-100 rounded">
+                      <p>⚠️ Prediction Error: {{ item.error }}</p>
                   </div>
-                  <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                    <span class="font-medium text-gray-700">⏱ Estimated Duration</span>
-                    <span class="text-right text-gray-600">{{ item.duration }} minutes</span>
-                  </div>
-                  <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                    <span class="font-medium text-gray-700">⚡ Rain Intensity</span>
-                    <span class="
-                      text-right px-2 py-1 rounded text-white
-                      {% if item.intensity == 'Light' %} bg-green-500
-                      {% elif item.intensity == 'Moderate' %} bg-yellow-500
-                      {% elif item.intensity == 'Heavy' %} bg-orange-500
-                      {% elif item.intensity == 'Intense' %} bg-red-600
-                      {% elif item.intensity == 'Torrential' %} bg-purple-700
-                      {% else %} bg-gray-400 {% endif %}
-                    ">
-                      {{ item.intensity }}
-                    </span>
-                  </div>
+                {% elif item.prediction is not None %}
+                  {% if item.prediction == 0 %}
+                    <p class="text-gray-600">✅ No rain expected in the forecast period.</p>
+                  {% else %}
+                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                      <span class="font-medium text-gray-700">🌧 Predicted Rainfall</span>
+                      <span class="text-right text-gray-600">{{ item.prediction }} mm</span>
+                    </div>
+                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                      <span class="font-medium text-gray-700">⏱ Estimated Duration</span>
+                      <span class="text-right text-gray-600">{{ item.duration }} minutes</span>
+                    </div>
+                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                      <span class="font-medium text-gray-700">⚡ Rain Intensity</span>
+                      <span class="
+                        text-right px-2 py-1 rounded text-white
+                        {% if item.intensity == 'Light' %} bg-green-500
+                        {% elif item.intensity == 'Moderate' %} bg-yellow-500
+                        {% elif item.intensity == 'Heavy' %} bg-orange-500
+                        {% elif item.intensity == 'Intense' %} bg-red-600
+                        {% elif item.intensity == 'Torrential' %} bg-purple-700
+                        {% else %} bg-gray-400 {% endif %}
+                      ">
+                        {{ item.intensity }}
+                      </span>
+                    </div>
+                  {% endif %}
                 {% endif %}
               {% endfor %}
             </div>
           {% else %}
             <p class="text-gray-500 text-medium">No AI prediction available.</p>
           {% endif %}
-        </div>
+      </div>      
 
         <div class="bg-white p-4 rounded shadow">
           <h2 class="text-xl font-semibold mb-2">Temperature Trends</h2>

@@ -5,7 +5,15 @@ import os
 import requests
 import json
 import time
+import sys
+import django
+from django.conf import settings
 from django.db import connection
+# ❗ NEW: Import and load the dotenv library
+from dotenv import load_dotenv
+
+# ❗ NEW: Call load_dotenv() to load variables from the .env file
+load_dotenv()
 
 # Define file paths for the model and scalers.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -42,7 +50,6 @@ def fetch_weather_data_from_api(api_key, latitude, longitude):
         response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
         data = response.json()
         
-        # Check if the required data exists in the response
         wind_speed = data.get('wind', {}).get('speed')
         pressure = data.get('main', {}).get('pressure')
         
@@ -100,10 +107,9 @@ def get_rain_intensity(amount):
     else:
         return "Torrential"
 
-def predict_rain(temperature, humidity, wind_speed, barometric_pressure):
+def predict_rain(temperature, humidity, wind_speed, barometric_pressure, current_hour): # ❗ ADDED `current_hour`
     """
     Predicts rainfall rate and duration using the loaded model.
-    Corrected to match the scaler's expected input dimensions.
     """
     if model is None or scaler_X is None or scaler_y is None:
         print("Warning: ML model not loaded. Using fallback prediction.")
@@ -120,12 +126,10 @@ def predict_rain(temperature, humidity, wind_speed, barometric_pressure):
         intensity = get_rain_intensity(rain_rate)
         return rain_rate, duration, intensity
     
-    # Define the sequence length for the RNN model
     PAST_STEPS = 6
 
-    # CRITICAL FIX: Ensure the input array has the correct number of features (4)
-    # The order must match the training data for the model and scaler.
-    input_features = np.array([[temperature, humidity, wind_speed, barometric_pressure]])
+    # ❗ ADDED `current_hour` to the input features
+    input_features = np.array([[temperature, humidity, wind_speed, barometric_pressure, current_hour]])
     
     try:
         input_scaled = scaler_X.transform(input_features)
@@ -134,13 +138,11 @@ def predict_rain(temperature, humidity, wind_speed, barometric_pressure):
         print("This may be due to a mismatch in the number of features.")
         return None, None, "Error"
 
-    # Reshape the scaled data for the model's expected input shape (samples, timesteps, features)
     X_seq = np.repeat(input_scaled, PAST_STEPS, axis=0).reshape(1, PAST_STEPS, -1)
     
     y_pred_scaled = model.predict(X_seq, verbose=0)
     y_pred = scaler_y.inverse_transform(y_pred_scaled)
     
-    # Extract predictions, ensuring they are not negative
     rain_rate = max(0, float(y_pred[0][0]))
     duration = max(0, float(y_pred[0][1]))
     
@@ -153,18 +155,20 @@ def predict_rain(temperature, humidity, wind_speed, barometric_pressure):
 def main():
     """Main function to orchestrate data fetching and prediction."""
     print("\n--- Live Rainfall Prediction Demo with API Integration ---")
+
+    # The fix for the `ModuleNotFoundError` from the previous step.
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    sys.path.append(project_root)
     
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'weatheralert.settings')
+    django.setup()
+    
+    # These variables will now be loaded from your .env file
     api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
     latitude = os.environ.get('LATITUDE')
     longitude = os.environ.get('LONGITUDE')
     
     # --- Step 1: Fetch data from your database ---
-    latest_temp, latest_humidity = get_latest_sensor_data()
-    if latest_temp is None or latest_humidity is None:
-        print("Could not fetch temperature or humidity from the database. Exiting.")
-        return
-        
-    # --- Step 2: Fetch missing data from a weather API ---
     if not all([api_key, latitude, longitude]):
         print("Error: Missing API key or coordinates in environment variables. Exiting.")
         return
@@ -180,17 +184,27 @@ def main():
     if wind_speed is None or barometric_pressure is None:
         print("Failed to fetch wind speed or pressure from API. Exiting.")
         return
+        
+    latest_temp, latest_humidity = get_latest_sensor_data()
+    if latest_temp is None or latest_humidity is None:
+        print("Could not fetch temperature or humidity from the database. Exiting.")
+        return
+    
+    # ❗ ADDED `current_hour` to the data collection
+    current_hour = time.localtime().tm_hour
 
     print("\nData collected from all sources:")
     print(f"From your device: Temperature={latest_temp}°C, Humidity={latest_humidity}%")
     print(f"From external API: Wind Speed={wind_speed} m/s, Barometric Pressure={barometric_pressure} hPa")
+    print(f"Current Hour: {current_hour}")
 
     # --- Step 3: Combine all data and make the prediction ---
     predicted_rain_rate, predicted_duration, intensity_label = predict_rain(
         temperature=latest_temp,
         humidity=latest_humidity,
         wind_speed=wind_speed,
-        barometric_pressure=barometric_pressure
+        barometric_pressure=barometric_pressure,
+        current_hour=current_hour # ❗ ADDED `current_hour` to the function call
     )
     
     if predicted_rain_rate is None:

@@ -32,7 +32,7 @@ from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 import logging
 import sys
-from .ai.predictor import predict_rain
+from .ai.predictor import predict_rain, get_latest_sensor_data, fetch_weather_data_from_api, get_rain_intensity
 
 logger = logging.getLogger(__name__)
 
@@ -451,7 +451,7 @@ def admin_dashboard(request):
         if selected_sensor_id:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                        wr.wind_speed, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 WHERE wr.sensor_id = %s
@@ -461,7 +461,7 @@ def admin_dashboard(request):
         else:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                        wr.wind_speed, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 ORDER BY wr.date_time DESC
@@ -526,7 +526,7 @@ def admin_dashboard(request):
         # 5. Fetch all sensor locations for the map and alerts
         cursor.execute("""
             SELECT s.sensor_id, s.name, s.latitude, s.longitude, 
-                   wr.rain_rate, wr.wind_speed, wr.date_time
+                    wr.rain_rate, wr.wind_speed, wr.date_time
             FROM sensor s
             LEFT JOIN weather_reports wr ON s.sensor_id = wr.sensor_id
             WHERE wr.date_time = (
@@ -555,7 +555,8 @@ def admin_dashboard(request):
                         'text': alert_text,
                         'timestamp': datetime.now().isoformat(),
                         'type': 'rain',
-                        'intensity': intensity.lower()
+                        'intensity': intensity.lower(),
+                        'sensor_id': sensor_id # ❗ Added sensor_id for the cache
                     })
                     has_alert = True
                     alert_triggered = True
@@ -566,7 +567,8 @@ def admin_dashboard(request):
                     'text': alert_text,
                     'timestamp': datetime.now().isoformat(),
                     'type': 'wind',
-                    'intensity': 'high'
+                    'intensity': 'high',
+                    'sensor_id': sensor_id # ❗ Added sensor_id for the cache
                 })
                 has_alert = True
                 alert_triggered = True
@@ -699,16 +701,38 @@ def admin_dashboard(request):
 
             except Exception as e:
                 print(f"Alert processing error: {str(e)}")
+    
     # 8. Weather Forecast Logic
     forecast = []
-    if weather and weather.get('temperature') != 'N/A':
+    # ❗ Updated the forecast logic to correctly call the prediction model
+    if weather and weather.get('temperature') != 'N/A' and weather.get('latitude') and weather.get('longitude'):
         try:
-            rain_rate, duration, intensity = predict_rain(
-                weather['temperature'],
-                weather['humidity'],
-                weather['wind_speed'],
-                weather['dew_point'] if weather['dew_point'] else 1013
+            # First, get the missing data from the API
+            api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
+            wind_speed_api, barometric_pressure = fetch_weather_data_from_api(
+                api_key,
+                weather['latitude'],
+                weather['longitude']
             )
+            
+            # Use the wind speed from the API for consistency with the model input
+            wind_speed = wind_speed_api if wind_speed_api is not None else weather['wind_speed']
+            
+            if barometric_pressure is None:
+                raise Exception("Could not fetch barometric pressure from API.")
+                
+            # Get the current hour as the fifth feature
+            current_hour = time.localtime().tm_hour
+
+            # Now, call the prediction model with all 5 features
+            rain_rate, duration, intensity = predict_rain(
+                temperature=weather['temperature'],
+                humidity=weather['humidity'],
+                wind_speed=wind_speed,
+                barometric_pressure=barometric_pressure,
+                current_hour=current_hour
+            )
+            
             forecast.append({
                 'prediction': round(rain_rate, 2),
                 'intensity': intensity,
@@ -1142,7 +1166,7 @@ def send_otp(request, contact_type):
             # Send OTP via Email
             send_mail(
                 subject="WeatherAlert Verification OTP",
-                message=f"Your OTP for verifying your email is: {otp}",
+                message=f"Your OTP for verifying your email in WeatherAlert is: {otp}",
                 from_email=settings.EMAIL_HOST_USER,
                 recipient_list=[email],
                 fail_silently=False,
@@ -1161,7 +1185,7 @@ def send_otp(request, contact_type):
                 formatted_phone = "+63" + phone
             
             parameters = {
-                'message': f'Your OTP for verifying your phone is: {otp}',
+                'message': f'Your OTP for verifying your phone in WeatherAlert is: {otp}',
                 'mobile_number': formatted_phone,
                 'device': settings.SMS_DEVICE_ID,
                 'device_sim': '1'
