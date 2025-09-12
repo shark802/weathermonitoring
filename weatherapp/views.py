@@ -718,8 +718,9 @@ def admin_dashboard(request):
             # Use the wind speed from the API for consistency with the model input
             wind_speed = wind_speed_api if wind_speed_api is not None else weather['wind_speed']
             
-            if barometric_pressure is None:
-                raise Exception("Could not fetch barometric pressure from API.")
+            # ❗ Use a fallback value if barometric pressure is not available
+            barometric_pressure_final = barometric_pressure if barometric_pressure is not None else 1013.25
+            print(f"Using Barometric Pressure: {barometric_pressure_final}")
                 
             # Get the current hour as the fifth feature
             current_hour = time.localtime().tm_hour
@@ -729,7 +730,7 @@ def admin_dashboard(request):
                 temperature=weather['temperature'],
                 humidity=weather['humidity'],
                 wind_speed=wind_speed,
-                barometric_pressure=barometric_pressure,
+                barometric_pressure=barometric_pressure_final,
                 current_hour=current_hour
             )
             
