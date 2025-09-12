@@ -1029,21 +1029,63 @@ def send_otp(request, contact_type):
         elif contact_type == "phone":
             # Send OTP via SMS API
             url = settings.SMS_API_URL
+            
+            # Format phone number properly
+            formatted_phone = phone
+            if phone.startswith("0"):
+                formatted_phone = "+63" + phone[1:]
+            elif not phone.startswith("+"):
+                formatted_phone = "+63" + phone
+            
             parameters = {
                 'message': f'Your OTP for verifying your phone is: {otp}',
-                'mobile_number': phone,
+                'mobile_number': formatted_phone,
                 'device': settings.SMS_DEVICE_ID,
                 'device_sim': '1'
             }
             headers = {
-                'apikey': settings.SMS_API_KEY
+                'apikey': settings.SMS_API_KEY,
+                'Content-Type': 'application/x-www-form-urlencoded'
             }
-            response = requests.post(url, headers=headers, data=parameters, verify=False)
-
-            if response.status_code == 200:
-                messages.success(request, "OTP has been sent to your phone.")
-            else:
-                messages.error(request, f"Failed to send SMS: {response.text}")
+            
+            # Try with SSL verification first
+            try:
+                session = requests.Session()
+                session.verify = certifi.where()
+                response = session.post(url, headers=headers, data=parameters, timeout=10)
+                
+                if response.status_code == 200:
+                    try:
+                        result = response.json()
+                        if result.get("success", True):
+                            messages.success(request, "OTP has been sent to your phone.")
+                        else:
+                            messages.error(request, f"SMS API Error: {result.get('message', 'Unknown error')}")
+                            return redirect("user_profile")
+                    except:
+                        # If response is not JSON, assume success for 200 status
+                        messages.success(request, "OTP has been sent to your phone.")
+                else:
+                    messages.error(request, f"Failed to send SMS: HTTP {response.status_code} - {response.text}")
+                    return redirect("user_profile")
+                    
+            except requests.exceptions.SSLError as e:
+                print(f"SSL Error in send_otp: {str(e)}")
+                # Fallback without SSL verification
+                try:
+                    response = requests.post(url, headers=headers, data=parameters, timeout=10, verify=False)
+                    if response.status_code == 200:
+                        messages.success(request, "OTP has been sent to your phone.")
+                    else:
+                        messages.error(request, f"Failed to send SMS (fallback): HTTP {response.status_code} - {response.text}")
+                        return redirect("user_profile")
+                except Exception as fallback_error:
+                    print(f"Fallback SMS Error in send_otp: {str(fallback_error)}")
+                    messages.error(request, f"Failed to send SMS: {str(fallback_error)}")
+                    return redirect("user_profile")
+            except Exception as e:
+                print(f"SMS Error in send_otp: {str(e)}")
+                messages.error(request, f"Failed to send SMS: {str(e)}")
                 return redirect("user_profile")
 
         else:
@@ -2321,11 +2363,19 @@ def debug_view(request):
         except Exception as e:
             ml_status = f"❌ ML error: {str(e)}"
         
+        # Test SMS configuration
+        sms_config = {
+            'sms_api_url': settings.SMS_API_URL,
+            'sms_api_key': settings.SMS_API_KEY[:10] + "..." if settings.SMS_API_KEY else "Not set",
+            'sms_device_id': settings.SMS_DEVICE_ID,
+        }
+        
         debug_info = {
             'django_version': settings.DJANGO_VERSION,
             'debug': settings.DEBUG,
             'database_connected': result[0] == 1,
             'ml_status': ml_status,
+            'sms_config': sms_config,
             'python_version': sys.version,
         }
         
@@ -2333,3 +2383,45 @@ def debug_view(request):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+def test_sms(request):
+    """Test SMS functionality"""
+    if request.method == 'POST':
+        test_phone = request.POST.get('phone', '')
+        if not test_phone:
+            return JsonResponse({'error': 'Phone number required'}, status=400)
+        
+        try:
+            # Format phone number
+            formatted_phone = test_phone
+            if test_phone.startswith("0"):
+                formatted_phone = "+63" + test_phone[1:]
+            elif not test_phone.startswith("+"):
+                formatted_phone = "+63" + test_phone
+            
+            # Send test SMS
+            url = settings.SMS_API_URL
+            parameters = {
+                'message': 'Test SMS from WeatherAlert - SMS functionality is working!',
+                'mobile_number': formatted_phone,
+                'device': settings.SMS_DEVICE_ID,
+                'device_sim': '1'
+            }
+            headers = {
+                'apikey': settings.SMS_API_KEY,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            
+            response = requests.post(url, headers=headers, data=parameters, timeout=10, verify=False)
+            
+            return JsonResponse({
+                'status_code': response.status_code,
+                'response_text': response.text,
+                'formatted_phone': formatted_phone,
+                'success': response.status_code == 200
+            })
+            
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+    
+    return JsonResponse({'error': 'POST request required'}, status=405)
