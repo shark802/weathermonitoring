@@ -1,6 +1,6 @@
 import numpy as np
 import joblib
-import onnxruntime as ort
+import tensorflow as tf
 import os
 import requests
 import json
@@ -8,9 +8,9 @@ import time
 import mysql.connector
 from mysql.connector import Error
 
-# Define file paths for the ONNX model and scalers.
+# Define file paths for the model and scalers.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ONNX_MODEL_FILE = os.path.join(BASE_DIR, "rain_model.onnx")
+MODEL_FILE = os.path.join(BASE_DIR, "rain_model.h5")
 SCALER_X_FILE = os.path.join(BASE_DIR, "scaler_X.pkl")
 SCALER_Y_FILE = os.path.join(BASE_DIR, "scaler_y.pkl")
 
@@ -75,15 +75,15 @@ def fetch_weather_data_from_api(api_key, latitude, longitude):
 # 2. Model and Scalers Loading
 # =======================================================
 try:
-    # Load the ONNX model session
-    session = ort.InferenceSession(ONNX_MODEL_FILE)
-    print("✅ ONNX model loaded successfully.")
+    model = tf.keras.models.load_model(MODEL_FILE, compile=False)
+    model.compile(optimizer="adam", loss="mean_squared_error")
+    print("✅ Model loaded successfully.")
     scaler_X = joblib.load(SCALER_X_FILE)
     scaler_y = joblib.load(SCALER_Y_FILE)
     print("✅ Scalers loaded successfully.")
 except FileNotFoundError as e:
     print(f"Error: One of the required files was not found: {e.filename}")
-    print("Please ensure 'rain_model.onnx', 'scaler_X.pkl', and 'scaler_y.pkl' are in the same directory.")
+    print("Please ensure 'rain_model.h5', 'scaler_X.pkl', and 'scaler_y.pkl' are in the same directory.")
     exit()
 except Exception as e:
     print(f"An unexpected error occurred during file loading: {e}")
@@ -108,20 +108,14 @@ def get_rain_intensity(amount):
         return "Torrential"
 
 def predict_rain(temperature, humidity, wind_speed, barometric_pressure):
-    """Predicts rainfall rate and duration using the loaded ONNX model."""
+    """Predicts rainfall rate and duration using the loaded model."""
     PAST_STEPS = 6
     # Note: The model's input features must be in the same order as when it was trained.
     input_features = np.array([[temperature, humidity, barometric_pressure, wind_speed, 0]])
     input_scaled = scaler_X.transform(input_features)
     X_seq = np.repeat(input_scaled, PAST_STEPS, axis=0).reshape(1, PAST_STEPS, -1)
     
-    # ONNX Runtime requires a dictionary of inputs and float32 data type
-    input_tensor = X_seq.astype(np.float32)
-    input_name = session.get_inputs()[0].name
-    output_name = session.get_outputs()[0].name
-    
-    y_pred_scaled = session.run([output_name], {input_name: input_tensor})[0]
-    
+    y_pred_scaled = model.predict(X_seq, verbose=0)
     y_pred = scaler_y.inverse_transform(y_pred_scaled)
     
     rain_rate = float(y_pred[0][0])
