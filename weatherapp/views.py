@@ -864,7 +864,7 @@ def user_dashboard(request):
     # ✅ Chart data (last 10 records)
     with connection.cursor() as cursor:
         cursor.execute("""
-            SELECT DATE_FORMAT(date_time, '%%a %%b %%d') AS label, temperature
+            SELECT DATE_FORMAT(date_time, '%a %b %d') AS label, temperature
             FROM weather_reports
             ORDER BY date_time DESC
             LIMIT 10
