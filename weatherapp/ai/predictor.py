@@ -64,6 +64,10 @@ def fetch_weather_data_from_api(api_key, latitude, longitude):
 # =======================================================
 # 2. Model and Scalers Loading
 # =======================================================
+model = None
+scaler_X = None
+scaler_y = None
+
 try:
     model = tf.keras.models.load_model(MODEL_FILE, compile=False)
     model.compile(optimizer="adam", loss="mean_squared_error")
@@ -72,12 +76,12 @@ try:
     scaler_y = joblib.load(SCALER_Y_FILE)
     print("✅ Scalers loaded successfully.")
 except FileNotFoundError as e:
-    print(f"Error: One of the required files was not found: {e.filename}")
+    print(f"Warning: One of the required files was not found: {e.filename}")
     print("Please ensure 'rain_model.h5', 'scaler_X.pkl', and 'scaler_y.pkl' are in the same directory.")
-    exit()
+    print("ML prediction will be disabled.")
 except Exception as e:
-    print(f"An unexpected error occurred during file loading: {e}")
-    exit()
+    print(f"Warning: An unexpected error occurred during file loading: {e}")
+    print("ML prediction will be disabled.")
 
 # =======================================================
 # 3. Helper and Prediction Functions
@@ -99,6 +103,22 @@ def get_rain_intensity(amount):
 
 def predict_rain(temperature, humidity, wind_speed, barometric_pressure):
     """Predicts rainfall rate and duration using the loaded model."""
+    if model is None or scaler_X is None or scaler_y is None:
+        print("Warning: ML model not loaded. Using fallback prediction.")
+        # Simple fallback prediction based on humidity and temperature
+        if humidity > 80 and temperature < 30:
+            rain_rate = 5.0
+            duration = 30.0
+        elif humidity > 70:
+            rain_rate = 2.0
+            duration = 15.0
+        else:
+            rain_rate = 0.5
+            duration = 5.0
+        
+        intensity = get_rain_intensity(rain_rate)
+        return rain_rate, duration, intensity
+    
     PAST_STEPS = 6
     # Note: The model's input features must be in the same order as when it was trained.
     input_features = np.array([[temperature, humidity, barometric_pressure, wind_speed, 0]])

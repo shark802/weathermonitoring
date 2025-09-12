@@ -31,6 +31,7 @@ import base64
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 import logging
+import sys
 from .ai.predictor import predict_rain
 
 logger = logging.getLogger(__name__)
@@ -2296,3 +2297,35 @@ def send_alert(request):
             return HttpResponse("Failed to send alert", status=500)
 
     return HttpResponse("Invalid request method.", status=405)
+
+def debug_view(request):
+    """Debug view to test basic Django functionality"""
+    try:
+        from django.conf import settings
+        from django.db import connection
+        
+        # Test database connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            result = cursor.fetchone()
+        
+        # Test ML predictor
+        try:
+            from .ai.predictor import predict_rain
+            rain_rate, duration, intensity = predict_rain(25.0, 70.0, 5.0, 1013.0)
+            ml_status = f"✅ ML working: {rain_rate:.2f}, {duration:.2f}, {intensity}"
+        except Exception as e:
+            ml_status = f"❌ ML error: {str(e)}"
+        
+        debug_info = {
+            'django_version': settings.DJANGO_VERSION,
+            'debug': settings.DEBUG,
+            'database_connected': result[0] == 1,
+            'ml_status': ml_status,
+            'python_version': sys.version,
+        }
+        
+        return JsonResponse(debug_info)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
