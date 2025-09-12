@@ -581,12 +581,16 @@ def admin_dashboard(request):
                     phone_numbers = []
                     for row in rows:
                         num = row[0]
-                        if num.startswith("0"):
-                            num = "+63" + num[1:]
-                        phone_numbers.append(num)
+                        if num:
+                            # Format phone number properly
+                            if num.startswith("0"):
+                                num = "+63" + num[1:]
+                            elif not num.startswith("+"):
+                                num = "+63" + num
+                            phone_numbers.append(num)
 
                 headers = {
-                    "apikey": '6PLX3NFL2A2FLQ81RI7X6C4PJP68ANLJNYQ7XAR6',
+                    "apikey": settings.SMS_API_KEY,
                     "Content-Type": "application/x-www-form-urlencoded"
                 }
 
@@ -613,19 +617,19 @@ def admin_dashboard(request):
                     sent_count = 0
                     for number in phone_numbers:
                         if sent_count >= 2:
-                            time.sleep(1)
+                            time.sleep(2)  # Wait 2 seconds between batches
                             sent_count = 0
 
                         payload = {
                             "message": message,
                             "mobile_number": number,
-                            "device": '97e8c4360d11fa51',
+                            "device": settings.SMS_DEVICE_ID,
                             "device_sim": "1"
                         }
 
                         try:
                             response = session.post(
-                                "https://sms.pagenet.info/api/v1/sms/send",
+                                settings.SMS_API_URL,
                                 headers=headers,
                                 data=payload,
                                 timeout=10
@@ -640,7 +644,7 @@ def admin_dashboard(request):
                             print(f"SSL Error: {str(e)}")
                             try:
                                 response = requests.post(
-                                    "https://sms.pagenet.info/api/v1/sms/send",
+                                    settings.SMS_API_URL,
                                     headers=headers,
                                     data=payload,
                                     timeout=10,
@@ -1024,15 +1028,15 @@ def send_otp(request, contact_type):
 
         elif contact_type == "phone":
             # Send OTP via SMS API
-            url = "https://sms.pagenet.info/api/v1/sms/send"
+            url = settings.SMS_API_URL
             parameters = {
                 'message': f'Your OTP for verifying your phone is: {otp}',
                 'mobile_number': phone,
-                'device': '97e8c4360d11fa51',
+                'device': settings.SMS_DEVICE_ID,
                 'device_sim': '1'
             }
             headers = {
-                'apikey': '6PLX3NFL2A2FLQ81RI7X6C4PJP68ANLJNYQ7XAR6'
+                'apikey': settings.SMS_API_KEY
             }
             response = requests.post(url, headers=headers, data=parameters, verify=False)
 

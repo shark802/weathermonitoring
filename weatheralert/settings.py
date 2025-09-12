@@ -26,7 +26,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-d0a@+xqkrda!+gb$6huxl
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['bccweather.herokuapp.com', 'bccweather-629d88a334c9.herokuapp.com', 'localhost', '127.0.0.1', '192.168.32.107']
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'bccweather.herokuapp.com,bccweather-629d88a334c9.herokuapp.com,localhost,127.0.0.1,192.168.32.107').split(',')
 
 
 # Application definition
@@ -153,12 +153,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'rainalertcaps@gmail.com'
-EMAIL_HOST_PASSWORD = 'clmz izuz zphx tnrw'
-DEFAULT_FROM_EMAIL = 'WeatherAlert <rainalertcaps@gmail.com>'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'rainalertcaps@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'clmz izuz zphx tnrw')
+DEFAULT_FROM_EMAIL = f'WeatherAlert <{EMAIL_HOST_USER}>'
 
 LOGIN_URL = 'login'
 LOGOUT_REDIRECT_URL = '/'
@@ -172,9 +172,13 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # SMS Configuration
-SMS_API_URL = 'https://sms.pagenet.info/api/v1/sms/send'
-SMS_API_KEY = '6PLX3NFL2A2FLQ81RI7X6C4PJP68ANLJNYQ7XAR6'
-SMS_DEVICE_ID = '97e8c4360d11fa51'
+SMS_API_URL = os.environ.get('SMS_API_URL', 'https://sms.pagenet.info/api/v1/sms/send')
+SMS_API_KEY = os.environ.get('SMS_API_KEY', '6PLX3NFL2A2FLQ81RI7X6C4PJP68ANLJNYQ7XAR6')
+SMS_DEVICE_ID = os.environ.get('SMS_DEVICE_ID', '97e8c4360d11fa51')
+
+# PhilSys QR Verification Keys
+PSA_PUBLIC_KEY = os.environ.get('PSA_PUBLIC_KEY', '')
+PSA_ED25519_PUBLIC_KEY = os.environ.get('PSA_ED25519_PUBLIC_KEY', '')
 
 # Security settings for production
 if not DEBUG:
