@@ -5,8 +5,7 @@ import os
 import requests
 import json
 import time
-import mysql.connector
-from mysql.connector import Error
+from django.db import connection
 
 # Define file paths for the model and scalers.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -17,29 +16,20 @@ SCALER_Y_FILE = os.path.join(BASE_DIR, "scaler_y.pkl")
 # =======================================================
 # 1. Database and API Functions
 # =======================================================
-def get_latest_sensor_data(db_config):
+def get_latest_sensor_data():
     """
-    Fetches the latest temperature and humidity from your MySQL database.
-    This function now takes a dictionary of database configurations, which should be
-    sourced from environment variables for security.
+    Fetches the latest temperature and humidity from the database using Django's connection.
     """
-    conn = None
     try:
-        conn = mysql.connector.connect(**db_config)
-        if conn.is_connected():
-            cursor = conn.cursor()
+        with connection.cursor() as cursor:
             query = "SELECT temperature, humidity FROM weather_reports ORDER BY date_time DESC LIMIT 1"
             cursor.execute(query)
             data = cursor.fetchone()
             return data if data else (None, None)
-    except Error as e:
-        print(f"Error connecting to MySQL database: {e}")
-        print("Please check your database credentials and connection.")
-    finally:
-        if conn and conn.is_connected():
-            conn.close()
-            print("MySQL connection closed.")
-    return None, None
+    except Exception as e:
+        print(f"Error connecting to database: {e}")
+        print("Please check your database configuration.")
+        return None, None
 
 def fetch_weather_data_from_api(api_key, latitude, longitude):
     """
@@ -131,18 +121,12 @@ def main():
     """Main function to orchestrate data fetching and prediction."""
     print("\n--- Live Rainfall Prediction Demo with API Integration ---")
     
-    db_config = {
-        'user': os.environ.get('MYSQL_USER'),
-        'password': os.environ.get('MYSQL_PASSWORD'),
-        'host': os.environ.get('MYSQL_HOST'),
-        'database': os.environ.get('MYSQL_DATABASE')
-    }
     api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
     latitude = os.environ.get('LATITUDE')
     longitude = os.environ.get('LONGITUDE')
     
     # --- Step 1: Fetch data from your database ---
-    latest_temp, latest_humidity = get_latest_sensor_data(db_config)
+    latest_temp, latest_humidity = get_latest_sensor_data()
     if latest_temp is None or latest_humidity is None:
         print("Could not fetch temperature or humidity from the database. Exiting.")
         return
