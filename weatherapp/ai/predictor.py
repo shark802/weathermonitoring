@@ -205,7 +205,7 @@ def main():
             humidity=latest_humidity,
             wind_speed=wind_speed,
             barometric_pressure=barometric_pressure,
-            current_hour=current_hour # ❗ ADDED `current_hour` to the function call
+            current_hour=current_hour
         )
         
         if predicted_rain_rate is None:
