@@ -899,23 +899,23 @@ def user_dashboard(request):
             }
             current_sensor_id = None
 
-    if weather and weather.get('temperature') != 'N/A':
-        try:
-            rain_rate, duration, intensity = predict_rain(
-                weather['temperature'],
-                weather['humidity'],
-                weather['wind_speed'],
-                weather['dew_point'] if weather['dew_point'] else 1013
-            )
-            forecast = [{
-                'prediction': round(rain_rate, 2),
-                'intensity': intensity,
-                'duration': round(duration, 1)
-            }]
-        except Exception as e:
-            forecast = [{'prediction': None, 'error': str(e)}]
-    else:
-        forecast = []
+        forecast = {}
+        cursor.execute("""
+            SELECT predicted_rain, duration, intensity
+            FROM ai_predictions
+            ORDER BY created_at DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        if row:
+            forecast = {
+                'prediction': float(row[0]),
+                'duration': float(row[1]),
+                'intensity': row[2],
+                'error': None
+            }
+        else:
+            forecast = {'error': 'No AI prediction data available.'}
 
     # ✅ Chart data (last 10 records)
     with connection.cursor() as cursor:
@@ -959,7 +959,7 @@ def user_dashboard(request):
     context = {
         'user': {'name': user_name},
         'weather': weather,
-        'forecast': forecast,
+        'forecast': [forecast] if forecast.get('error') is None else [],
         'labels': json.dumps(labels),
         'data': json.dumps(temps),
         'available_sensors': available_sensors,
