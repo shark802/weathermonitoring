@@ -7,8 +7,8 @@ from machine import Pin, UART
 from micropython import const
 
 # Constants and Pin Assignments
-ssid = "SIASICO"
-password = "Waykokabalo0831"
+ssid = "CB5 Lab WiFi"
+password = "cb5@bcc2025"
 
 # DHT11 Sensor Pin
 DHT11_PIN_NUM = 4
@@ -31,15 +31,11 @@ WIND_DIRECTION_ADDR = 0x02
 WIND_SPEED_REG = 0x0001
 WIND_DIRECTION_REG = 0x0001
 
-# UART and Modbus setup
-rs485_uart = UART(2, baudrate=4800, bits=8, parity=None, stop=1, tx=RS485_UART_TX, rx=RS485_UART_RX, timeout=200)
+# Corrected UART and Modbus setup
 rs485_enable_pin = Pin(RS485_DE_RE_PIN, Pin.OUT)
-
-# CORRECTED IMPORT: Assuming you have manually copied the umodbus file
-import umodbus as ModbusRTUMaster
-
-# Instantiate Modbus Master
-modbus = ModbusRTUMaster.Serial(rs485_uart, rs485_enable_pin)
+# Assuming ModbusRTUMaster is correctly imported from umodbus.serial
+from umodbus.serial import Serial as ModbusRTUMaster
+modbus = ModbusRTUMaster(uart_id=2, baudrate=4800, pins=[RS485_UART_TX, RS485_UART_RX], ctrl_pin=RS485_DE_RE_PIN)
 
 # Interrupt handler for rain gauge
 def rain_tip_handler(pin):
@@ -80,8 +76,6 @@ def read_modbus_sensors():
     
     # Read wind speed
     try:
-        # Note: The function call might change depending on the library's specifics.
-        # This one is a common standard.
         response_speed = modbus.read_holding_registers(WIND_SPEED_ADDR, WIND_SPEED_REG, 1)
         if response_speed:
             wind_speed = response_speed[0] / 100.0
@@ -101,65 +95,71 @@ def read_modbus_sensors():
     return wind_speed, wind_direction
 
 # Main loop
+last_run_time = 0
+INTERVAL_SECONDS = 600  # 10 minutes
+
 while True:
     try:
-        sta = connect_wifi()
+        # Check if 10 minutes have passed
+        if time.time() - last_run_time >= INTERVAL_SECONDS:
+            print("--- Starting new data collection cycle ---")
+            
+            # Reconnect WiFi if needed
+            sta = connect_wifi()
 
-        sensor = dht.DHT11(Pin(DHT11_PIN_NUM))
-        rain_pin = Pin(RAIN_PIN_NUM, Pin.IN, Pin.PULL_UP)
-        rain_pin.irq(trigger=Pin.IRQ_FALLING, handler=rain_tip_handler)
+            # Read DHT11 sensor
+            sensor = dht.DHT11(Pin(DHT11_PIN_NUM))
+            for attempt in range(2):
+                try:
+                    sensor.measure()
+                    temp = sensor.temperature()
+                    hum = sensor.humidity()
+                    break
+                except Exception as e:
+                    print(f"DHT11 read attempt {attempt + 1} failed:", e)
+                    time.sleep(1)
+            else:
+                print("Failed to read DHT11 after 2 attempts, skipping this cycle")
+                last_run_time = time.time()
+                continue
 
-        url = "https://bccweather-629d88a334c9.herokuapp.com/api/data/"
+            # Read wind sensors
+            wind_speed, wind_direction = read_modbus_sensors()
 
-        while True:
-            try:
-                # Read DHT11 sensor
-                for attempt in range(2):
-                    try:
-                        sensor.measure()
-                        temp = sensor.temperature()
-                        hum = sensor.humidity()
-                        break
-                    except Exception as e:
-                        print(f"DHT11 read attempt {attempt + 1} failed:", e)
-                        time.sleep(1)
-                else:
-                    print("Failed to read DHT11 after 2 attempts, skipping this cycle")
-                    time.sleep(600)
-                    continue
+            # Safely read and reset rain tip count
+            tips = rain_tip_count
+            rain_tip_count = 0
+            rainfall_mm = tips * 0.3
 
-                # Read wind sensors
-                wind_speed, wind_direction = read_modbus_sensors()
+            payload = {
+                "temperature": temp,
+                "humidity": hum,
+                "rainfall_mm": rainfall_mm,
+                "rain_tip_count": tips,
+                "wind_speed": wind_speed,
+                "wind_direction": wind_direction,
+                "sensor_id": 1
+            }
 
-                # Safely read and reset rain tip count
-                tips = rain_tip_count
-                rain_tip_count = 0
-                rainfall_mm = tips * 0.3
+            url = "https://bccweatherapp-8fcc2a32c70f.herokuapp.com//api/data/"
+            headers = {"Content-Type": "application/json"}
+            
+            response = urequests.post(url, data=ujson.dumps(payload), headers=headers)
+            print("Server response:", response.text)
+            response.close()
 
-                payload = {
-                    "temperature": temp,
-                    "humidity": hum,
-                    "rainfall_mm": rainfall_mm,
-                    "rain_tip_count": tips,
-                    "wind_speed": wind_speed,
-                    "wind_direction": wind_direction,
-                    "sensor_id": 1
-                }
-
-                headers = {"Content-Type": "application/json"}
-                response = urequests.post(url, data=ujson.dumps(payload), headers=headers)
-                print("Server response:", response.text)
-                response.close()
-
-            except Exception as e:
-                print("Error during sensor reading or HTTP request:", e)
-                if not sta.isconnected():
-                    print("WiFi disconnected, attempting to reconnect...")
-                    break  # break inner loop to reconnect WiFi
-
-            time.sleep(600)  # 10 minutes
-
+            # Update the last run time
+            last_run_time = time.time()
+            
     except OSError as e:
         print("Fatal error:", e)
-        print("Retrying WiFi connection in 5 seconds...")
+        print("Retrying in 5 seconds...")
         time.sleep(5)
+    
+    except Exception as e:
+        print("An unexpected error occurred:", e)
+        print("Retrying in 5 seconds...")
+        time.sleep(5)
+
+    # Add a short sleep to yield control
+    time.sleep(5)

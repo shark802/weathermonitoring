@@ -26,7 +26,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-d0a@+xqkrda!+gb$6huxl
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'bccweather.herokuapp.com,bccweather-629d88a334c9.herokuapp.com,localhost,127.0.0.1,192.168.32.107').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'bccweatherapp.herokuapp.com,bccweatherapp-8fcc2a32c70f.herokuapp.com,localhost,127.0.0.1,192.168.32.107').split(',')
 
 
 # Application definition
