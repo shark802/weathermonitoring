@@ -2399,11 +2399,6 @@ def receive_sensor_data(request):
         except (ValueError, TypeError):
             wind_speed = 0
 
-        try:
-            wind_direction = str(data.get('wind_direction', ''))
-        except (ValueError, TypeError):
-            wind_direction = ''
-
         try:    
             pressure = float(data.get('barometric_pressure', 0))
         except (ValueError, TypeError):
@@ -2431,12 +2426,12 @@ def receive_sensor_data(request):
             cursor.execute("""
                 INSERT INTO weather_reports (
                     sensor_id, intensity_id, temperature, humidity,
-                    wind_speed, wind_direction, barometric_pressure,
+                    wind_speed, barometric_pressure,
                     dew_point, date_time, rain_rate, rain_accumulated
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, [
                 sensor_id, intensity_id, temperature, humidity,
-                wind_speed, wind_direction, pressure,
+                wind_speed, pressure,
                 dew_point, ph_time, rain_rate, rain_accumulated
             ])
 
