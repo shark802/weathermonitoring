@@ -270,7 +270,7 @@
                 <th>Date</th>
                 <th>Temperature (°C)</th>
                 <th>Humidity (%)</th>
-                <th>Wind Speed (km/h)</th>
+                <th>Wind Speed (m/s)</th>
                 <th>Wind Direction</th>
                 <th>Pressure (hPa)</th>
                 <th>Dew Point (°C)</th>
@@ -681,7 +681,7 @@
             },
             { 
                 data: 'max_wind_speed', 
-                title: 'Max Wind (km/h)',
+                title: 'Max Wind (m/s)',
                 render: function(data) {
                     return data ? parseFloat(data).toFixed(1) : 'N/A';
                 }
@@ -832,7 +832,7 @@
             stats.avg_temp ? stats.avg_temp + '°C' : 'N/A'
         );
         $('.summary-card:nth-child(2) .text-2xl').text(
-            stats.max_wind ? stats.max_wind + ' km/h' : 'N/A'
+            stats.max_wind ? stats.max_wind + ' m/s' : 'N/A'
         );
         $('.summary-card:nth-child(3) .text-2xl').text(
             stats.avg_humidity ? stats.avg_humidity + '%' : 'N/A'

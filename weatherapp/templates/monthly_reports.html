@@ -200,7 +200,7 @@
               <div>
                 <p class="text-xs text-gray-400">Min</p>
                 <p class="text-lg font-bold">
-                  {{ summary_stats.min_wind|default:"N/A"|floatformat:1 }} km/h
+                  {{ summary_stats.min_wind|default:"N/A"|floatformat:1 }} m/s
                 </p>
                 <p class="text-xs text-gray-400">
                   {{ summary_stats.min_wind_date|date:"F Y" }}
@@ -209,7 +209,7 @@
               <div class="text-right">
                 <p class="text-xs text-gray-400">Max</p>
                 <p class="text-lg font-bold">
-                  {{ summary_stats.max_wind|default:"N/A"|floatformat:1 }} km/h
+                  {{ summary_stats.max_wind|default:"N/A"|floatformat:1 }} m/s
                 </p>
                 <p class="text-xs text-gray-400">
                   {{ summary_stats.max_wind_date|date:"F Y" }}
@@ -319,7 +319,7 @@
                 <th>Month</th>
                 <th>Temperature (°C)</th>
                 <th>Humidity (%)</th>
-                <th>Wind Speed (km/h)</th>
+                <th>Wind Speed (m/s)</th>
                 <th>Wind Direction</th>
                 <th>Pressure (hPa)</th>
                 <th>Dew Point (°C)</th>
@@ -777,7 +777,7 @@ $(document).ready(function () {
                             report.month || 'N/A',
                             report.avg_temperature !== undefined && report.avg_temperature !== null ? parseFloat(report.avg_temperature).toFixed(1) + '°C' : 'N/A',
                             report.avg_humidity !== undefined && report.avg_humidity !== null ? parseFloat(report.avg_humidity).toFixed(1) + '%' : 'N/A',
-                            report.avg_wind_speed !== undefined && report.avg_wind_speed !== null ? parseFloat(report.avg_wind_speed).toFixed(1) + ' km/h' : 'N/A',
+                            report.avg_wind_speed !== undefined && report.avg_wind_speed !== null ? parseFloat(report.avg_wind_speed).toFixed(1) + ' m/s' : 'N/A',
                             report.avg_wind_direction || 'N/A',
                             report.avg_barometric_pressure !== undefined && report.avg_barometric_pressure !== null ? parseFloat(report.avg_barometric_pressure).toFixed(1) + ' hPa' : 'N/A',
                             report.avg_dew_point !== undefined && report.avg_dew_point !== null ? parseFloat(report.avg_dew_point).toFixed(1) + '°C' : 'N/A',
@@ -811,7 +811,7 @@ $(document).ready(function () {
             stats.avg_temp !== undefined && stats.avg_temp !== null ? parseFloat(stats.avg_temp).toFixed(1) + '°C' : 'N/A'
         );
         $('.summary-card:nth-child(2) .text-2xl').text(
-            stats.max_wind !== undefined && stats.max_wind !== null ? parseFloat(stats.max_wind).toFixed(1) + ' km/h' : 'N/A'
+            stats.max_wind !== undefined && stats.max_wind !== null ? parseFloat(stats.max_wind).toFixed(1) + ' m/s' : 'N/A'
         );
         $('.summary-card:nth-child(3) .text-2xl').text(
             stats.avg_humidity !== undefined && stats.avg_humidity !== null ? parseFloat(stats.avg_humidity).toFixed(1) + '%' : 'N/A'

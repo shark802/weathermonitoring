@@ -4,46 +4,89 @@ import time
 import dht
 import ujson
 from machine import Pin, UART
+from umodbus.serial import Serial as ModbusRTUMaster
 from micropython import const
 
-# Constants and Pin Assignments
+# ----------------------------------------------------------------------
+# 1. Configuration Constants and Pin Assignments
+# ----------------------------------------------------------------------
 ssid = "CB5 Lab WiFi"
 password = "cb5@bcc2025"
 
 # DHT11 Sensor Pin
-DHT11_PIN_NUM = 4
+DHT11_PIN_NUM = 4 # Connects to the DHT11 data pin
 
 # Rain Gauge Pin and variables
-RAIN_PIN_NUM = 5
+RAIN_PIN_NUM = 5 
 rain_tip_count = 0
 last_tip_time = 0
+RAIN_TIP_DEBOUNCE_MS = const(200) # Debounce time for rain gauge tip
 
-# RS485 Modbus Pins
-RS485_UART_TX = 17  # GPIO17
-RS485_UART_RX = 16  # GPIO16
-RS485_DE_RE_PIN = 18 # GPIO18
+# Wind Speed Pulse Input
+WIND_SPEED_PIN = 21 # GPIO21 for ZTS-3000 Wind Speed Pulse (Blue/White wire)
+wind_pulse_count = 0
+# Calibration factor: Wind Speed (m/s) = Frequency (Hz) * FACTOR
+# **CHECK YOUR ZTS-3000 MANUAL FOR THE CORRECT FACTOR**
+WIND_SPEED_FACTOR = 0.5 
 
-# Modbus Sensor Addresses
-WIND_SPEED_ADDR = 0x01
-WIND_DIRECTION_ADDR = 0x02
+# RS485 Modbus (ZTS-3000 Wind Direction) Pins
+RS485_UART_TX = 17 # GPIO17 -> RS485 Module DI
+RS485_UART_RX = 16 # GPIO16 <- Logic Level Shifter <- RS485 Module RO
+RS485_DE_RE_PIN = 18 # GPIO18 -> RS485 Module RE/DE (tied)
 
-# Modbus Register Addresses (from sensor datasheet)
-WIND_SPEED_REG = 0x0001
+# Modbus Sensor Address
+WIND_SENSOR_ADDR = 0x01
+
+# Modbus Register Address (for Wind Direction)
 WIND_DIRECTION_REG = 0x0001
+WIND_DIRECTION_SCALING = 10.0 # Standard ZTS-3000 scaling for 0.1 degree resolution
 
-# Corrected UART and Modbus setup
-rs485_enable_pin = Pin(RS485_DE_RE_PIN, Pin.OUT)
-# Assuming ModbusRTUMaster is correctly imported from umodbus.serial
-from umodbus.serial import Serial as ModbusRTUMaster
-modbus = ModbusRTUMaster(uart_id=2, baudrate=4800, pins=[RS485_UART_TX, RS485_UART_RX], ctrl_pin=RS485_DE_RE_PIN)
+INTERVAL_SECONDS = 600 # Data collection interval: 10 minutes
+
+# ----------------------------------------------------------------------
+# 2. Pin Setup and Communication Initialization
+# ----------------------------------------------------------------------
+
+# 2.1 Interrupt Pin Setup
+rain_pin = Pin(RAIN_PIN_NUM, Pin.IN, Pin.PULL_UP)
+wind_speed_pin = Pin(WIND_SPEED_PIN, Pin.IN, Pin.PULL_UP)
+
+# 2.2 RS485 Modbus Initialization
+# The ctrl_pin handles the DE/RE direction switching automatically by umodbus
+modbus = ModbusRTUMaster(
+    uart_id=2, 
+    baudrate=4800, 
+    pins=[RS485_UART_TX, RS485_UART_RX], 
+    ctrl_pin=RS485_DE_RE_PIN
+)
+
+# ----------------------------------------------------------------------
+# 3. Interrupt Handlers
+# ----------------------------------------------------------------------
 
 # Interrupt handler for rain gauge
 def rain_tip_handler(pin):
     global rain_tip_count, last_tip_time
     current_time = time.ticks_ms()
-    if time.ticks_diff(current_time, last_tip_time) > 200:  # debounce 200 ms
+    # Debounce check
+    if time.ticks_diff(current_time, last_tip_time) > RAIN_TIP_DEBOUNCE_MS: 
         rain_tip_count += 1
         last_tip_time = current_time
+
+# Interrupt handler for wind speed sensor (Pulse Counter)
+def wind_pulse_handler(pin):
+    global wind_pulse_count
+    # The wind pulse signal is often a clean square wave; debouncing may not be needed
+    # but could be added if noise is observed.
+    wind_pulse_count += 1
+
+# Attach Interrupts
+rain_pin.irq(trigger=Pin.IRQ_FALLING, handler=rain_tip_handler)
+wind_speed_pin.irq(trigger=Pin.IRQ_RISING, handler=wind_pulse_handler)
+
+# ----------------------------------------------------------------------
+# 4. Core Functions
+# ----------------------------------------------------------------------
 
 # WiFi connection function
 def connect_wifi():
@@ -69,68 +112,86 @@ def connect_wifi():
     print("WiFi connected. IP:", sta.ifconfig()[0])
     return sta
 
-# Function to read Modbus sensors
-def read_modbus_sensors():
-    wind_speed = -1.0
+# Function to read Modbus Wind Direction
+def read_modbus_direction():
     wind_direction = -1.0
     
-    # Read wind speed
     try:
-        response_speed = modbus.read_holding_registers(WIND_SPEED_ADDR, WIND_SPEED_REG, 1)
-        if response_speed:
-            wind_speed = response_speed[0] / 100.0
-            print("Wind Speed:", wind_speed, "m/s")
-    except Exception as e:
-        print("Error reading wind speed:", e)
-
-    # Read wind direction
-    try:
-        response_dir = modbus.read_holding_registers(WIND_DIRECTION_ADDR, WIND_DIRECTION_REG, 1)
+        # Read a single holding register (0x0001) from the sensor address (0x01)
+        response_dir = modbus.read_holding_registers(WIND_SENSOR_ADDR, WIND_DIRECTION_REG, 1)
         if response_dir:
-            wind_direction = response_dir[0] / 10.0
+            # Scale the raw integer value (e.g., raw 1800 -> 180.0 degrees)
+            wind_direction = response_dir[0] / WIND_DIRECTION_SCALING
             print("Wind Direction:", wind_direction, "degrees")
     except Exception as e:
-        print("Error reading wind direction:", e)
+        print("Error reading wind direction via Modbus:", e)
 
-    return wind_speed, wind_direction
+    return wind_direction
 
-# Main loop
+# Function to calculate wind speed from pulse count
+def calculate_wind_speed():
+    global wind_pulse_count
+    
+    # 1. Safely get and reset the pulse count
+    pulses = wind_pulse_count
+    wind_pulse_count = 0
+    
+    # 2. Calculate Frequency (Hz = pulses / time in seconds)
+    # The time interval is the main loop's logging interval (600 seconds)
+    frequency_hz = pulses / INTERVAL_SECONDS
+    
+    # 3. Calculate Speed (m/s)
+    wind_speed = frequency_hz * WIND_SPEED_FACTOR 
+    
+    print(f"Wind Pulses: {pulses}, Freq: {frequency_hz:.2f} Hz, Speed: {wind_speed:.2f} m/s")
+    
+    return wind_speed
+
+# ----------------------------------------------------------------------
+# 5. Main Execution Loop
+# ----------------------------------------------------------------------
 last_run_time = 0
-INTERVAL_SECONDS = 600  # 10 minutes
 
 while True:
     try:
-        # Check if 10 minutes have passed
+        # Check if the data collection interval has passed
         if time.time() - last_run_time >= INTERVAL_SECONDS:
-            print("--- Starting new data collection cycle ---")
+            print("\n--- Starting new data collection cycle ---")
             
-            # Reconnect WiFi if needed
+            # --- WiFi Connection ---
             sta = connect_wifi()
 
-            # Read DHT11 sensor
+            # --- Read DHT11 sensor ---
+            temp = -1
+            hum = -1
             sensor = dht.DHT11(Pin(DHT11_PIN_NUM))
             for attempt in range(2):
                 try:
                     sensor.measure()
                     temp = sensor.temperature()
                     hum = sensor.humidity()
+                    print(f"DHT11: Temp={temp}°C, Hum={hum}%")
                     break
                 except Exception as e:
                     print(f"DHT11 read attempt {attempt + 1} failed:", e)
                     time.sleep(1)
             else:
-                print("Failed to read DHT11 after 2 attempts, skipping this cycle")
-                last_run_time = time.time()
-                continue
+                print("Failed to read DHT11, using default values.")
 
-            # Read wind sensors
-            wind_speed, wind_direction = read_modbus_sensors()
+            # --- Read Wind Direction (Modbus) ---
+            wind_direction = read_modbus_direction()
 
-            # Safely read and reset rain tip count
+            # --- Calculate Wind Speed (Pulse Counter) ---
+            wind_speed = calculate_wind_speed()
+
+            # --- Read and Reset Rainfall ---
             tips = rain_tip_count
             rain_tip_count = 0
+            # Assuming 1 tip = 0.3mm (Adjust as needed)
             rainfall_mm = tips * 0.3
+            print(f"Rainfall: {rainfall_mm:.1f} mm ({tips} tips)")
 
+            # --- Prepare and Send Data ---
             payload = {
                 "temperature": temp,
                 "humidity": hum,
@@ -141,25 +202,26 @@ while True:
                 "sensor_id": 1
             }
 
-            url = "https://bccweatherapp-8fcc2a32c70f.herokuapp.com//api/data/"
+            url = "https://bccweatherapp-8fcc2a32c70f.herokuapp.com/api/data/"
             headers = {"Content-Type": "application/json"}
             
             response = urequests.post(url, data=ujson.dumps(payload), headers=headers)
-            print("Server response:", response.text)
+            print(f"Server response: Status {response.status_code}")
+            # print("Response text:", response.text) # Uncomment for debug
             response.close()
 
             # Update the last run time
             last_run_time = time.time()
             
     except OSError as e:
-        print("Fatal error:", e)
-        print("Retrying in 5 seconds...")
-        time.sleep(5)
+        print("Fatal OSError (e.g., WiFi or Network issue):", e)
+        print("Retrying in 10 seconds...")
+        time.sleep(10)
     
     except Exception as e:
         print("An unexpected error occurred:", e)
-        print("Retrying in 5 seconds...")
-        time.sleep(5)
+        print("Retrying in 10 seconds...")
+        time.sleep(10)
 
-    # Add a short sleep to yield control
+    # Short sleep to prevent immediate re-check and yield control to the OS
     time.sleep(5)
