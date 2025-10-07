@@ -2,8 +2,6 @@ import numpy as np
 import joblib
 import tensorflow as tf
 import os
-import requests
-import json
 import time
 import sys
 import django
@@ -11,7 +9,7 @@ from django.conf import settings
 from django.db import connection
 from dotenv import load_dotenv
 
-# ❗ NEW: Call load_dotenv() to load variables from the .env file
+# Load environment variables (needed for Django settings/DB config)
 load_dotenv()
 
 # Define file paths for the model and scalers.
@@ -20,51 +18,63 @@ MODEL_FILE = os.path.join(BASE_DIR, "rain_model.h5")
 SCALER_X_FILE = os.path.join(BASE_DIR, "scaler_X.pkl")
 SCALER_Y_FILE = os.path.join(BASE_DIR, "scaler_y.pkl")
 
+# Define the number of time steps (sequence length) the model requires.
+SEQUENCE_LENGTH = 6
+
 # =======================================================
-# 1. Database and API Functions
+# 1. Database Function (All Data from DB)
 # =======================================================
-def get_latest_sensor_data():
+def get_sequence_data_from_db():
     """
-    Fetches the latest temperature and humidity from the database using Django's connection.
+    Fetches the last SEQUENCE_LENGTH time steps of all required features
+    from the database: temperature, humidity, wind_speed, barometric_pressure,
+    and the hour of the day (derived from date_time).
+
+    Returns:
+        list[list]: A sequence of historical weather data (oldest to newest),
+                    or None if insufficient data is found.
     """
+    print(f"Fetching last {SEQUENCE_LENGTH} time steps of data from database...")
     try:
         with connection.cursor() as cursor:
-            query = "SELECT temperature, humidity FROM weather_reports ORDER BY date_time DESC LIMIT 1"
-            cursor.execute(query)
-            data = cursor.fetchone()
-            return data if data else (None, None)
-    except Exception as e:
-        print(f"Error connecting to database: {e}")
-        print("Please check your database configuration.")
-        return None, None
-
-def fetch_weather_data_from_api(api_key, latitude, longitude):
-    """
-    Fetches wind speed and barometric pressure from a weather API (e.g., OpenWeatherMap).
-    """
-    print("Fetching missing data from weather API...")
-    url = f"https://api.openweathermap.org/data/2.5/weather?lat={latitude}&lon={longitude}&appid={api_key}&units=metric"
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
-        data = response.json()
-        
-        wind_speed = data.get('wind', {}).get('speed')
-        pressure = data.get('main', {}).get('pressure')
-        
-        if wind_speed is not None and pressure is not None:
-            return wind_speed, pressure
-        else:
-            print("Required data not found in API response.")
-            return None, None
+            # NOTE: We assume 'weather_reports' now contains wind_speed and barometric_pressure.
+            # We fetch date_time to calculate the 'hour_of_day' feature (0-23).
+            query = """
+            SELECT temperature, humidity, wind_speed, barometric_pressure, date_time
+            FROM weather_reports
+            ORDER BY date_time DESC
+            LIMIT %s
+            """
+            cursor.execute(query, [SEQUENCE_LENGTH])
+            data = cursor.fetchall()
             
-    except requests.exceptions.RequestException as e:
-        print(f"Error connecting to the weather API: {e}")
-        print("Please check your API key and network connection.")
-        return None, None
+            if not data or len(data) < SEQUENCE_LENGTH:
+                print(f"Error: Found only {len(data)} records. {SEQUENCE_LENGTH} required for prediction.")
+                return None
+            
+            # The data is fetched in reverse chronological order (newest first).
+            # The sequence must be oldest to newest for the model.
+            data.reverse()
+            
+            sequence = []
+            for temp, humid, wind, pressure, dt in data:
+                # dt is a datetime object from the database, extract the hour (0-23).
+                hour_of_day = float(dt.hour)
+                # The 5 features must be in the same order as the model training data.
+                sequence.append([
+                    float(temp),
+                    float(humid),
+                    float(wind),
+                    float(pressure),
+                    hour_of_day
+                ])
+
+            return sequence
+
     except Exception as e:
-        print(f"An unexpected error occurred during the API call: {e}")
-        return None, None
+        print(f"Error reading database for sequence data: {e}")
+        print("Please check your database configuration and table schema.")
+        return None
 
 # =======================================================
 # 2. Model and Scalers Loading
@@ -109,13 +119,23 @@ def get_rain_intensity(amount):
 def predict_rain(input_features):
     """
     Predicts rainfall rate and duration using the loaded model.
-    This function now expects a NumPy array of shape (6, 5).
+    This function expects a NumPy array of shape (6, 5).
+    
+    Args:
+        input_features (np.ndarray): The (6, 5) sequence of features.
+
+    Returns:
+        tuple: (rain_rate, duration, intensity_label)
     """
+    
+    # Extract the latest data point for fallback prediction
+    latest_data = input_features[-1]
+    latest_temp, latest_humidity, _, _, _ = latest_data
+
     if model is None or scaler_X is None or scaler_y is None:
         print("Warning: ML model not loaded. Using fallback prediction.")
-        latest_temp = input_features[0][0]
-        latest_humidity = input_features[0][1]
         
+        # Fallback logic using the latest temperature and humidity
         if latest_humidity > 80 and latest_temp < 30:
             rain_rate = 5.0
             duration = 30.0
@@ -131,14 +151,15 @@ def predict_rain(input_features):
     
     try:
         # Scale the entire 6-step input array
+        # Reshaping to (6, 5) ensures the scaler works correctly on all 6 steps
         input_scaled = scaler_X.transform(input_features)
     except ValueError as e:
         print(f"Error during scaling: {e}")
-        print("This may be due to a mismatch in the number of features.")
+        print("This may be due to a mismatch in the number of features (should be 5).")
         return None, None, "Error"
 
     # Reshape the data for the model (1 sample, 6 time steps, 5 features)
-    X_seq = input_scaled.reshape(1, 6, -1)
+    X_seq = input_scaled.reshape(1, SEQUENCE_LENGTH, -1)
     
     y_pred_scaled = model.predict(X_seq, verbose=0)
     y_pred = scaler_y.inverse_transform(y_pred_scaled)
@@ -154,61 +175,40 @@ def predict_rain(input_features):
 # =======================================================
 def main():
     """Main function to orchestrate data fetching and prediction."""
-    print("\n--- Live Rainfall Prediction Demo with API Integration ---")
+    print("\n--- Live Rainfall Prediction Demo (Database Only) ---")
     
     try:
-        # The fix for the `ModuleNotFoundError` from the previous step.
+        # Django setup (copied from original)
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         sys.path.append(project_root)
-        
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'weather_app.settings')
         django.setup()
         
-        # These variables will now be loaded from your .env file
-        api_key = os.environ.get('OPENWEATHERMAP_API_KEY')
-        latitude = os.environ.get('LATITUDE')
-        longitude = os.environ.get('LONGITUDE')
+        # --- Step 1: Fetch 6 steps of data from your database ---
+        sequence_data_list = get_sequence_data_from_db()
         
-        # --- Step 1: Fetch data from your database ---
-        if not all([api_key, latitude, longitude]):
-            print("Error: Missing API key or coordinates in environment variables. Exiting.")
-            return
-            
-        try:
-            latitude = float(latitude)
-            longitude = float(longitude)
-        except (ValueError, TypeError):
-            print("Error: Latitude or Longitude environment variables are not valid numbers. Exiting.")
+        if sequence_data_list is None:
+            print("Prediction failed due to insufficient or missing data. Exiting.")
             return
 
-        wind_speed, barometric_pressure = fetch_weather_data_from_api(api_key, latitude, longitude)
-        if wind_speed is None or barometric_pressure is None:
-            print("Failed to fetch wind speed or pressure from API. Exiting.")
-            return
-            
-        latest_temp, latest_humidity = get_latest_sensor_data()
-        if latest_temp is None or latest_humidity is None:
-            print("Could not fetch temperature or humidity from the database. Exiting.")
-            return
+        # Convert list of lists (6, 5) to NumPy array for ML processing
+        input_features_array = np.array(sequence_data_list, dtype=np.float32)
+
+        # Extract the latest data point for display
+        # Order: [temp, humid, wind, pressure, hour_of_day]
+        latest_temp, latest_humidity, wind_speed, barometric_pressure, current_hour = input_features_array[-1]
         
-        # ❗ ADDED `current_hour` to the data collection
-        current_hour = time.localtime().tm_hour
-
-        print("\nData collected from all sources:")
-        print(f"From your device: Temperature={latest_temp}°C, Humidity={latest_humidity}%")
-        print(f"From external API: Wind Speed={wind_speed} m/s, Barometric Pressure={barometric_pressure} hPa")
-        print(f"Current Hour: {current_hour}")
-
-        # --- Step 3: Combine all data and make the prediction ---
-        predicted_rain_rate, predicted_duration, intensity_label = predict_rain(
-            temperature=latest_temp,
-            humidity=latest_humidity,
-            wind_speed=wind_speed,
-            barometric_pressure=barometric_pressure,
-            current_hour=current_hour
-        )
+        print("\nData collected from the database (latest entry):")
+        print(f"Temperature: {latest_temp:.2f}°C, Humidity: {latest_humidity:.2f}%")
+        print(f"Wind Speed: {wind_speed:.2f} m/s, Barometric Pressure: {barometric_pressure:.2f} hPa")
+        print(f"Hour of Day: {int(current_hour)}")
+        
+        # --- Step 2: Make the prediction ---
+        # Pass the full (6, 5) feature array to the prediction function
+        predicted_rain_rate, predicted_duration, intensity_label = predict_rain(input_features_array)
         
         if predicted_rain_rate is None:
+            print("Prediction failed during ML model execution.")
             return
 
         print("\n--- Prediction Results ---")
@@ -216,12 +216,13 @@ def main():
         print(f"Estimated Duration: {predicted_duration:.2f} minutes")
         print(f"Rainfall Intensity: {intensity_label}")
 
-        # --- Step 4: Insert results into the database ---
+        # --- Step 3: Insert results into the database ---
         try:
             with connection.cursor() as cursor:
+                # Insert the prediction results
                 cursor.execute("""
-                    INSERT INTO ai_predictions (predicted_rain, duration, intensity)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO ai_predictions (predicted_rain, duration, intensity, prediction_date)
+                    VALUES (%s, %s, %s, NOW())
                 """, [predicted_rain_rate, predicted_duration, intensity_label])
             print("✅ Prediction results successfully inserted into the database.")
         except Exception as e:

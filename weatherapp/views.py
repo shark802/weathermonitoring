@@ -575,7 +575,7 @@ def admin_dashboard(request):
         if selected_sensor_id:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                        wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 WHERE wr.sensor_id = %s
@@ -585,7 +585,7 @@ def admin_dashboard(request):
         else:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                        wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 ORDER BY wr.date_time DESC
@@ -602,10 +602,11 @@ def admin_dashboard(request):
                 'rain_rate': row[2],
                 'dew_point': row[3],
                 'wind_speed': row[4],
-                'date_time': row[5].strftime('%Y-%m-%d %H:%M:%S'),
-                'location': row[6],
-                'latitude': row[7],
-                'longitude': row[8],
+                'barometric_pressure': row[5],
+                'date_time': row[6].strftime('%Y-%m-%d %H:%M:%S'),
+                'location': row[7],
+                'latitude': row[8],
+                'longitude': row[9],
                 'error': None
             }
             # Assign current_sensor_id from the query result, this is the fix
@@ -618,6 +619,7 @@ def admin_dashboard(request):
                 'rain_rate': 'N/A',
                 'dew_point': 'N/A',
                 'wind_speed': 'N/A',
+                'barometric_pressure': 'N/A',
                 'date_time': 'N/A',
                 'location': 'Unknown',
                 'latitude': None,
@@ -856,7 +858,7 @@ def user_dashboard(request):
         if selected_sensor_id:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name
+                        wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 WHERE wr.sensor_id = %s
@@ -866,7 +868,7 @@ def user_dashboard(request):
         else:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name
+                        wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 ORDER BY wr.date_time DESC
@@ -874,6 +876,8 @@ def user_dashboard(request):
             """)
         
         row = cursor.fetchone()
+        weather = {}
+        current_sensor_id = None
         if row:
             weather = {
                 'temperature': row[0],
@@ -881,11 +885,15 @@ def user_dashboard(request):
                 'rain_rate': row[2],
                 'dew_point': row[3],
                 'wind_speed': row[4],
-                'date_time': row[5].strftime('%Y-%m-%d %H:%M:%S'),
-                'location': row[6],
+                'barometric_pressure': row[5],
+                'date_time': row[6].strftime('%Y-%m-%d %H:%M:%S'),
+                'location': row[7],
+                'latitude': row[8],
+                'longitude': row[9],
                 'error': None
             }
-            current_sensor_id = selected_sensor_id if selected_sensor_id else available_sensors[0]['sensor_id']
+            # Assign current_sensor_id from the query result, this is the fix
+            current_sensor_id = selected_sensor_id if selected_sensor_id else row[9]
         else:
             weather = {
                 'error': 'No weather data available',
@@ -894,10 +902,12 @@ def user_dashboard(request):
                 'rain_rate': 'N/A',
                 'dew_point': 'N/A',
                 'wind_speed': 'N/A',
+                'barometric_pressure': 'N/A',
                 'date_time': 'N/A',
-                'location': 'Unknown'
+                'location': 'Unknown',
+                'latitude': None,
+                'longitude': None
             }
-            current_sensor_id = None
 
         forecast = {}
         cursor.execute("""
