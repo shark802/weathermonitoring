@@ -50,9 +50,9 @@ sudo apt install -y libmysqlclient-dev pkg-config
 sudo apt install -y libhdf5-dev libhdf5-serial-dev
 
 print_status "Creating application directory structure..."
-sudo mkdir -p /var/www/apps
-sudo chown -R $USER:www-data /var/www/apps
-sudo chmod -R 755 /var/www/apps
+sudo mkdir -p /home/$USER/weatherapp
+sudo chown -R $USER:www-data /home/$USER/weatherapp
+sudo chmod -R 755 /home/$USER/weatherapp
 
 print_status "Creating log directories..."
 sudo mkdir -p /var/log/weatherapp
@@ -95,7 +95,7 @@ sudo apt install -y fail2ban unattended-upgrades
 
 print_status "Environment setup completed successfully!"
 print_status "Next steps:"
-echo "1. Copy your application code to /var/www/apps/weatherapp/"
+echo "1. Copy your application code to /home/$USER/weatherapp/"
 echo "2. Create virtual environment and install dependencies"
 echo "3. Configure environment variables"
 echo "4. Run database migrations"

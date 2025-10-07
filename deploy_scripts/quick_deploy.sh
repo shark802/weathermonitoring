@@ -57,15 +57,15 @@ fi
 
 # Step 2: Copy application code
 print_header "Step 2: Preparing application code"
-if [ ! -d "/var/www/apps/weatherapp" ]; then
+if [ ! -d "/home/$USER/weatherapp" ]; then
     print_status "Creating application directory..."
-    sudo mkdir -p /var/www/apps/weatherapp
+    sudo mkdir -p /home/$USER/weatherapp
 fi
 
 print_status "Copying application code..."
-sudo cp -r . /var/www/apps/weatherapp/
-sudo chown -R www-data:www-data /var/www/apps/weatherapp
-sudo chmod -R 755 /var/www/apps/weatherapp
+sudo cp -r . /home/$USER/weatherapp/
+sudo chown -R www-data:www-data /home/$USER/weatherapp
+sudo chmod -R 755 /home/$USER/weatherapp
 
 # Step 3: Deploy application
 print_header "Step 3: Deploying application"

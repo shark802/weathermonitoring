@@ -23,7 +23,7 @@ print_error() {
 
 # Configuration
 APP_NAME="weatherapp"
-APP_DIR="/var/www/apps/$APP_NAME"
+APP_DIR="/home/bccbsis-py-admin/$APP_NAME"
 VENV_DIR="$APP_DIR/venv"
 LOG_DIR="/var/log/$APP_NAME"
 
@@ -156,10 +156,10 @@ EOF
 
 # Create Supervisor configuration
 print_status "Creating Supervisor configuration..."
-sudo tee /etc/supervisor/conf.d/weatherapp.conf > /dev/null << 'EOF'
+sudo tee /etc/supervisor/conf.d/weatherapp.conf > /dev/null << EOF
 [program:weatherapp]
-command=/var/www/apps/weatherapp/venv/bin/gunicorn --config /var/www/apps/weatherapp/gunicorn.conf.py weatheralert.wsgi:application
-directory=/var/www/apps/weatherapp
+command=$VENV_DIR/bin/gunicorn --config $APP_DIR/gunicorn.conf.py weatheralert.wsgi:application
+directory=$APP_DIR
 user=www-data
 group=www-data
 autostart=true
@@ -169,8 +169,8 @@ stdout_logfile=/var/log/weatherapp/gunicorn.log
 environment=DJANGO_SETTINGS_MODULE="weatheralert.settings"
 
 [program:weatherapp-celery-worker]
-command=/var/www/apps/weatherapp/venv/bin/celery -A weatheralert worker --loglevel=info
-directory=/var/www/apps/weatherapp
+command=$VENV_DIR/bin/celery -A weatheralert worker --loglevel=info
+directory=$APP_DIR
 user=www-data
 group=www-data
 autostart=true
@@ -180,8 +180,8 @@ stdout_logfile=/var/log/weatherapp/celery-worker.log
 environment=DJANGO_SETTINGS_MODULE="weatheralert.settings"
 
 [program:weatherapp-celery-beat]
-command=/var/www/apps/weatherapp/venv/bin/celery -A weatheralert beat --loglevel=info
-directory=/var/www/apps/weatherapp
+command=$VENV_DIR/bin/celery -A weatheralert beat --loglevel=info
+directory=$APP_DIR
 user=www-data
 group=www-data
 autostart=true
@@ -219,14 +219,14 @@ server {
         
         # Handle static files
         location /weatherapp/static/ {
-            alias /var/www/apps/weatherapp/staticfiles/;
+            alias $APP_DIR/staticfiles/;
             expires 1y;
             add_header Cache-Control "public, immutable";
         }
         
         # Handle media files
         location /weatherapp/media/ {
-            alias /var/www/apps/weatherapp/media/;
+            alias $APP_DIR/media/;
             expires 1y;
             add_header Cache-Control "public";
         }
