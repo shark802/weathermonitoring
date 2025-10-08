@@ -327,7 +327,6 @@
                 <th>Temperature (°C)</th>
                 <th>Humidity (%)</th>
                 <th>Wind Speed (m/s)</th>
-                <th>Wind Direction</th>
                 <th>Pressure (hPa)</th>
                 <th>Dew Point (°C)</th>
                 <th>Rain Rate (mm/h)</th>
@@ -344,7 +343,6 @@
                   <td>{{ report.temperature|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.humidity|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.wind_speed|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.wind_direction|default:"N/A" }}</td>
                   <td>{{ report.barometric_pressure|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.dew_point|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.rain_rate|floatformat:2|default:"N/A" }}</td>
@@ -761,13 +759,6 @@
                 }
             },
             { 
-                data: 'wind_direction', 
-                title: 'Wind Dir',
-                render: function(data) {
-                    return data || 'N/A';
-                }
-            },
-            { 
                 data: 'pressure', 
                 title: 'Pressure (hPa)',
                 render: function(data) {
@@ -855,7 +846,6 @@
                         temperature: report.temperature,
                         humidity: report.humidity,
                         wind_speed: report.wind_speed,
-                        wind_direction: report.wind_direction || 'N/A',
                         pressure: report.pressure,
                         dew_point: report.dew_point,
                         rain_rate: report.rain_rate,

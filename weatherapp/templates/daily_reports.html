@@ -271,7 +271,6 @@
                 <th>Temperature (°C)</th>
                 <th>Humidity (%)</th>
                 <th>Wind Speed (m/s)</th>
-                <th>Wind Direction</th>
                 <th>Pressure (hPa)</th>
                 <th>Dew Point (°C)</th>
                 <th>Rain Rate (mm/h)</th>
@@ -287,7 +286,6 @@
                   <td>{{ report.avg_temperature|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_humidity|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_wind_speed|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.avg_wind_direction|default:"N/A" }}</td>
                   <td>{{ report.avg_barometric_pressure|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_dew_point|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_rain_rate|floatformat:2|default:"N/A" }}</td>
@@ -687,13 +685,6 @@
                 }
             },
             { 
-                data: 'avg_wind_direction', 
-                title: 'Wind Direction',
-                render: function(data) {
-                    return data || 'N/A';
-                }
-            },
-            { 
                 data: 'avg_barometric_pressure', 
                 title: 'Pressure (hPa)',
                 render: function(data) {
@@ -735,7 +726,6 @@
                 "avg_temperature": "{{ report.avg_temperature|floatformat:1|default:'N/A' }}",
                 "avg_humidity": "{{ report.avg_humidity|floatformat:1|default:'N/A' }}",
                 "max_wind_speed": "{{ report.avg_wind_speed|floatformat:1|default:'N/A' }}",
-                "avg_wind_direction": "{{ report.avg_wind_direction|default:'N/A' }}",
                 "avg_barometric_pressure": "{{ report.avg_barometric_pressure|floatformat:1|default:'N/A' }}",
                 "avg_dew_point": "{{ report.avg_dew_point|floatformat:1|default:'N/A' }}",
                 "max_rain_rate": "{{ report.avg_rain_rate|floatformat:2|default:'N/A' }}",
@@ -799,7 +789,6 @@
                             avg_temperature: report.avg_temperature,
                             avg_humidity: report.avg_humidity,
                             max_wind_speed: report.avg_wind_speed,
-                            avg_wind_direction: report.avg_wind_direction || 'N/A',
                             avg_barometric_pressure: report.avg_barometric_pressure,
                             avg_dew_point: report.avg_dew_point,
                             max_rain_rate: report.avg_rain_rate,

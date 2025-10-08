@@ -320,7 +320,6 @@
                 <th>Temperature (°C)</th>
                 <th>Humidity (%)</th>
                 <th>Wind Speed (m/s)</th>
-                <th>Wind Direction</th>
                 <th>Pressure (hPa)</th>
                 <th>Dew Point (°C)</th>
                 <th>Rain Rate (mm/h)</th>
@@ -336,7 +335,6 @@
                   <td>{{ report.avg_temperature|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_humidity|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_wind_speed|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.avg_wind_direction|default:"N/A" }}</td>
                   <td>{{ report.avg_barometric_pressure|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_dew_point|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_rain_rate|floatformat:2|default:"N/A" }}</td>
@@ -778,7 +776,6 @@ $(document).ready(function () {
                             report.avg_temperature !== undefined && report.avg_temperature !== null ? parseFloat(report.avg_temperature).toFixed(1) + '°C' : 'N/A',
                             report.avg_humidity !== undefined && report.avg_humidity !== null ? parseFloat(report.avg_humidity).toFixed(1) + '%' : 'N/A',
                             report.avg_wind_speed !== undefined && report.avg_wind_speed !== null ? parseFloat(report.avg_wind_speed).toFixed(1) + ' m/s' : 'N/A',
-                            report.avg_wind_direction || 'N/A',
                             report.avg_barometric_pressure !== undefined && report.avg_barometric_pressure !== null ? parseFloat(report.avg_barometric_pressure).toFixed(1) + ' hPa' : 'N/A',
                             report.avg_dew_point !== undefined && report.avg_dew_point !== null ? parseFloat(report.avg_dew_point).toFixed(1) + '°C' : 'N/A',
                             report.avg_rain_rate !== undefined && report.avg_rain_rate !== null ? parseFloat(report.avg_rain_rate).toFixed(1) + ' mm/h' : 'N/A',
