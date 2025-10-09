@@ -410,21 +410,6 @@
         </div>
         
         <div class="modal-body p-6 space-y-4">
-          <!-- Barangay Selection -->
-          <div class="space-y-3">
-            <h6 class="font-semibold text-gray-700 flex items-center">
-              <i class="fas fa-map-marker-alt mr-2 text-blue-500"></i>
-              Target Barangays
-            </h6>
-            <div id="barangay-container" class="space-y-3">
-              <!-- Barangay selects will be added here -->
-            </div>
-            <button type="button" 
-                    class="w-full flex items-center justify-center gap-2 bg-blue-50 text-blue-600 font-medium py-2 px-4 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200"
-                    onclick="addBarangaySelect()">
-              <i class="fas fa-plus"></i> Add Another Barangay
-            </button>
-          </div>
 
           <div class="border-t border-gray-200 my-4"></div>
 
@@ -495,122 +480,43 @@
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
 
   <script>
-    const bagoBarangays = [
-    "Abuanan", "Alianza", "Atipuluan", "Bacong-Montilla", "Bagroy", "Balingasag",
-    "Binubuhan", "Busay", "Calumangan", "Caridad", "Don Jorge L. Araneta",
-    "Dulao", "Ilijan", "Lag-asan", "Ma-ao", "Mailum", "Malingin", "Napoles",
-    "Pacol", "Poblacion", "Sagasa", "Tabunan", "Taloc", "Sampinit"
-  ];
-
-  function createBarangaySelectGroup() {
-    const wrapper = document.createElement("div");
-    wrapper.className = "mb-3 d-flex align-items-center barangay-group";
-
-    const select = document.createElement("select");
-    select.name = "address";
-    select.className = "form-select";
-    select.required = true;
-
-    const defaultOption = document.createElement("option");
-    defaultOption.textContent = "-- Select Barangay --";
-    defaultOption.disabled = true;
-    defaultOption.selected = true;
-    select.appendChild(defaultOption);
-
-    bagoBarangays.forEach(brgy => {
-      const option = document.createElement("option");
-      option.value = brgy;
-      option.textContent = brgy;
-      select.appendChild(option);
-    });
-
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.textContent = "╳";
-    removeBtn.className = "btn btn-sm btn-danger ms-2";
-    removeBtn.onclick = () => wrapper.remove();
-
-    wrapper.appendChild(select);
-    wrapper.appendChild(removeBtn);
-
-    return wrapper;
-  }
-
-  function addBarangaySelect() {
-    const container = document.getElementById("barangay-container");
-    const groups = container.querySelectorAll(".barangay-group");
+    document.addEventListener('DOMContentLoaded', function() {
+    const alertTypeSelect = document.getElementById('alert_type');
+    const severitySelect = document.getElementById('severity');
     
-    // Limit to 5 barangay selections
-    if (groups.length >= 5) {
-      alert("Maximum of 5 barangays allowed");
-      return;
+    // Group options by their type (using the text of the option)
+    const allOptions = Array.from(severitySelect.options);
+    const rainOptions = allOptions.filter(opt => opt.text.includes('Rain'));
+    const windOptions = allOptions.filter(opt => opt.text.includes('Wind'));
+
+    function updateSeverityOptions() {
+        // Clear all current options from the severity select box
+        severitySelect.innerHTML = '';
+        
+        const selectedType = alertTypeSelect.value;
+        let optionsToShow = [];
+        
+        if (selectedType === 'Rain') {
+            optionsToShow = rainOptions;
+        } else if (selectedType === 'Wind') {
+            optionsToShow = windOptions;
+        }
+
+        // Add the relevant options back to the severity select box
+        optionsToShow.forEach(option => {
+            severitySelect.appendChild(option.cloneNode(true));
+        });
+        
+        // If there are options, select the first one by default
+        if (severitySelect.options.length > 0) {
+            severitySelect.selectedIndex = 0;
+        }
     }
-    
-    const group = createBarangaySelectGroup();
-    container.appendChild(group);
-  }
 
-  document.addEventListener("DOMContentLoaded", () => {
-    // Add initial barangay select
-    addBarangaySelect();
-    
-    // Form submission handler
-    const form = document.getElementById("sendAlertForm");
-    const statusDiv = document.getElementById("alert-status");
-
-    form.addEventListener("submit", function(e) {
-      e.preventDefault();
-      statusDiv.innerHTML = '<span class="text-info">⏳ Sending alert...</span>';
-      
-      const formData = new FormData(form);
-      
-      // Validate at least one barangay is selected
-      const barangaySelects = form.querySelectorAll('select[name="address"]');
-      let hasSelection = false;
-      
-      barangaySelects.forEach(select => {
-        if (select.value && !select.options[0].selected) {
-          hasSelection = true;
-        }
-      });
-      
-      if (!hasSelection) {
-        statusDiv.innerHTML = '<span class="text-danger">❌ Please select at least one barangay</span>';
-        return;
-      }
-
-      fetch(form.action, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": formData.get("csrfmiddlewaretoken"),
-        },
-        body: formData,
-      })
-      .then((response) => {
-        if (!response.ok) throw new Error("Network response was not ok");
-        return response.text();
-      })
-      .then((text) => {
-        if (text.includes("Alert sent successfully")) {
-          statusDiv.innerHTML = '<span class="text-success">✅ Alert sent successfully!</span>';
-          // Reset form after 2 seconds
-          setTimeout(() => {
-            form.reset();
-            const container = document.getElementById("barangay-container");
-            container.innerHTML = "";
-            addBarangaySelect();
-            statusDiv.innerHTML = "";
-          }, 2000);
-        } else {
-          statusDiv.innerHTML = '<span class="text-danger">❌ Failed to send alert.</span>';
-        }
-      })
-      .catch((error) => {
-        console.error(error);
-        statusDiv.innerHTML = '<span class="text-danger">❌ An error occurred: ' + error.message + '</span>';
-      });
-    });
-  });
+    // Attach event listener and run on initial load
+    alertTypeSelect.addEventListener('change', updateSeverityOptions);
+    updateSeverityOptions(); // Run once to set the initial state
+});
 
     function showLogoutModal() {
       document.getElementById('logoutModal').classList.remove('hidden');
