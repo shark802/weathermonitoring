@@ -83,7 +83,7 @@ DB_PASSWORD=$DB_PASSWORD
 DB_HOST=$DB_HOST
 DB_PORT=$DB_PORT
 DB_ENGINE=django.db.backends.mysql
-DB_OPTIONS={'charset': 'utf8mb4'}
+DB_OPTIONS="{'charset': 'utf8mb4'}"
 EOF
     
     # Set secure permissions
