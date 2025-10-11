@@ -163,23 +163,79 @@ copy_app_files() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
     
-    # Copy Django project files
-    cp -r $PROJECT_DIR/weatheralert $APP_DIR/
-    cp -r $PROJECT_DIR/weatherapp $APP_DIR/
-    cp -r $PROJECT_DIR/esp32 $APP_DIR/
-    cp $PROJECT_DIR/manage.py $APP_DIR/
-    cp $PROJECT_DIR/requirements.txt $APP_DIR/
-    cp $PROJECT_DIR/Procfile $APP_DIR/ 2>/dev/null || true
-    cp $PROJECT_DIR/Procfile.dev $APP_DIR/ 2>/dev/null || true
-    
-    # Copy static files
-    if [ -d "$PROJECT_DIR/staticfiles" ]; then
-        cp -r $PROJECT_DIR/staticfiles/* $APP_DIR/staticfiles/
-    fi
-    
-    # Copy media files if they exist
-    if [ -d "$PROJECT_DIR/media" ]; then
-        cp -r $PROJECT_DIR/media/* $APP_DIR/media/
+    # Check if we're running from within the project directory
+    if [ "$(basename "$PROJECT_DIR")" = "weatherapp" ]; then
+        # We're running from within the project, so copy from current directory
+        print_status "Detected running from project directory, copying from current location..."
+        
+        # Copy Django project files from current directory
+        if [ -d "weatheralert" ]; then
+            cp -r weatheralert $APP_DIR/
+        fi
+        if [ -d "weatherapp" ]; then
+            cp -r weatherapp $APP_DIR/
+        fi
+        if [ -d "esp32" ]; then
+            cp -r esp32 $APP_DIR/
+        fi
+        if [ -f "manage.py" ]; then
+            cp manage.py $APP_DIR/
+        fi
+        if [ -f "requirements.txt" ]; then
+            cp requirements.txt $APP_DIR/
+        fi
+        if [ -f "Procfile" ]; then
+            cp Procfile $APP_DIR/
+        fi
+        if [ -f "Procfile.dev" ]; then
+            cp Procfile.dev $APP_DIR/
+        fi
+        
+        # Copy static files
+        if [ -d "staticfiles" ]; then
+            cp -r staticfiles/* $APP_DIR/staticfiles/ 2>/dev/null || true
+        fi
+        
+        # Copy media files if they exist
+        if [ -d "media" ]; then
+            cp -r media/* $APP_DIR/media/ 2>/dev/null || true
+        fi
+    else
+        # We're running from outside the project, copy from project directory
+        print_status "Copying from project directory: $PROJECT_DIR"
+        
+        # Copy Django project files
+        if [ -d "$PROJECT_DIR/weatheralert" ]; then
+            cp -r $PROJECT_DIR/weatheralert $APP_DIR/
+        fi
+        if [ -d "$PROJECT_DIR/weatherapp" ]; then
+            cp -r $PROJECT_DIR/weatherapp $APP_DIR/
+        fi
+        if [ -d "$PROJECT_DIR/esp32" ]; then
+            cp -r $PROJECT_DIR/esp32 $APP_DIR/
+        fi
+        if [ -f "$PROJECT_DIR/manage.py" ]; then
+            cp $PROJECT_DIR/manage.py $APP_DIR/
+        fi
+        if [ -f "$PROJECT_DIR/requirements.txt" ]; then
+            cp $PROJECT_DIR/requirements.txt $APP_DIR/
+        fi
+        if [ -f "$PROJECT_DIR/Procfile" ]; then
+            cp $PROJECT_DIR/Procfile $APP_DIR/
+        fi
+        if [ -f "$PROJECT_DIR/Procfile.dev" ]; then
+            cp $PROJECT_DIR/Procfile.dev $APP_DIR/
+        fi
+        
+        # Copy static files
+        if [ -d "$PROJECT_DIR/staticfiles" ]; then
+            cp -r $PROJECT_DIR/staticfiles/* $APP_DIR/staticfiles/ 2>/dev/null || true
+        fi
+        
+        # Copy media files if they exist
+        if [ -d "$PROJECT_DIR/media" ]; then
+            cp -r $PROJECT_DIR/media/* $APP_DIR/media/ 2>/dev/null || true
+        fi
     fi
     
     print_success "Application files copied"

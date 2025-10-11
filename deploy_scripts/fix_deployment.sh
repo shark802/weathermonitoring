@@ -1,21 +1,33 @@
 #!/bin/bash
-# Fix deployment script - corrects paths and configurations
 
-set -e
+# =============================================================================
+# Fix Deployment Script for WeatherAlert
+# Resolves the "same file" error and completes the deployment
+# =============================================================================
 
-# Colors for output
+set -e  # Exit on any error
+
+# Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-print_header() {
-    echo -e "${BLUE}=== $1 ===${NC}"
+# Configuration
+APP_NAME="weatherapp"
+APP_URL="bccweatherapp"
+SERVER_IP="192.168.3.5"
+BASE_DIR="/opt/django-apps"
+APP_DIR="$BASE_DIR/$APP_NAME"
+
+# Function to print colored output
+print_status() {
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
 print_warning() {
@@ -26,204 +38,230 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Configuration
-APP_NAME="weatherapp"
-APP_DIR="/home/bccbsis-py-admin/$APP_NAME"
-VENV_DIR="$APP_DIR/venv"
-
-print_header "Fixing Weather Application Deployment"
-echo "This script will fix the deployment configuration to use the correct paths."
-echo ""
-
-# Check if running as correct user
-if [ "$USER" != "bccbsis-py-admin" ]; then
-    print_warning "Expected user 'bccbsis-py-admin', but running as '$USER'"
-    print_status "Continuing with current user..."
-fi
-
-# Check if app directory exists
-if [ ! -d "$APP_DIR" ]; then
-    print_error "Application directory $APP_DIR does not exist!"
-    print_status "Please ensure the weatherapp directory is in /home/bccbsis-py-admin/"
-    exit 1
-fi
-
-print_status "Application directory found: $APP_DIR"
-
-# Step 1: Stop existing services
-print_header "Step 1: Stopping existing services"
-sudo supervisorctl stop weatherapp 2>/dev/null || true
-sudo supervisorctl stop weatherapp-celery-worker 2>/dev/null || true
-sudo supervisorctl stop weatherapp-celery-beat 2>/dev/null || true
-
-# Step 2: Fix permissions
-print_header "Step 2: Fixing permissions"
-sudo chown -R www-data:www-data "$APP_DIR"
-sudo chmod -R 755 "$APP_DIR"
-
-# Step 3: Update Supervisor configuration
-print_header "Step 3: Updating Supervisor configuration"
-sudo tee /etc/supervisor/conf.d/weatherapp.conf > /dev/null << EOF
-[program:weatherapp]
-command=$VENV_DIR/bin/gunicorn --config $APP_DIR/gunicorn.conf.py weatheralert.wsgi:application
-directory=$APP_DIR
-user=www-data
-group=www-data
-autostart=true
-autorestart=true
-redirect_stderr=true
-stdout_logfile=/var/log/weatherapp/gunicorn.log
-environment=DJANGO_SETTINGS_MODULE="weatheralert.settings"
-
-[program:weatherapp-celery-worker]
-command=$VENV_DIR/bin/celery -A weatheralert worker --loglevel=info
-directory=$APP_DIR
-user=www-data
-group=www-data
-autostart=true
-autorestart=true
-redirect_stderr=true
-stdout_logfile=/var/log/weatherapp/celery-worker.log
-environment=DJANGO_SETTINGS_MODULE="weatheralert.settings"
-
-[program:weatherapp-celery-beat]
-command=$VENV_DIR/bin/celery -A weatheralert beat --loglevel=info
-directory=$APP_DIR
-user=www-data
-group=www-data
-autostart=true
-autorestart=true
-redirect_stderr=true
-stdout_logfile=/var/log/weatherapp/celery-beat.log
-environment=DJANGO_SETTINGS_MODULE="weatheralert.settings"
-EOF
-
-# Step 4: Update Nginx configuration
-print_header "Step 4: Updating Nginx configuration"
-sudo tee /etc/nginx/sites-available/weatherapp > /dev/null << EOF
-# Upstream for weather app
-upstream weatherapp {
-    server 127.0.0.1:8001;
+# Function to check if running as root
+check_root() {
+    if [[ $EUID -ne 0 ]]; then
+        print_error "This script must be run as root (use sudo)"
+        exit 1
+    fi
 }
 
-# Main server block
-server {
-    listen 80;
-    server_name 192.168.3.5;
-
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header X-Content-Type-Options "nosniff" always;
-
-    # Weather app location
-    location /weatherapp/ {
-        proxy_pass http://weatherapp/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        
-        # Handle static files
-        location /weatherapp/static/ {
-            alias $APP_DIR/staticfiles/;
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
-        
-        # Handle media files
-        location /weatherapp/media/ {
-            alias $APP_DIR/media/;
-            expires 1y;
-            add_header Cache-Control "public";
-        }
-    }
-
-    # Default location for other apps
-    location / {
-        return 200 'Welcome to Multi-App Server - Weather App available at /weatherapp/';
-        add_header Content-Type text/plain;
-    }
-
-    # Health check endpoint
-    location /health {
-        access_log off;
-        return 200 "healthy\n";
-        add_header Content-Type text/plain;
-    }
+# Function to copy application files correctly
+copy_app_files_fixed() {
+    print_status "Copying application files (fixed method)..."
+    
+    # Ensure target directory exists
+    mkdir -p $APP_DIR
+    
+    # Copy from current directory (where the script is run from)
+    print_status "Copying from current directory: $(pwd)"
+    
+    # Copy Django project files
+    if [ -d "weatheralert" ]; then
+        print_status "Copying weatheralert directory..."
+        cp -r weatheralert $APP_DIR/
+    else
+        print_warning "weatheralert directory not found"
+    fi
+    
+    if [ -d "weatherapp" ]; then
+        print_status "Copying weatherapp directory..."
+        cp -r weatherapp $APP_DIR/
+    else
+        print_warning "weatherapp directory not found"
+    fi
+    
+    if [ -d "esp32" ]; then
+        print_status "Copying esp32 directory..."
+        cp -r esp32 $APP_DIR/
+    else
+        print_warning "esp32 directory not found"
+    fi
+    
+    if [ -f "manage.py" ]; then
+        print_status "Copying manage.py..."
+        cp manage.py $APP_DIR/
+    else
+        print_warning "manage.py not found"
+    fi
+    
+    if [ -f "requirements.txt" ]; then
+        print_status "Copying requirements.txt..."
+        cp requirements.txt $APP_DIR/
+    else
+        print_warning "requirements.txt not found"
+    fi
+    
+    if [ -f "Procfile" ]; then
+        print_status "Copying Procfile..."
+        cp Procfile $APP_DIR/
+    fi
+    
+    if [ -f "Procfile.dev" ]; then
+        print_status "Copying Procfile.dev..."
+        cp Procfile.dev $APP_DIR/
+    fi
+    
+    # Copy static files if they exist
+    if [ -d "staticfiles" ]; then
+        print_status "Copying staticfiles..."
+        mkdir -p $APP_DIR/staticfiles
+        cp -r staticfiles/* $APP_DIR/staticfiles/ 2>/dev/null || true
+    fi
+    
+    # Copy media files if they exist
+    if [ -d "media" ]; then
+        print_status "Copying media files..."
+        mkdir -p $APP_DIR/media
+        cp -r media/* $APP_DIR/media/ 2>/dev/null || true
+    fi
+    
+    # Set proper permissions
+    chown -R django-$APP_NAME:django-$APP_NAME $APP_DIR 2>/dev/null || true
+    
+    print_success "Application files copied successfully"
 }
-EOF
 
-# Step 5: Test configurations
-print_header "Step 5: Testing configurations"
-sudo nginx -t
-if [ $? -eq 0 ]; then
-    print_status "Nginx configuration is valid"
-else
-    print_error "Nginx configuration has errors!"
-    exit 1
-fi
+# Function to create virtual environment
+setup_virtualenv() {
+    print_status "Setting up Python virtual environment..."
+    
+    cd $APP_DIR
+    
+    # Create virtual environment
+    python3 -m venv venv
+    source venv/bin/activate
+    
+    # Install Python dependencies
+    if [ -f "requirements.txt" ]; then
+        pip install --upgrade pip
+        pip install -r requirements.txt
+    else
+        print_warning "requirements.txt not found, installing basic dependencies..."
+        pip install django gunicorn celery redis mysqlclient
+        pip install psycopg2-binary dj-database-url
+        pip install whitenoise django-heroku
+    fi
+    
+    deactivate
+    
+    print_success "Virtual environment setup completed"
+}
 
-# Step 6: Update Supervisor
-print_header "Step 6: Updating Supervisor"
-sudo supervisorctl reread
-sudo supervisorctl update
+# Function to run database migrations
+run_migrations() {
+    print_status "Running database migrations..."
+    
+    cd $APP_DIR
+    source venv/bin/activate
+    
+    # Set Django settings module
+    export DJANGO_SETTINGS_MODULE=weatheralert.settings_production
+    
+    # Run migrations
+    python manage.py makemigrations
+    python manage.py migrate
+    
+    # Create superuser if it doesn't exist
+    echo "from django.contrib.auth import get_user_model; User = get_user_model(); User.objects.filter(username='admin').exists() or User.objects.create_superuser('admin', 'admin@example.com', 'admin123')" | python manage.py shell
+    
+    # Collect static files
+    python manage.py collectstatic --noinput
+    
+    deactivate
+    
+    print_success "Database migrations completed"
+}
 
-# Step 7: Start services
-print_header "Step 7: Starting services"
-sudo supervisorctl start weatherapp
-sudo supervisorctl start weatherapp-celery-worker
-sudo supervisorctl start weatherapp-celery-beat
+# Function to start services
+start_services() {
+    print_status "Starting services..."
+    
+    # Enable and start services
+    systemctl enable django-$APP_NAME
+    systemctl enable celery-$APP_NAME
+    systemctl enable celerybeat-$APP_NAME
+    
+    systemctl start django-$APP_NAME
+    systemctl start celery-$APP_NAME
+    systemctl start celerybeat-$APP_NAME
+    
+    # Check service status
+    sleep 5
+    if systemctl is-active --quiet django-$APP_NAME; then
+        print_success "Django service started successfully"
+    else
+        print_error "Django service failed to start"
+        systemctl status django-$APP_NAME --no-pager
+    fi
+    
+    if systemctl is-active --quiet celery-$APP_NAME; then
+        print_success "Celery service started successfully"
+    else
+        print_warning "Celery service failed to start"
+    fi
+    
+    if systemctl is-active --quiet celerybeat-$APP_NAME; then
+        print_success "Celery beat service started successfully"
+    else
+        print_warning "Celery beat service failed to start"
+    fi
+}
 
-# Step 8: Reload Nginx
-print_header "Step 8: Reloading Nginx"
-sudo systemctl reload nginx
+# Function to test the application
+test_application() {
+    print_status "Testing application..."
+    
+    # Test HTTP response
+    local health_url="http://$SERVER_IP/$APP_URL/health/"
+    local http_status=$(curl -s -o /dev/null -w "%{http_code}" $health_url 2>/dev/null || echo "000")
+    
+    if [ "$http_status" = "200" ]; then
+        print_success "Application health check passed"
+    else
+        print_warning "Application health check failed (HTTP $http_status)"
+        print_status "Trying main application URL..."
+        
+        local main_url="http://$SERVER_IP/$APP_URL/"
+        local main_status=$(curl -s -o /dev/null -w "%{http_code}" $main_url 2>/dev/null || echo "000")
+        
+        if [ "$main_status" = "200" ]; then
+            print_success "Main application URL is accessible"
+        else
+            print_error "Application is not accessible (HTTP $main_status)"
+        fi
+    fi
+}
 
-# Step 9: Check status
-print_header "Step 9: Checking service status"
-sudo supervisorctl status
+# Main function
+main() {
+    print_status "Starting deployment fix for WeatherAlert..."
+    print_status "This will resolve the 'same file' error and complete the deployment"
+    
+    check_root
+    copy_app_files_fixed
+    setup_virtualenv
+    run_migrations
+    start_services
+    test_application
+    
+    print_success "WeatherAlert deployment fix completed successfully!"
+    print_status ""
+    print_status "Application should now be available at:"
+    print_status "  http://$SERVER_IP/$APP_URL"
+    print_status ""
+    print_status "Admin credentials:"
+    print_status "  Username: admin"
+    print_status "  Password: admin123"
+    print_status ""
+    print_status "Use the following commands to manage the application:"
+    print_status "  systemctl status django-$APP_NAME"
+    print_status "  systemctl restart django-$APP_NAME"
+    print_status "  journalctl -u django-$APP_NAME -f"
+    print_status ""
+    print_status "Logs are available at:"
+    print_status "  /var/log/django-apps/$APP_NAME/"
+}
 
-# Step 10: Test endpoints
-print_header "Step 10: Testing endpoints"
-sleep 5  # Wait for services to start
-
-# Test health endpoint
-if curl -s -o /dev/null -w "%{http_code}" "http://192.168.3.5/health" | grep -q "200"; then
-    print_status "Health check: OK"
-else
-    print_warning "Health check: Failed"
-fi
-
-# Test weather app endpoint
-if curl -s -o /dev/null -w "%{http_code}" "http://192.168.3.5/weatherapp/" | grep -q "200"; then
-    print_status "Weather app: OK"
-else
-    print_warning "Weather app: Failed (this might be normal if Django needs setup)"
-fi
-
-# Step 11: Show logs if there are issues
-print_header "Step 11: Checking logs"
-if ! sudo supervisorctl status weatherapp | grep -q "RUNNING"; then
-    print_warning "Weather app is not running. Checking logs..."
-    sudo tail -n 20 /var/log/weatherapp/gunicorn.log
-fi
-
-print_header "Deployment Fix Complete!"
-echo ""
-print_status "Your application should now be accessible at:"
-echo "  Main URL: http://192.168.3.5/weatherapp/"
-echo "  Health Check: http://192.168.3.5/health"
-echo ""
-
-print_status "If the weather app is still not working, you may need to:"
-echo "1. Check the logs: sudo tail -f /var/log/weatherapp/gunicorn.log"
-echo "2. Run Django migrations: cd $APP_DIR && source venv/bin/activate && python manage.py migrate"
-echo "3. Collect static files: python manage.py collectstatic --noinput"
-echo "4. Create a superuser: python manage.py createsuperuser"
-echo ""
-
-print_status "Useful commands:"
-echo "  Check status: sudo supervisorctl status"
-echo "  View logs: sudo tail -f /var/log/weatherapp/gunicorn.log"
-echo "  Restart app: sudo supervisorctl restart weatherapp"
-echo "  Check nginx: sudo nginx -t && sudo systemctl status nginx"
+# Run main function
+main "$@"
