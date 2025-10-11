@@ -17,7 +17,8 @@ NC='\033[0m' # No Color
 # Configuration
 APP_NAME="weatherapp"
 APP_URL_PATH="weatherapp"
-SERVER_IP="119.93.148.180"
+SERVER_IP="192.168.3.5"              # Internal/Private IP
+PUBLIC_IP="119.93.148.180"            # External/Public IP (for configuration)
 BASE_DIR="/opt/django-apps"
 APP_DIR="$BASE_DIR/$APP_NAME"
 LOG_DIR="/var/log/django-apps/$APP_NAME"
@@ -161,7 +162,7 @@ create_env_config() {
 # WeatherAlert Environment Configuration
 DEBUG=False
 SECRET_KEY=$SECRET_KEY
-ALLOWED_HOSTS=$SERVER_IP,localhost,127.0.0.1
+ALLOWED_HOSTS=$PUBLIC_IP,$SERVER_IP,localhost,127.0.0.1
 FORCE_SCRIPT_NAME=/$APP_URL_PATH
 
 # Database configuration (using existing MySQL database)
@@ -389,11 +390,12 @@ create_nginx_config() {
     
     cat > /etc/nginx/sites-available/$APP_NAME << EOF
 # Nginx configuration for WeatherAlert Application
-# Accessible at: http://$SERVER_IP/$APP_URL_PATH
+# Internal IP: http://$SERVER_IP/$APP_URL_PATH
+# Public IP: http://$PUBLIC_IP/$APP_URL_PATH
 
 server {
     listen 80;
-    server_name $SERVER_IP;
+    server_name $PUBLIC_IP $SERVER_IP localhost;
     
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
