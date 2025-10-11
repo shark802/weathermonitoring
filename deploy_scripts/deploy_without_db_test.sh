@@ -263,8 +263,8 @@ run_migrations() {
     cd $APP_DIR
     source venv/bin/activate
     
-    # Set Django settings module
-    export DJANGO_SETTINGS_MODULE=weatheralert.settings_production
+    # Use the existing settings file instead of production settings
+    export DJANGO_SETTINGS_MODULE=weatheralert.settings
     
     # Run migrations
     python manage.py makemigrations
