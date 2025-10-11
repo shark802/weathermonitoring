@@ -62,24 +62,26 @@ print(secret_key)
 
 # Function to setup database configuration
 setup_database_config() {
-    print_status "Setting up database configuration..."
+    print_status "Setting up database configuration for remote database..."
     
     # Create database configuration directory
     mkdir -p $DB_CONFIG_DIR
     
-    # Generate database credentials
-    DB_NAME="${APP_NAME}_db"
-    DB_USER="${APP_NAME}_user"
-    DB_PASSWORD=$(openssl rand -base64 32)
+    # Use existing remote database credentials from settings.py
+    DB_NAME="u520834156_dbweatherApp"
+    DB_USER="u520834156_uWApp2024"
+    DB_PASSWORD="bIxG2Z$In#8"
+    DB_HOST="153.92.15.8"
+    DB_PORT="3306"
     
     # Create database configuration file
     cat > $DB_CONFIG_DIR/${APP_NAME}_db.conf << EOF
-# Database configuration for $APP_NAME
+# Database configuration for $APP_NAME (Remote Database)
 DB_NAME=$DB_NAME
 DB_USER=$DB_USER
 DB_PASSWORD=$DB_PASSWORD
-DB_HOST=localhost
-DB_PORT=3306
+DB_HOST=$DB_HOST
+DB_PORT=$DB_PORT
 DB_ENGINE=django.db.backends.mysql
 DB_OPTIONS={'charset': 'utf8mb4'}
 EOF
@@ -88,26 +90,27 @@ EOF
     chmod 600 $DB_CONFIG_DIR/${APP_NAME}_db.conf
     chown root:root $DB_CONFIG_DIR/${APP_NAME}_db.conf
     
-    print_success "Database configuration created"
+    print_success "Database configuration created for remote database"
     print_status "Database: $DB_NAME"
     print_status "User: $DB_USER"
-    print_status "Password: $DB_PASSWORD"
+    print_status "Host: $DB_HOST:$DB_PORT"
 }
 
-# Function to create database
-create_database() {
-    print_status "Creating database and user..."
+# Function to test database connection
+test_database_connection() {
+    print_status "Testing remote database connection..."
     
     # Load database configuration
     source $DB_CONFIG_DIR/${APP_NAME}_db.conf
     
-    # Create database and user
-    mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-    mysql -u root -p -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';"
-    mysql -u root -p -e "GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';"
-    mysql -u root -p -e "FLUSH PRIVILEGES;"
-    
-    print_success "Database and user created successfully"
+    # Test database connection
+    if mysql -h$DB_HOST -P$DB_PORT -u$DB_USER -p$DB_PASSWORD -e "SELECT 1;" $DB_NAME >/dev/null 2>&1; then
+        print_success "Remote database connection successful"
+    else
+        print_error "Remote database connection failed"
+        print_status "Please check your database credentials and network connectivity"
+        exit 1
+    fi
 }
 
 # Function to copy application files from current directory
@@ -356,11 +359,11 @@ test_application() {
 # Main function
 main() {
     print_status "Starting complete WeatherAlert deployment..."
-    print_status "This will set up database configuration and complete the deployment"
+    print_status "This will use your existing remote database and complete the deployment"
     
     check_root
     setup_database_config
-    create_database
+    test_database_connection
     copy_app_files
     setup_virtualenv
     create_env_config
@@ -378,9 +381,9 @@ main() {
     print_status "  Password: admin123"
     print_status ""
     print_status "Database information:"
-    print_status "  Database: ${APP_NAME}_db"
-    print_status "  User: ${APP_NAME}_user"
-    print_status "  Password: (stored in /etc/django-apps/${APP_NAME}_db.conf)"
+    print_status "  Database: u520834156_dbweatherApp (Remote)"
+    print_status "  Host: 153.92.15.8:3306"
+    print_status "  User: u520834156_uWApp2024"
     print_status ""
     print_status "Use the following commands to manage the application:"
     print_status "  systemctl status django-$APP_NAME"
