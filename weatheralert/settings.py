@@ -26,7 +26,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-d0a@+xqkrda!+gb$6huxl
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'bccweatherapp.herokuapp.com,bccweatherapp-8fcc2a32c70f.herokuapp.com,localhost,127.0.0.1,192.168.32.107').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'bccweatherapp.herokuapp.com,bccweatherapp-8fcc2a32c70f.herokuapp.com,localhost,127.0.0.1,192.168.32.107,192.168.3.5,119.93.148.180').split(',')
 
 
 # Application definition
@@ -147,6 +147,9 @@ STATICFILES_FINDERS = [
     'django.contrib.staticfiles.finders.FileSystemFinder',
 ]
 
+# For deployment under a subpath (e.g., /weatherapp)
+FORCE_SCRIPT_NAME = os.environ.get('FORCE_SCRIPT_NAME', None)
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
@@ -213,10 +216,7 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_REDIRECT_EXEMPT = []
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    
-    
-import django_heroku
-django_heroku.settings(locals())
+    # Uncomment when SSL is configured
+    # SECURE_SSL_REDIRECT = True
+    # SESSION_COOKIE_SECURE = True
+    # CSRF_COOKIE_SECURE = True
