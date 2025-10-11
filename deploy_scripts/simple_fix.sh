@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # =============================================================================
-# Quick Fix for WeatherAlert Deployment
-# Run this from the weatherapp directory to complete the deployment
+# Simple Fix for WeatherAlert Deployment
+# This version doesn't require Django to be installed for secret key generation
 # =============================================================================
 
 set -e  # Exit on any error
@@ -44,6 +44,19 @@ check_root() {
         print_error "This script must be run as root (use sudo)"
         exit 1
     fi
+}
+
+# Function to generate a Django secret key
+generate_secret_key() {
+    python3 -c "
+import secrets
+import string
+
+# Generate a 50-character secret key similar to Django's format
+chars = string.ascii_letters + string.digits + '!@#$%^&*(-_=+)'
+secret_key = ''.join(secrets.choice(chars) for _ in range(50))
+print(secret_key)
+"
 }
 
 # Function to copy application files from current directory
@@ -143,12 +156,8 @@ setup_virtualenv() {
 create_env_config() {
     print_status "Creating environment configuration..."
     
-    # Generate secret key using the virtual environment
-    cd $APP_DIR
-    source venv/bin/activate
-    SECRET_KEY=$(python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())")
-    deactivate
-    cd - > /dev/null
+    # Generate secret key using Python's secrets module
+    SECRET_KEY=$(generate_secret_key)
     
     # Get database credentials
     if [ -f "/etc/django-apps/${APP_NAME}_db.conf" ]; then
@@ -300,7 +309,7 @@ test_application() {
 
 # Main function
 main() {
-    print_status "Starting quick fix for WeatherAlert deployment..."
+    print_status "Starting simple fix for WeatherAlert deployment..."
     print_status "This will complete the deployment from your current directory"
     
     check_root
