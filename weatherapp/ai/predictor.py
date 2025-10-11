@@ -170,6 +170,50 @@ def predict_rain(input_features):
     intensity = get_rain_intensity(rain_rate)
     return rain_rate, duration, intensity
 
+def assess_flood_risk(rain_rate, duration, intensity_label):
+    """
+    Assesses the predicted rain against a simplified set of flood thresholds
+    for two example areas (Low-Lying Area and Industrial Area).
+
+    In a real application, these thresholds would come from a configuration
+    or a dedicated flood-modeling system.
+
+    Returns:
+        list[dict]: A list of active flood warnings (can be empty).
+    """
+    warnings = []
+    
+    # --- Example 1: Low-Lying Residential Area Thresholds ---
+    # Low-lying areas flood easily, so the threshold is lower.
+    # High risk for Moderate rain (rate >= 2.5 mm) or prolonged Light rain (rate > 0.5 and duration > 60 min).
+    if rain_rate >= 2.5 or (rain_rate > 0.5 and duration > 60):
+        warning = {
+            "area": "Low-Lying Residential Area",
+            "risk_level": "High",
+            "message": f"High risk of flooding due to predicted {intensity_label} rain over {duration:.0f} minutes."
+        }
+        warnings.append(warning)
+    elif rain_rate > 1.0: # Moderate risk for persistent light rain
+        warning = {
+            "area": "Low-Lying Residential Area",
+            "risk_level": "Moderate",
+            "message": f"Moderate risk of standing water/minor flooding. Monitor conditions."
+        }
+        warnings.append(warning)
+
+    # --- Example 2: Industrial Area Thresholds ---
+    # Industrial areas often have better drainage, so the threshold is higher.
+    # Risk for Heavy rain (rate >= 7.6 mm) or Intense rain.
+    if rain_rate >= 7.6 or intensity_label in ["Heavy", "Intense", "Torrential"]:
+        warning = {
+            "area": "Industrial Area",
+            "risk_level": "High",
+            "message": f"High risk of localized flooding affecting operations due to predicted {intensity_label} rain."
+        }
+        warnings.append(warning)
+        
+    return warnings
+
 # =======================================================
 # 4. Main Execution Block
 # =======================================================
@@ -216,7 +260,7 @@ def main():
         print(f"Estimated Duration: {predicted_duration:.2f} minutes")
         print(f"Rainfall Intensity: {intensity_label}")
 
-        # --- Step 3: Insert results into the database ---
+        # --- Step 3: Insert Rain Prediction results into the database ---
         try:
             with connection.cursor() as cursor:
                 # Insert the prediction results
@@ -224,9 +268,33 @@ def main():
                     INSERT INTO ai_predictions (predicted_rain, duration, intensity, prediction_date)
                     VALUES (%s, %s, %s, NOW())
                 """, [predicted_rain_rate, predicted_duration, intensity_label])
-            print("✅ Prediction results successfully inserted into the database.")
+            print("✅ Rain prediction results successfully inserted into the database.")
         except Exception as e:
-            print(f"❌ Error inserting prediction results into the database: {e}")
+            print(f"❌ Error inserting rain prediction results into the database: {e}")
+            
+        # ------------------------------------------------------------------
+        # --- Step 4: Assess Flood Risk and Insert Flood Warnings (NEW) ---
+        # ------------------------------------------------------------------
+        flood_warnings = assess_flood_risk(predicted_rain_rate, predicted_duration, intensity_label)
+        
+        if flood_warnings:
+            print("\n--- FLOOD WARNINGS ISSUED ---")
+            try:
+                with connection.cursor() as cursor:
+                    for warning in flood_warnings:
+                        print(f"🚨 {warning['risk_level']} Risk for {warning['area']}: {warning['message']}")
+                        
+                        # Insert the flood warning results
+                        cursor.execute("""
+                            INSERT INTO flood_warnings (area, risk_level, message, prediction_date)
+                            VALUES (%s, %s, %s, NOW())
+                        """, [warning['area'], warning['risk_level'], warning['message']])
+                print("✅ Flood warnings successfully inserted into the database.")
+            except Exception as e:
+                print(f"❌ Error inserting flood warnings into the database: {e}")
+        else:
+            print("\nNo flood warnings issued for the target areas.")
+
 
     except Exception as e:
         print(f"An unexpected error occurred in the main function: {e}")
