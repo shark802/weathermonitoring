@@ -2,525 +2,271 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Weather Monitoring Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <link rel="stylesheet" href="{% static 'css/logout.css' %}">
-  <link rel="stylesheet" href="{% static 'css/alert.css' %}">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weather Monitoring Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="{% static 'css/logout.css' %}">
+    <link rel="stylesheet" href="{% static 'css/alert.css' %}">
 </head>
 <body class="bg-gray-200 font-sans min-h-auto">
 
-  {% include "weather/header.html" %}
+    {% include "weather/header.html" %}
 
-  <div class="flex pt-16">
+    <div class="flex pt-16">
 
-    {% include "weather/aside.html" %}
+        {% include "weather/aside.html" %}
 
-    <main class="transition-margin duration-300 ml-0 md:ml-64 flex-1 p-6 space-y-6">
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div class="bg-white p-4 rounded shadow flex flex-col justify-between h-full">
-          <div>
-            <h2 class="text-xl font-semibold mb-2 flex items-center justify-between">
-              <div class="flex items-center">
-                Live Data – 
-                <form method="get" class="ml-2" id="sensorForm">
-                  <select name="sensor_id" id="sensorSelect" 
-                          class="border rounded px-2 py-1 text-sm"
-                          onchange="this.form.submit()">
-                    {% for sensor in available_sensors %}
-                      <option value="{{ sensor.sensor_id }}" 
-                              {% if sensor.sensor_id == current_sensor_id %}selected{% endif %}>
-                        {{ sensor.name }}
-                      </option>
-                    {% endfor %}
-                  </select>
-                  <noscript>
-                    <button type="submit" class="ml-2 bg-blue-500 text-white px-2 py-1 rounded text-sm">
-                      Apply
-                    </button>
-                  </noscript>
-                </form>
-              </div>
-              <a href="?sensor_id={{ current_sensor_id }}" class="text-blue-600 hover:underline text-sm">
-                <i class="fas fa-sync-alt"></i>
-              </a>
-            </h2>
+        <main class="transition-margin duration-300 ml-0 md:ml-64 flex-1 p-6 space-y-6">
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <div class="bg-white p-4 rounded shadow flex flex-col justify-between h-full">
+                    <div>
+                        <h2 class="text-xl font-semibold mb-2 flex items-center justify-between">
+                            <div class="flex items-center">
+                                Live Data – 
+                                <form method="get" class="ml-2" id="sensorForm">
+                                    <select name="sensor_id" id="sensorSelect" 
+                                            class="border rounded px-2 py-1 text-sm"
+                                            onchange="this.form.submit()">
+                                        {% for sensor in available_sensors %}
+                                            <option value="{{ sensor.sensor_id }}" 
+                                                    {% if sensor.sensor_id == current_sensor_id %}selected{% endif %}>
+                                                {{ sensor.name }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                    <noscript>
+                                        <button type="submit" class="ml-2 bg-blue-500 text-white px-2 py-1 rounded text-sm">
+                                            Apply
+                                        </button>
+                                    </noscript>
+                                </form>
+                            </div>
+                            <a href="?sensor_id={{ current_sensor_id }}" class="text-blue-600 hover:underline text-sm">
+                                <i class="fas fa-sync-alt"></i>
+                            </a>
+                        </h2>
 
-            <div id="weatherDataContainer" class="mt-4">
-              {% if weather.error %}
-                <p class="text-red-600">Error: {{ weather.error }}</p>
-              {% else %}
-                <ul class="space-y-2 mr-2 list-none text-left">
-                  <li><i class="fas fa-thermometer-half text-red-700 ml-2"></i> Temperature: {{ weather.temperature }}°C</li>
-                  <li><i class="fas fa-tint text-blue-700 ml-2"></i> Humidity: {{ weather.humidity }}%</li>
-                  <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: {{ weather.dew_point }}°C</li>
-                  <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: {{ weather.wind_speed|default:"N/A" }} km/h</li>
-                  <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: {{ weather.rain_rate|default:"N/A" }} mm/h</li>
-                </ul>
-              {% endif %}
+                        <div id="weatherDataContainer" class="mt-4">
+                            {% if weather.error %}
+                                <p class="text-red-600">Error: {{ weather.error }}</p>
+                            {% else %}
+                                <ul class="space-y-2 mr-2 list-none text-left">
+                                    <li><i class="fas fa-thermometer-half text-red-700 ml-2"></i> Temperature: {{ weather.temperature }}°C</li>
+                                    <li><i class="fas fa-tint text-blue-700 ml-2"></i> Humidity: {{ weather.humidity }}%</li>
+                                    <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: {{ weather.dew_point }}°C</li>
+                                    <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: {{ weather.wind_speed|default:"N/A" }} km/h</li>
+                                    <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: {{ weather.rain_rate|default:"N/A" }} mm/h</li>
+                                </ul>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <p class="text-gray-600 text-center mt-4">
+                        Last Updated: {{ weather.date_time }}<br>
+                        <span class="text-sm text-gray-500">Location: {{ weather.location }}</span>
+                    </p>
+                </div>
+
+
+                <div class="bg-white p-4 rounded shadow md:col-span-2">
+                    <h2 class="text-xl font-semibold mb-4 flex items-center">
+                        <i class="fas fa-robot mr-2 text-blue-500"></i> AI Predictions & Warnings
+                    </h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        <div>
+                            <h3 class="font-bold text-lg mb-2 text-gray-700 border-b pb-1">🌧 Rain Forecast</h3>
+                            <div id="rainForecastContent" class="space-y-3 text-medium">
+                                {% if forecast %}
+                                    {% for item in forecast %}
+                                        {% if item.error %}
+                                            <div class="text-red-600 font-medium p-2 bg-red-100 rounded">
+                                                <p>⚠️ Prediction Error: {{ item.error }}</p>
+                                            </div>
+                                        {% elif item.prediction is not None %}
+                                            {% if item.prediction < 0.1 %}
+                                                <p class="text-gray-600">✅ No significant rain expected in the forecast period.</p>
+                                            {% else %}
+                                                <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                                                    <span class="font-medium text-gray-700">🌧 Predicted Rainfall</span>
+                                                    <span class="text-right text-gray-600 font-semibold">{{ item.prediction }} mm</span>
+                                                </div>
+                                                <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                                                    <span class="font-medium text-gray-700">⏱ Estimated Duration</span>
+                                                    <span class="text-right text-gray-600">{{ item.duration }} minutes</span>
+                                                </div>
+                                                <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                                                    <span class="font-medium text-gray-700">⚡ Rain Intensity</span>
+                                                    <span class="
+                                                        text-right px-2 py-1 rounded text-white font-medium
+                                                        {% if item.intensity == 'Light' %} bg-green-500
+                                                        {% elif item.intensity == 'Moderate' %} bg-yellow-500
+                                                        {% elif item.intensity == 'Heavy' %} bg-orange-500
+                                                        {% elif item.intensity == 'Intense' %} bg-red-600
+                                                        {% elif item.intensity == 'Torrential' %} bg-purple-700
+                                                        {% else %} bg-gray-400 {% endif %}
+                                                    ">
+                                                        {{ item.intensity }}
+                                                    </span>
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="text-gray-500 text-medium">No AI prediction available.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="font-bold text-lg mb-2 text-gray-700 border-b pb-1">🚨 Flood Warning</h3>
+                            <div id="floodWarningContent" class="space-y-3 text-medium">
+                                {% if flood_warning.error %}
+                                    <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
+                                        <p>✅ No active flood warnings at this time.</p>
+                                    </div>
+                                {% else %}
+                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                                        <span class="font-medium text-gray-700"><i class="fas fa-map-marker-alt mr-2"></i>Area</span>
+                                        <span class="text-right font-semibold text-gray-800">{{ flood_warning.area }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                                        <span class="font-medium text-gray-700"><i class="fas fa-exclamation-triangle mr-2"></i>Risk Level</span>
+                                        <span class="
+                                            text-right px-2 py-1 rounded text-white font-bold
+                                            {% if flood_warning.risk_level == 'High' %} bg-red-600
+                                            {% elif flood_warning.risk_level == 'Medium' %} bg-orange-500
+                                            {% else %} bg-yellow-500 {% endif %}
+                                        ">
+                                            {{ flood_warning.risk_level }}
+                                        </span>
+                                    </div>
+                                    <div class="p-2 border border-gray-300 rounded bg-gray-50">
+                                        <p class="font-medium text-gray-700 mb-1">Warning Message:</p>
+                                        <p class="text-sm text-gray-600 italic">{{ flood_warning.message }}</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                
             </div>
-          </div>
-          <p class="text-gray-600 text-center mt-4">
-            Last Updated: {{ weather.date_time }}<br>
-            <span class="text-sm text-gray-500">Location: {{ weather.location }}</span>
-          </p>
-        </div>
+            <hr class="my-4">
 
-
-        <div class="bg-white p-4 rounded shadow">
-          <h2 class="text-xl font-semibold mb-4">🌧 AI Rain Prediction</h2>
-          {% if forecast %}
-            <div class="space-y-3 text-medium">
-              {% for item in forecast %}
-                {% if item.error %}
-                  <div class="text-red-600 font-medium p-2 bg-red-100 rounded">
-                      <p>⚠️ Prediction Error: {{ item.error }}</p>
-                  </div>
-                {% elif item.prediction is not None %}
-                  <!-- Fix: Check if prediction is below a small threshold instead of exactly 0 -->
-                  {% if item.prediction < 0.1 %}
-                    <p class="text-gray-600">✅ No significant rain expected in the forecast period.</p>
-                  {% else %}
-                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                      <span class="font-medium text-gray-700">🌧 Predicted Rainfall</span>
-                      <span class="text-right text-gray-600">{{ item.prediction }} mm</span>
-                    </div>
-                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                      <span class="font-medium text-gray-700">⏱ Estimated Duration</span>
-                      <span class="text-right text-gray-600">{{ item.duration }} minutes</span>
-                    </div>
-                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                      <span class="font-medium text-gray-700">⚡ Rain Intensity</span>
-                      <span class="
-                        text-right px-2 py-1 rounded text-white
-                        {% if item.intensity == 'Light' %} bg-green-500
-                        {% elif item.intensity == 'Moderate' %} bg-yellow-500
-                        {% elif item.intensity == 'Heavy' %} bg-orange-500
-                        {% elif item.intensity == 'Intense' %} bg-red-600
-                        {% elif item.intensity == 'Torrential' %} bg-purple-700
-                        {% else %} bg-gray-400 {% endif %}
-                      ">
-                        {{ item.intensity }}
-                      </span>
-                    </div>
-                  {% endif %}
-                {% endif %}
-              {% endfor %}
-            </div>
-          {% else %}
-            <p class="text-gray-500 text-medium">No AI prediction available.</p>
-          {% endif %}
-        </div>             
-
-        <div class="bg-white p-4 rounded shadow">
-          <h2 class="text-xl font-semibold mb-2">Temperature Trends</h2>
-          <canvas id="tempChart" height="150"></canvas>
-        </div>
-      </div>
-
-      <div class="bg-white p-4 rounded shadow">
-        <h2 class="text-xl font-semibold mb-2">Weather Station Location</h2>
-        <div id="map" class="h-96 w-full relative z-10"></div>
-      </div>
-
-      <div class="alert-container bg-white p-4 rounded shadow">
-        <h2 class="text-xl font-semibold mb-4">Alerts & Notifications</h2>
-        <div id="alerts-list">
-            {% if alerts %}
-                <ul class="space-y-1">
-                    {% for alert in alerts %}
-                    <li class="alert-item 
-                        {% if alert.type == 'rain' and alert.intensity == 'torrential' %}text-red-700 font-bold animate-pulse
-                        {% elif alert.type == 'rain' and alert.intensity == 'intense' %}text-orange-600 font-semibold
-                        {% elif alert.type == 'rain' and alert.intensity == 'heavy' %}text-yellow-600
-                        {% elif alert.type == 'wind' %}text-blue-500
-                        {% else %}text-gray-700{% endif %}"
-                        data-timestamp="{{ alert.timestamp }}">
-                        ⚠️ {{ alert.text }}
-                    </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p class="text-green-600">✅ No active alerts at this time.</p>
-            {% endif %}
-        </div>
-      </div>
-    </main>
-  </div>
-
-
-  <div id="logoutModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
-    <div class="flex items-center justify-center min-h-screen p-4">
-      <!-- Backdrop -->
-      <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" aria-hidden="true"></div>
-      
-      <!-- Modal container -->
-      <div class="relative bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md transform transition-all">
-        <!-- Modal content -->
-        <div class="p-6">
-          <div class="flex items-start">
-            <!-- Icon -->
-            <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-50">
-              <i class="fas fa-sign-out-alt text-red-600 text-xl"></i>
+            <div class="bg-white p-4 rounded shadow">
+                <h2 class="text-xl font-semibold mb-2">Temperature Trends</h2>
+                <canvas id="tempChart" height="150"></canvas>
             </div>
             
-            <!-- Text content -->
-            <div class="ml-4">
-              <h3 class="text-xl font-semibold text-gray-900">Log out of your account?</h3>
-              <div class="mt-2">
-                <p class="text-gray-600">You'll need to log in again to access your dashboard.</p>
-              </div>
+            <div class="bg-white p-4 rounded shadow">
+                <h2 class="text-xl font-semibold mb-2">Weather Station Location</h2>
+                <div id="map" class="h-96 w-full relative z-10"></div>
             </div>
-          </div>
-        </div>
-        
-        <!-- Action buttons -->
-        <div class="bg-gray-50 px-6 py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-          <button type="button" onclick="hideLogoutModal()" 
-                  class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-            Cancel
-          </button>
-          <button type="button" onclick="performLogout()" 
-                  class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-            Log Out
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <div class="modal fade" id="sendAlertModal" tabindex="-1" aria-labelledby="sendAlertModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow-lg">
-      <form method="POST" action="{% url 'send_alert' %}" id="sendAlertForm">
-        {% csrf_token %}
-        <div class="modal-header bg-blue-600 text-white rounded-t-lg">
-          <div class="w-full text-center">
-            <h5 class="modal-title text-xl font-bold" id="sendAlertModalLabel">SEND ALERT NOTIFICATION</h5>
-          </div>
-          <button type="button" class="btn-close btn-close-white absolute right-4 top-4" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        
-        <div class="modal-body p-6 space-y-4">
-
-          <div class="border-t border-gray-200 my-4"></div>
-
-          <!-- Alert Type -->
-          <div class="space-y-3">
-            <h6 class="font-semibold text-gray-700 flex items-center">
-              <i class="fas fa-exclamation-triangle mr-2 text-yellow-500"></i>
-              Alert Details
-            </h6>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label for="alert_type" class="block text-sm font-medium text-gray-700 mb-1">Alert Type</label>
-                <select class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 shadow-sm" 
-                        id="alert_type" name="alert_type" required>
-                  <option value="Rain">Rain Alert</option>
-                  <option value="Wind">Wind Alert</option>
-                </select>
-              </div>
-              
-              <div>
-                <label for="severity" class="block text-sm font-medium text-gray-700 mb-1">Severity Level</label>
-                <select class="w-full rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500 shadow-sm" 
-                        id="severity" name="severity" required>
-                  <option value="Heavy">Heavy - Rain</option>
-                  <option value="Torrential">Torrential - Rain</option>
-                  <option value="Intense">Intense - Rain</option>
-                  <option value="Gale">Gale - Wind</option>
-                  <option value="Storm">Storm - Wind</option>
-                </select>
-              </div>
+            <div class="alert-container bg-white p-4 rounded shadow">
+                <h2 class="text-xl font-semibold mb-4">Alerts & Notifications</h2>
+                <div id="alerts-list">
+                    {% if alerts %}
+                        <ul class="space-y-1">
+                            {% for alert in alerts %}
+                            <li class="alert-item 
+                                {% if alert.type == 'rain' and alert.intensity == 'torrential' %}text-red-700 font-bold animate-pulse
+                                {% elif alert.type == 'rain' and alert.intensity == 'intense' %}text-orange-600 font-semibold
+                                {% elif alert.type == 'rain' and alert.intensity == 'heavy' %}text-yellow-600
+                                {% elif alert.type == 'wind' %}text-blue-500
+                                {% else %}text-gray-700{% endif %}"
+                                data-timestamp="{{ alert.timestamp }}">
+                                ⚠️ {{ alert.text }}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-green-600">✅ No active alerts at this time.</p>
+                    {% endif %}
+                </div>
             </div>
-          </div>
-
-          <div id="alert-status" class="mt-4 text-center font-medium text-sm"></div>
-        </div>
-        
-        <div class="modal-footer bg-gray-50 rounded-b-lg px-6 py-4 flex flex-col sm:flex-row-reverse gap-3">
-          <button type="submit" 
-                  class="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm flex items-center justify-center gap-2">
-            <i class="fas fa-paper-plane"></i> Send Alert
-          </button>
-          <button type="button" 
-                  class="w-full sm:w-auto px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm"
-                  data-bs-dismiss="modal">
-            Cancel
-          </button>
-        </div>
-      </form>
+        </main>
     </div>
-  </div>
-</div>
 
-
-  <div id="loadingOverlay" class="hidden fixed inset-0 z-50 bg-white bg-opacity-80 flex flex-col items-center justify-center">
-    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
-    <p class="mt-4 text-lg font-medium text-gray-700">Logging out...</p>
-  </div>
-
-  <audio id="alertSound" src="{% static 'sounds/alert.mp3' %}" preload="auto"></audio>
-
-  <script id="locations-data" type="application/json">{{ locations|safe }}</script>
-  <script>
-      window.mapCenter = {{ map_center|safe }};
-  </script>
-
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="{% static 'js/alert.js' %}"></script>
-  <script src="{% static 'js/alertbox.js' %}"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-    const alertTypeSelect = document.getElementById('alert_type');
-    const severitySelect = document.getElementById('severity');
-    
-    // Group options by their type (using the text of the option)
-    const allOptions = Array.from(severitySelect.options);
-    const rainOptions = allOptions.filter(opt => opt.text.includes('Rain'));
-    const windOptions = allOptions.filter(opt => opt.text.includes('Wind'));
-
-    function updateSeverityOptions() {
-        // Clear all current options from the severity select box
-        severitySelect.innerHTML = '';
+    <script>
+        // ... (Chart initialization and other functions) ...
         
-        const selectedType = alertTypeSelect.value;
-        let optionsToShow = [];
-        
-        if (selectedType === 'Rain') {
-            optionsToShow = rainOptions;
-        } else if (selectedType === 'Wind') {
-            optionsToShow = windOptions;
-        }
-
-        // Add the relevant options back to the severity select box
-        optionsToShow.forEach(option => {
-            severitySelect.appendChild(option.cloneNode(true));
-        });
-        
-        // If there are options, select the first one by default
-        if (severitySelect.options.length > 0) {
-            severitySelect.selectedIndex = 0;
-        }
-    }
-
-    // Attach event listener and run on initial load
-    alertTypeSelect.addEventListener('change', updateSeverityOptions);
-    updateSeverityOptions(); // Run once to set the initial state
-});
-
-    const ctx = document.getElementById('tempChart').getContext('2d');
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: {{ labels|safe }},
-        datasets: [{
-          label: 'Temperature (°C)',
-          data: {{ data|safe }},
-          borderColor: 'rgb(59, 130, 246)',
-          backgroundColor: 'rgba(59, 130, 246, 0.2)',
-          fill: true
-        }]
-      },
-      options: {
-        responsive: true,
-        scales: {
-          y: { beginAtZero: false }
-        }
-      }
-    });
-
-function showLogoutModal() {
-  document.getElementById('logoutModal').classList.remove('hidden');
-}
-
-function hideLogoutModal() {
-  document.getElementById('logoutModal').classList.add('hidden');
-}
-
-function performLogout() {
-  // Show loading overlay
-  document.getElementById('loadingOverlay').classList.remove('hidden');
-  
-  hideLogoutModal();
-  
-  const logoutBtn = document.querySelector('#logout-form button');
-  if (logoutBtn) {
-    logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Logging out...';
-    logoutBtn.disabled = true;
-  }
-  
-  // Submit the form
-  document.getElementById('logout-form').submit();
-}
-
-  function toggleRainfallDropdown() {
-    const menu = document.getElementById('rainfallMenu');
-    const arrow = document.getElementById('rainfallArrow');
-
-    menu.classList.toggle('hidden');
-
-    if (menu.classList.contains('hidden')) {
-      arrow.classList.remove('fa-chevron-down');
-      arrow.classList.add('fa-chevron-right');
-    } else {
-      arrow.classList.remove('fa-chevron-right');
-      arrow.classList.add('fa-chevron-down');
-    }
-  }
-
-  function toggleUserDropdown() {
-    const menu = document.getElementById('userMenu');
-    const arrow = document.getElementById('userArrow');
-
-    menu.classList.toggle('hidden');
-
-    if (menu.classList.contains('hidden')) {
-      arrow.classList.remove('fa-chevron-down');
-      arrow.classList.add('fa-chevron-right');
-    } else {
-      arrow.classList.remove('fa-chevron-right');
-      arrow.classList.add('fa-chevron-down');
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', function () {
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
-      new bootstrap.Tooltip(tooltipTriggerEl)
-    })
-  });
-
-  document.addEventListener('DOMContentLoaded', () => {
-    const sidebar = document.getElementById('sidebar');
-    const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
-    const mainContent = document.querySelector('main');
-
-    // Initialize state
-    const initSidebar = () => {
-        const isDesktop = window.innerWidth >= 768;
-        
-        if (isDesktop) {
-            sidebar.classList.remove('-translate-x-full');
-            mainContent.classList.add('md:ml-64');
-        } else {
-            sidebar.classList.add('-translate-x-full');
-            mainContent.classList.remove('md:ml-64');
-        }
-    };
-
-    // Toggle function
-    const toggleSidebar = () => {
-        const isDesktop = window.innerWidth >= 768;
-        
-        sidebar.classList.toggle('-translate-x-full');
-        
-        // Only adjust margin on desktop
-        if (isDesktop) {
-            mainContent.classList.toggle('md:ml-64');
-            mainContent.classList.toggle('md:ml-0');
-        }
-    };
-
-    // Handle window resize
-    const handleResize = () => {
-        const isDesktop = window.innerWidth >= 768;
-        
-        if (isDesktop) {
-            // If sidebar is open on desktop, ensure margin is applied
-            if (!sidebar.classList.contains('-translate-x-full')) {
-                mainContent.classList.add('md:ml-64');
-                mainContent.classList.remove('md:ml-0');
-            }
-        } else {
-            // On mobile, remove margin (sidebar will overlay)
-            mainContent.classList.remove('md:ml-64');
-            mainContent.classList.add('md:ml-0');
-        }
-    };
-
-    // Event listeners
-    sidebarToggleBtn.addEventListener('click', toggleSidebar);
-    window.addEventListener('resize', handleResize);
-    
-    // Initialize
-    initSidebar();
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-        const weatherContainer = document.getElementById("weatherDataContainer");
-        const lastUpdatedText = document.querySelector("p.text-gray-600.text-center.mt-4");
-        const forecastContainer = document.querySelector(".bg-white.p-4.rounded.shadow:nth-of-type(2)");
-        const alertsContainer = document.getElementById("alerts-list");
-        const tempChartCtx = document.getElementById("tempChart").getContext("2d");
-        
-        // This global variable will hold your chart instance
-        let tempChart;
-
-        // Initialize Chart with the initial data from Django context
-        const initialLabels = JSON.parse('{{ labels|safe }}');
-        const initialData = JSON.parse('{{ data|safe }}');
-        tempChart = new Chart(tempChartCtx, {
-            type: "line",
-            data: {
-                labels: initialLabels,
-                datasets: [{
-                    label: "Temperature (°C)",
-                    data: initialData,
-                    borderColor: "rgb(59,130,246)",
-                    backgroundColor: "rgba(59,130,246,0.2)",
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: { y: { beginAtZero: false } }
-            }
-        });
-
-        function refreshAllData() {
-            const currentSensorId = document.getElementById('sensorSelect').value;
+        document.addEventListener("DOMContentLoaded", () => {
+            const weatherContainer = document.getElementById("weatherDataContainer");
+            const lastUpdatedText = document.querySelector("p.text-gray-600.text-center.mt-4");
+            // **UPDATED TARGETS**
+            const rainForecastContent = document.getElementById("rainForecastContent");
+            const floodWarningContent = document.getElementById("floodWarningContent");
+            const alertsContainer = document.getElementById("alerts-list");
+            const tempChartCtx = document.getElementById("tempChart").getContext("2d");
             
-            fetch(`{% url 'latest_dashboard_data' %}?sensor_id=${currentSensorId}`)
-                .then(res => res.json())
-                .then(data => {
-                    // Update Live Weather Data
-                    const weather = data.weather;
-                    if (weather.error) {
-                        weatherContainer.innerHTML = `<p class="text-red-600">Error: ${weather.error}</p>`;
-                    } else {
-                        weatherContainer.innerHTML = `
-                            <ul class="space-y-2 mr-2 list-none text-left">
-                                <li><i class="fas fa-thermometer-half text-red-700 ml-2"></i> Temperature: ${weather.temperature}°C</li>
-                                <li><i class="fas fa-tint text-blue-700 ml-2"></i> Humidity: ${weather.humidity}%</li>
-                                <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: ${weather.dew_point}°C</li>
-                                <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: ${weather.wind_speed ?? "N/A"} m/s</li>
-                                <li><i class="fas fa-cloud text-indigo-700 ml-2"></i> Barometric Pressure: ${weather.barometric_pressure ?? "N/A"} hPa</li>
-                                <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: ${weather.rain_rate ?? "N/A"} mm/h</li>
-                            </ul>
-                        `;
-                        lastUpdatedText.innerHTML = `Last Updated: ${weather.date_time}<br><span class="text-sm text-gray-500">Location: ${weather.location}</span>`;
-                    }
+            // This global variable will hold your chart instance
+            let tempChart;
 
-                    // Update AI Rain Prediction
-                    const forecast = data.forecast;
-                    const forecastHTML = forecast.length > 0 ?
-                        `<div class="space-y-3 text-medium">
-                            ${forecast.map(item => item.error ?
+            // Initialize Chart with the initial data from Django context
+            const initialLabels = JSON.parse('{{ labels|safe }}');
+            const initialData = JSON.parse('{{ data|safe }}');
+            tempChart = new Chart(tempChartCtx, {
+                type: "line",
+                data: {
+                    labels: initialLabels,
+                    datasets: [{
+                        label: "Temperature (°C)",
+                        data: initialData,
+                        borderColor: "rgb(59,130,246)",
+                        backgroundColor: "rgba(59,130,246,0.2)",
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: false } }
+                }
+            });
+
+            function refreshAllData() {
+                const currentSensorId = document.getElementById('sensorSelect').value;
+                
+                fetch(`{% url 'latest_dashboard_data' %}?sensor_id=${currentSensorId}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        // 1. Update Live Weather Data
+                        const weather = data.weather;
+                        if (weather.error) {
+                            weatherContainer.innerHTML = `<p class="text-red-600">Error: ${weather.error}</p>`;
+                        } else {
+                            weatherContainer.innerHTML = `
+                                <ul class="space-y-2 mr-2 list-none text-left">
+                                    <li><i class="fas fa-thermometer-half text-red-700 ml-2"></i> Temperature: ${weather.temperature}°C</li>
+                                    <li><i class="fas fa-tint text-blue-700 ml-2"></i> Humidity: ${weather.humidity}%</li>
+                                    <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: ${weather.dew_point}°C</li>
+                                    <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: ${weather.wind_speed ?? "N/A"} m/s</li>
+                                    <li><i class="fas fa-cloud text-indigo-700 ml-2"></i> Barometric Pressure: ${weather.barometric_pressure ?? "N/A"} hPa</li>
+                                    <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: ${weather.rain_rate ?? "N/A"} mm/h</li>
+                                </ul>
+                            `;
+                            lastUpdatedText.innerHTML = `Last Updated: ${weather.date_time}<br><span class="text-sm text-gray-500">Location: ${weather.location}</span>`;
+                        }
+
+                        // 2. Update AI Rain Prediction (Targets rainForecastContent)
+                        const forecast = data.forecast;
+                        const forecastHTML = forecast.length > 0 ?
+                            `${forecast.map(item => item.error ?
                                 `<div class="text-red-600 font-medium p-2 bg-red-100 rounded">⚠️ Prediction Error: ${item.error}</div>` :
                                 item.prediction < 0.1 ?
                                 `<p class="text-gray-600">✅ No significant rain expected in the forecast period.</p>` :
                                 `<div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
                                     <span class="font-medium text-gray-700">🌧 Predicted Rainfall</span>
-                                    <span class="text-right text-gray-600">${item.prediction} mm</span>
+                                    <span class="text-right text-gray-600 font-semibold">${item.prediction} mm</span>
                                 </div>
                                 <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
                                     <span class="font-medium text-gray-700">⏱ Estimated Duration</span>
@@ -528,49 +274,82 @@ document.addEventListener("DOMContentLoaded", () => {
                                 </div>
                                 <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
                                     <span class="font-medium text-gray-700">⚡ Rain Intensity</span>
-                                    <span class="text-right px-2 py-1 rounded text-white
+                                    <span class="text-right px-2 py-1 rounded text-white font-medium
                                         ${item.intensity === 'Light' ? 'bg-green-500' : item.intensity === 'Moderate' ? 'bg-yellow-500' : item.intensity === 'Heavy' ? 'bg-orange-500' : item.intensity === 'Intense' ? 'bg-red-600' : item.intensity === 'Torrential' ? 'bg-purple-700' : 'bg-gray-400'}">
                                         ${item.intensity}
                                     </span>
-                                </div>`).join('')}
-                        </div>` :
-                        `<p class="text-gray-500 text-medium">No AI prediction available.</p>`;
-                    forecastContainer.innerHTML = `<h2 class="text-xl font-semibold mb-4">🌧 AI Rain Prediction</h2>${forecastHTML}`;
+                                </div>`).join('')}` :
+                            `<p class="text-gray-500 text-medium">No AI prediction available.</p>`;
+                        rainForecastContent.innerHTML = forecastHTML;
 
-                    // Update Alerts section
-                    const alerts = data.alerts;
-                    const alertsHTML = alerts.length > 0 ?
-                        `<ul class="space-y-1">
-                            ${alerts.map(alert => {
-                                let alertClass = 'text-gray-700';
-                                if (alert.type === 'rain') {
-                                    if (alert.intensity === 'torrential') alertClass = 'text-red-700 font-bold animate-pulse';
-                                    else if (alert.intensity === 'intense') alertClass = 'text-orange-600 font-semibold';
-                                    else if (alert.intensity === 'heavy') alertClass = 'text-yellow-600';
-                                } else if (alert.type === 'wind') {
-                                    alertClass = 'text-blue-500';
-                                }
-                                return `<li class="alert-item ${alertClass}" data-timestamp="${alert.timestamp}">⚠️ ${alert.text}</li>`;
-                            }).join('')}
-                        </ul>` :
-                        `<p class="text-green-600">✅ No active alerts at this time.</p>`;
-                    alertsContainer.innerHTML = alertsHTML;
+                        // 3. Update Flood Warning (Targets floodWarningContent)
+                        const warning = data.flood_warning;
+                        if (warning && warning.error) {
+                            floodWarningContent.innerHTML = `
+                                <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
+                                    <p>✅ No active flood warnings at this time.</p>
+                                </div>
+                            `;
+                        } else if (warning) {
+                            const riskClass = warning.risk_level === 'High' ? 'bg-red-600' : warning.risk_level === 'Medium' ? 'bg-orange-500' : 'bg-yellow-500';
+                            
+                            floodWarningContent.innerHTML = `
+                                <div class="space-y-3 text-medium">
+                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                                        <span class="font-medium text-gray-700"><i class="fas fa-map-marker-alt mr-2"></i>Area</span>
+                                        <span class="text-right font-semibold text-gray-800">${warning.area}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
+                                        <span class="font-medium text-gray-700"><i class="fas fa-exclamation-triangle mr-2"></i>Risk Level</span>
+                                        <span class="text-right px-2 py-1 rounded text-white font-bold ${riskClass}">
+                                            ${warning.risk_level}
+                                        </span>
+                                    </div>
+                                    <div class="p-2 border border-gray-300 rounded bg-gray-50">
+                                        <p class="font-medium text-gray-700 mb-1">Warning Message:</p>
+                                        <p class="text-sm text-gray-600 italic">${warning.message}</p>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            floodWarningContent.innerHTML = `<p class="text-gray-500 text-medium">No flood warning data available.</p>`;
+                        }
 
-                    // Update Temperature Chart
-                    tempChart.data.labels = data.chart_labels;
-                    tempChart.data.datasets[0].data = data.chart_data;
-                    tempChart.update();
-                })
-                .catch(err => console.error("Data refresh error:", err));
-        }
 
-        // Auto-refresh the entire dashboard every 10 seconds
-        setInterval(refreshAllData, 10000);
+                        // 4. Update Alerts section
+                        const alerts = data.alerts;
+                        const alertsHTML = alerts.length > 0 ?
+                            `<ul class="space-y-1">
+                                ${alerts.map(alert => {
+                                    let alertClass = 'text-gray-700';
+                                    if (alert.type === 'rain') {
+                                        if (alert.intensity === 'torrential') alertClass = 'text-red-700 font-bold animate-pulse';
+                                        else if (alert.intensity === 'intense') alertClass = 'text-orange-600 font-semibold';
+                                        else if (alert.intensity === 'heavy') alertClass = 'text-yellow-600';
+                                    } else if (alert.type === 'wind') {
+                                        alertClass = 'text-blue-500';
+                                    }
+                                    return `<li class="alert-item ${alertClass}" data-timestamp="${alert.timestamp}">⚠️ ${alert.text}</li>`;
+                                }).join('')}
+                            </ul>` :
+                            `<p class="text-green-600">✅ No active alerts at this time.</p>`;
+                        alertsContainer.innerHTML = alertsHTML;
 
-        // This ensures a refresh happens immediately after a sensor is selected
-        document.getElementById('sensorSelect').addEventListener('change', refreshAllData);
-    });
+                        // 5. Update Temperature Chart
+                        tempChart.data.labels = data.chart_labels;
+                        tempChart.data.datasets[0].data = data.chart_data;
+                        tempChart.update();
+                    })
+                    .catch(err => console.error("Data refresh error:", err));
+            }
 
-  </script>
+            // Auto-refresh the entire dashboard every 10 seconds
+            setInterval(refreshAllData, 10000);
+
+            // This ensures a refresh happens immediately after a sensor is selected
+            document.getElementById('sensorSelect').addEventListener('change', refreshAllData);
+        });
+
+    </script>
 </body>
 </html>

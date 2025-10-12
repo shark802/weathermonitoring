@@ -504,6 +504,26 @@ def latest_dashboard_data(request):
             }
         else:
             forecast = {'error': 'No AI prediction data available.'}
+            
+        flood_warning = {}
+        cursor.execute("""
+            SELECT area, risk_level, message
+            FROM flood_warnings
+            ORDER BY prediction_date DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        if row:
+            # We combine the retrieved values into the dictionary
+            flood_warning = {
+                'area': row[0],
+                'risk_level': row[1],
+                'message': row[2],
+                'error': None
+            }
+        else:
+            # Error if no recent warning is found
+            flood_warning = {'error': 'No recent flood warning data available.'}
 
         # 4. Fetch Alerts (the logic is copied directly from your original admin_dashboard view)
         alerts = []
@@ -544,6 +564,7 @@ def latest_dashboard_data(request):
         'weather': weather,
         'alerts': alerts,
         'forecast': [forecast] if forecast.get('error') is None else [],
+        'flood_warning': flood_warning,
         'chart_labels': chart_labels,
         'chart_data': chart_data,
     })
