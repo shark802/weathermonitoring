@@ -5,13 +5,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Weather Monitoring Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <link rel="stylesheet" href="{% static 'css/logout.css' %}">
-    <link rel="stylesheet" href="{% static 'css/alert.css' %}">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="{% static 'css/logout.css' %}">
+  <link rel="stylesheet" href="{% static 'css/alert.css' %}">
 </head>
 <body class="bg-gray-200 font-sans min-h-auto">
 
@@ -116,6 +116,13 @@
                                                         {{ item.intensity }}
                                                     </span>
                                                 </div>
+                                                
+                                                {# 🌟 ADDED THE CREATED AT FIELD HERE 🌟 #}
+                                                <div class="flex justify-between items-center text-sm text-gray-500 pt-1">
+                                                    <span class="font-medium">🕒 Last Predicted:</span>
+                                                    <span class="font-medium">{{ item.created_at }}</span>
+                                                </div>
+                                                
                                             {% endif %}
                                         {% endif %}
                                     {% endfor %}
@@ -164,7 +171,7 @@
 
             <div class="bg-white p-4 rounded shadow">
                 <h2 class="text-xl font-semibold mb-2">Temperature Trends</h2>
-                <canvas id="tempChart" height="150"></canvas>
+                <canvas id="tempChart" height="100"></canvas>
             </div>
             
             <div class="bg-white p-4 rounded shadow">
@@ -197,20 +204,325 @@
         </main>
     </div>
 
+    <div id="logoutModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" aria-hidden="true"></div>
+            <div class="relative bg-white rounded-xl shadow-2xl overflow-hidden w-full max-w-md transform transition-all">
+                <div class="p-6 flex items-start">
+                    <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-50">
+                        <i class="fas fa-sign-out-alt text-red-600 text-xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-xl font-semibold text-gray-900">Log out of your account?</h3>
+                        <p class="text-gray-600 mt-2">You'll need to log in again to access your dashboard.</p>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-6 py-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                    <button type="button" onclick="hideLogoutModal()" class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">Cancel</button>
+                    <button type="button" onclick="performLogout()" class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm">Log Out</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+  <div class="modal fade" id="sendAlertModal" tabindex="-1" aria-labelledby="sendAlertModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-xl rounded-xl">
+            <form method="POST" action="{% url 'send_alert' %}" id="sendAlertForm">
+                {% csrf_token %}
+                <div class="modal-header bg-red-600 text-white rounded-t-xl border-b-0 relative">
+                    <div class="w-full text-center py-2">
+                        <h5 class="modal-title text-2xl font-extrabold" id="sendAlertModalLabel">
+                            <i class="fas fa-bullhorn mr-2"></i> SEND EMERGENCY ALERT
+                        </h5>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white absolute right-4 top-4 opacity-70 hover:opacity-100 transition" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <div class="modal-body p-6 space-y-6">
+                    <h6 class="font-bold text-lg text-red-700 flex items-center border-b pb-2 mb-4">
+                        <i class="fas fa-exclamation-triangle mr-2 text-red-500"></i>
+                        Alert Details & Message
+                    </h6>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="alert_type" class="block text-sm font-bold text-gray-700 mb-1">Alert Type</label>
+                            <select class="w-full rounded-lg border-gray-300 focus:border-red-500 focus:ring-red-500 shadow-sm transition" 
+                                    id="alert_type" name="alert_type" required>
+                                <option value="rain">Rain Alert</option>
+                                <option value="wind">Wind Alert</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="severity" class="block text-sm font-bold text-gray-700 mb-1">Severity Level</label>
+                            <select class="w-full rounded-lg border-gray-300 focus:border-red-500 focus:ring-red-500 shadow-sm transition" 
+                                    id="severity" name="severity" required>
+                                <option value="Heavy">Heavy</option>
+                                <option value="Intense">Intense</option>
+                                <option value="Torrential">Torrential</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="alert_message" class="block text-sm font-bold text-gray-700 mb-1">Custom Alert Message</label>
+                        <textarea class="w-full rounded-lg border-gray-300 focus:border-red-500 focus:ring-red-500 shadow-sm" 
+                                  id="alert_message" name="alert_message" rows="3" 
+                                  placeholder="E.g., Expect severe flooding in low-lying areas. Seek higher ground immediately."></textarea>
+                    </div>
+
+                    <div id="alert-status" class="mt-4 text-center font-bold text-sm"></div>
+                </div>
+                
+                <div class="modal-footer bg-gray-50 rounded-b-xl px-6 py-4 flex flex-col sm:flex-row-reverse gap-3">
+                    <button type="submit" 
+                              class="w-full sm:w-auto px-6 py-2 bg-red-600 text-white font-extrabold rounded-lg hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-300 transition-colors shadow-md flex items-center justify-center gap-2 text-lg"
+                              id="sendAlertButton">
+                        <i class="fas fa-paper-plane"></i> Send Alert
+                    </button>
+                    <button type="button" 
+                              class="w-full sm:w-auto px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors shadow-sm"
+                              data-bs-dismiss="modal">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+ <div id="loadingOverlay" class="hidden fixed inset-0 z-50 bg-white bg-opacity-80 flex flex-col items-center justify-center">
+   <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+   <p class="mt-4 text-lg font-medium text-gray-700">Logging out...</p>
+ </div>
+
+
+<audio id="alertSound" src="{% static 'sounds/alert.mp3' %}" preload="auto"></audio>
+
+  <script id="locations-data" type="application/json">{{ locations|safe }}</script>
+  <script>
+      window.mapCenter = {{ map_center|safe }};
+  </script>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="{% static 'js/alert.js' %}"></script>
+  <script src="{% static 'js/alertbox.js' %}"></script>
     <script>
-        // ... (Chart initialization and other functions) ...
+    document.addEventListener('DOMContentLoaded', function() {
+    const alertTypeSelect = document.getElementById('alert_type');
+    const severitySelect = document.getElementById('severity');
+    
+    // --- 1. Robustly Group Options ---
+    const allOptions = Array.from(severitySelect.options);
+
+    // FIX: Define the complete list of all potential severity options.
+    // Since the original HTML only had Rain options, we add the Wind options here.
+    // If your HTML contained all options (Rain first, then Wind), this logic would be simpler.
+    
+    // 1. Group the currently visible options (Rain options)
+    const rainOptions = allOptions; 
+
+    // 2. Define the missing Wind options (assuming these are the desired levels)
+    const windOptionsData = [
+        { value: 'Gale', text: 'Gale' },
+        { value: 'Storm', text: 'Storm' },
+        { value: 'Typhoon', text: 'Typhoon' }
+    ];
+    // Create actual Option elements for Wind
+    const windOptions = windOptionsData.map(data => {
+        const opt = document.createElement('option');
+        opt.value = data.value;
+        opt.textContent = data.text;
+        return opt;
+    });
+
+    // Create a map to store options grouped by their type (Rain/Wind)
+    const severityMap = {
+        // FIX: The HTML value is lowercase ('rain'), so we use 'rain' as the key
+        // We will keep the capitalization logic for robustness, but use lowercase keys.
+        'rain': rainOptions, 
+        'wind': windOptions
+    };
+
+    // Function to dynamically update the Severity dropdown
+    function updateSeverityOptions() {
+        severitySelect.innerHTML = '';
         
+        // Use the actual lowercase value from the HTML ('rain' or 'wind')
+        const selectedType = alertTypeSelect.value;
+        
+        // Get the relevant array of options (either rainOptions or windOptions)
+        const optionsToShow = severityMap[selectedType] || []; 
+
+        optionsToShow.forEach(option => {
+            severitySelect.appendChild(option.cloneNode(true));
+        });
+        
+        if (severitySelect.options.length > 0) {
+            severitySelect.selectedIndex = 0;
+        }
+    }
+
+    // --- 2. Add Event Listener & Initial Call ---
+    
+    alertTypeSelect.addEventListener('change', updateSeverityOptions);
+    
+    // This runs on load and will correctly show the Rain options
+    updateSeverityOptions(); 
+});
+
+    const ctx = document.getElementById('tempChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: {{ labels|safe }},
+        datasets: [{
+          label: 'Temperature (°C)',
+          data: {{ data|safe }},
+          borderColor: 'rgb(59, 130, 246)',
+          backgroundColor: 'rgba(59, 130, 246, 0.2)',
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { beginAtZero: false }
+        }
+      }
+    });
+
+function showLogoutModal() {
+  document.getElementById('logoutModal').classList.remove('hidden');
+}
+
+function hideLogoutModal() {
+  document.getElementById('logoutModal').classList.add('hidden');
+}
+
+function performLogout() {
+  // Show loading overlay
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  
+  hideLogoutModal();
+  
+  const logoutBtn = document.querySelector('#logout-form button');
+  if (logoutBtn) {
+    logoutBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Logging out...';
+    logoutBtn.disabled = true;
+  }
+  
+  // Submit the form
+  document.getElementById('logout-form').submit();
+}
+
+  function toggleRainfallDropdown() {
+    const menu = document.getElementById('rainfallMenu');
+    const arrow = document.getElementById('rainfallArrow');
+
+    menu.classList.toggle('hidden');
+
+    if (menu.classList.contains('hidden')) {
+      arrow.classList.remove('fa-chevron-down');
+      arrow.classList.add('fa-chevron-right');
+    } else {
+      arrow.classList.remove('fa-chevron-right');
+      arrow.classList.add('fa-chevron-down');
+    }
+  }
+
+  function toggleUserDropdown() {
+    const menu = document.getElementById('userMenu');
+    const arrow = document.getElementById('userArrow');
+
+    menu.classList.toggle('hidden');
+
+    if (menu.classList.contains('hidden')) {
+      arrow.classList.remove('fa-chevron-down');
+      arrow.classList.add('fa-chevron-right');
+    } else {
+      arrow.classList.remove('fa-chevron-right');
+      arrow.classList.add('fa-chevron-down');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+      new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+    const mainContent = document.querySelector('main');
+
+    // Initialize state
+    const initSidebar = () => {
+        const isDesktop = window.innerWidth >= 768;
+        
+        if (isDesktop) {
+            sidebar.classList.remove('-translate-x-full');
+            mainContent.classList.add('md:ml-64');
+        } else {
+            sidebar.classList.add('-translate-x-full');
+            mainContent.classList.remove('md:ml-64');
+        }
+    };
+
+    // Toggle function
+    const toggleSidebar = () => {
+        const isDesktop = window.innerWidth >= 768;
+        
+        sidebar.classList.toggle('-translate-x-full');
+        
+        // Only adjust margin on desktop
+        if (isDesktop) {
+            mainContent.classList.toggle('md:ml-64');
+            mainContent.classList.toggle('md:ml-0');
+        }
+    };
+
+    // Handle window resize
+    const handleResize = () => {
+        const isDesktop = window.innerWidth >= 768;
+        
+        if (isDesktop) {
+            // If sidebar is open on desktop, ensure margin is applied
+            if (!sidebar.classList.contains('-translate-x-full')) {
+                mainContent.classList.add('md:ml-64');
+                mainContent.classList.remove('md:ml-0');
+            }
+        } else {
+            // On mobile, remove margin (sidebar will overlay)
+            mainContent.classList.remove('md:ml-64');
+            mainContent.classList.add('md:ml-0');
+        }
+    };
+
+    // Event listeners
+    sidebarToggleBtn.addEventListener('click', toggleSidebar);
+    window.addEventListener('resize', handleResize);
+    
+    // Initialize
+    initSidebar();
+});
+        
+let tempChart;
+
         document.addEventListener("DOMContentLoaded", () => {
             const weatherContainer = document.getElementById("weatherDataContainer");
             const lastUpdatedText = document.querySelector("p.text-gray-600.text-center.mt-4");
-            // **UPDATED TARGETS**
             const rainForecastContent = document.getElementById("rainForecastContent");
             const floodWarningContent = document.getElementById("floodWarningContent");
-            const alertsContainer = document.getElementById("alerts-list");
+            const alertsContainer = document.getElementById("alerts-list"); // Used for dropdown only now
             const tempChartCtx = document.getElementById("tempChart").getContext("2d");
-            
-            // This global variable will hold your chart instance
-            let tempChart;
 
             // Initialize Chart with the initial data from Django context
             const initialLabels = JSON.parse('{{ labels|safe }}');
@@ -222,34 +534,37 @@
                     datasets: [{
                         label: "Temperature (°C)",
                         data: initialData,
-                        borderColor: "rgb(59,130,246)",
-                        backgroundColor: "rgba(59,130,246,0.2)",
+                        borderColor: "rgb(59, 130, 246)",
+                        backgroundColor: "rgba(59, 130, 246, 0.2)",
                         fill: true
                     }]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     scales: { y: { beginAtZero: false } }
                 }
             });
 
+            // --- Primary Data Refresh Function ---
             function refreshAllData() {
                 const currentSensorId = document.getElementById('sensorSelect').value;
                 
+                // Assuming you have a Django URL named 'latest_dashboard_data' for AJAX data
                 fetch(`{% url 'latest_dashboard_data' %}?sensor_id=${currentSensorId}`)
                     .then(res => res.json())
                     .then(data => {
                         // 1. Update Live Weather Data
                         const weather = data.weather;
-                        if (weather.error) {
+                        if (weather && weather.error) {
                             weatherContainer.innerHTML = `<p class="text-red-600">Error: ${weather.error}</p>`;
-                        } else {
+                        } else if (weather) {
                             weatherContainer.innerHTML = `
                                 <ul class="space-y-2 mr-2 list-none text-left">
                                     <li><i class="fas fa-thermometer-half text-red-700 ml-2"></i> Temperature: ${weather.temperature}°C</li>
                                     <li><i class="fas fa-tint text-blue-700 ml-2"></i> Humidity: ${weather.humidity}%</li>
                                     <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: ${weather.dew_point}°C</li>
-                                    <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: ${weather.wind_speed ?? "N/A"} m/s</li>
+                                    <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: ${weather.wind_speed ?? "N/A"} km/h</li>
                                     <li><i class="fas fa-cloud text-indigo-700 ml-2"></i> Barometric Pressure: ${weather.barometric_pressure ?? "N/A"} hPa</li>
                                     <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: ${weather.rain_rate ?? "N/A"} mm/h</li>
                                 </ul>
@@ -257,8 +572,8 @@
                             lastUpdatedText.innerHTML = `Last Updated: ${weather.date_time}<br><span class="text-sm text-gray-500">Location: ${weather.location}</span>`;
                         }
 
-                        // 2. Update AI Rain Prediction (Targets rainForecastContent)
-                        const forecast = data.forecast;
+                        // 2. Update AI Rain Prediction
+                        const forecast = data.forecast || [];
                         const forecastHTML = forecast.length > 0 ?
                             `${forecast.map(item => item.error ?
                                 `<div class="text-red-600 font-medium p-2 bg-red-100 rounded">⚠️ Prediction Error: ${item.error}</div>` :
@@ -282,7 +597,7 @@
                             `<p class="text-gray-500 text-medium">No AI prediction available.</p>`;
                         rainForecastContent.innerHTML = forecastHTML;
 
-                        // 3. Update Flood Warning (Targets floodWarningContent)
+                        // 3. Update Flood Warning
                         const warning = data.flood_warning;
                         if (warning && warning.error) {
                             floodWarningContent.innerHTML = `
@@ -290,7 +605,7 @@
                                     <p>✅ No active flood warnings at this time.</p>
                                 </div>
                             `;
-                        } else if (warning) {
+                        } else if (warning && warning.risk_level) {
                             const riskClass = warning.risk_level === 'High' ? 'bg-red-600' : warning.risk_level === 'Medium' ? 'bg-orange-500' : 'bg-yellow-500';
                             
                             floodWarningContent.innerHTML = `
@@ -315,6 +630,15 @@
                             floodWarningContent.innerHTML = `<p class="text-gray-500 text-medium">No flood warning data available.</p>`;
                         }
 
+                        // 4. Update Temperature Chart
+                        if (data.chart_labels && data.chart_data) {
+                            tempChart.data.labels = data.chart_labels;
+                            tempChart.data.datasets[0].data = data.chart_data;
+                            tempChart.update();
+                        }
+                    })
+                    .catch(err => console.error("Data refresh error:", err));
+
 
                         // 4. Update Alerts section
                         const alerts = data.alerts;
@@ -334,13 +658,6 @@
                             </ul>` :
                             `<p class="text-green-600">✅ No active alerts at this time.</p>`;
                         alertsContainer.innerHTML = alertsHTML;
-
-                        // 5. Update Temperature Chart
-                        tempChart.data.labels = data.chart_labels;
-                        tempChart.data.datasets[0].data = data.chart_data;
-                        tempChart.update();
-                    })
-                    .catch(err => console.error("Data refresh error:", err));
             }
 
             // Auto-refresh the entire dashboard every 10 seconds

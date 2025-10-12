@@ -592,7 +592,7 @@ def admin_dashboard(request):
         cursor.execute("SELECT sensor_id, name FROM sensor ORDER BY name")
         available_sensors = [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
 
-        # 3. Get the latest weather report
+        # ✅ Get latest weather data
         if selected_sensor_id:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
@@ -647,23 +647,53 @@ def admin_dashboard(request):
                 'longitude': None
             }
 
-        # 4. Prepare chart data
-        if current_sensor_id:
-            cursor.execute("""
-                SELECT DATE_FORMAT(date_time, '%%a %%b %%d') AS label, temperature
-                FROM weather_reports
-                WHERE sensor_id = %s
-                ORDER BY date_time DESC
-                LIMIT 10
-            """, [current_sensor_id])
+        forecast = {}
+        cursor.execute("""
+            SELECT predicted_rain, duration, intensity, created_at
+            FROM ai_predictions
+            ORDER BY created_at DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        if row:
+            forecast = {
+                'prediction': float(row[0]),
+                'duration': float(row[1]),
+                'intensity': row[2],
+                'created_at': row[3].strftime('%Y-%m-%d %H:%M:%S'),
+                'error': None
+            }
         else:
-            cursor.execute("""
-                SELECT DATE_FORMAT(date_time, '%%a %%b %%d') AS label, temperature
-                FROM weather_reports
-                ORDER BY date_time DESC
-                LIMIT 10
-            """)
-            
+            forecast = {'error': 'No AI prediction data available.'}
+        
+        flood_warning = {}
+        cursor.execute("""
+            SELECT area, risk_level, message
+            FROM flood_warnings
+            ORDER BY prediction_date DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        if row:
+            # We combine the retrieved values into the dictionary
+            flood_warning = {
+                'area': row[0],
+                'risk_level': row[1],
+                'message': row[2],
+                'error': None
+            }
+        else:
+            # Error if no recent warning is found
+            flood_warning = {'error': 'No recent flood warning data available.'}
+
+    # ✅ Chart data (last 10 records)
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT DATE_FORMAT(date_time, '%a %b %d') AS label, temperature
+            FROM weather_reports
+            ORDER BY date_time DESC
+            LIMIT 10
+        """)
         rows = cursor.fetchall()
         labels = [row[0] for row in rows]
         temps = [float(row[1]) for row in rows]
@@ -885,6 +915,8 @@ def admin_dashboard(request):
         'admin': {'name': admin_name},
         'locations': json.dumps(locations),
         'weather': weather,
+        'forecast': [forecast] if forecast.get('error') is None else [],
+        'flood_warning': flood_warning,
         'alerts': alert_objects,
         'labels': json.dumps(labels),
         'data': json.dumps(temps),
@@ -974,7 +1006,7 @@ def user_dashboard(request):
 
         forecast = {}
         cursor.execute("""
-            SELECT predicted_rain, duration, intensity
+            SELECT predicted_rain, duration, intensity, created_at
             FROM ai_predictions
             ORDER BY created_at DESC
             LIMIT 1
@@ -985,10 +1017,31 @@ def user_dashboard(request):
                 'prediction': float(row[0]),
                 'duration': float(row[1]),
                 'intensity': row[2],
+                'created_at': row[3].strftime('%Y-%m-%d %H:%M:%S'),
                 'error': None
             }
         else:
             forecast = {'error': 'No AI prediction data available.'}
+        
+        flood_warning = {}
+        cursor.execute("""
+            SELECT area, risk_level, message
+            FROM flood_warnings
+            ORDER BY prediction_date DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        if row:
+            # We combine the retrieved values into the dictionary
+            flood_warning = {
+                'area': row[0],
+                'risk_level': row[1],
+                'message': row[2],
+                'error': None
+            }
+        else:
+            # Error if no recent warning is found
+            flood_warning = {'error': 'No recent flood warning data available.'}
 
     # ✅ Chart data (last 10 records)
     with connection.cursor() as cursor:
@@ -1033,6 +1086,7 @@ def user_dashboard(request):
         'user': {'name': user_name},
         'weather': weather,
         'forecast': [forecast] if forecast.get('error') is None else [],
+        'flood_warning': flood_warning,
         'labels': json.dumps(labels),
         'data': json.dumps(temps),
         'available_sensors': available_sensors,
