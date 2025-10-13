@@ -95,18 +95,29 @@ export PIP_DISABLE_PIP_VERSION_CHECK=1
 # Bootstrap and robustly upgrade packaging tooling inside the venv
 # Ensure pip toolchain is consistent (work around resolvelib vendor conflicts)
 "${VENV_PATH}/bin/python" -m ensurepip --upgrade || true
-# Remove external resolvelib if present (pip vendors its own)
-"${VENV_PATH}/bin/python" -m pip uninstall -y resolvelib || true
-# Pin to a stable pip known to work on Python 3.10 and avoid vendor mismatch
-"${VENV_PATH}/bin/python" -m pip install --no-cache-dir "pip==24.2" "setuptools>=65" "wheel>=0.38"
+# Force reinstall a known-good pip for Python 3.10 to avoid vendor mismatch
+"${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1"
+"${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade "setuptools>=65" "wheel>=0.38"
 
 # Install requirements
-if [[ -f "requirements.txt" ]]; then
-    log "Installing Python dependencies..."
-    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir -r requirements.txt
-else
-    warning "requirements.txt not found, installing basic Django dependencies..."
-    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir django gunicorn whitenoise dj-database-url python-dotenv
+install_requirements() {
+    if [[ -f "requirements.txt" ]]; then
+        log "Installing Python dependencies from requirements.txt..."
+        "${VENV_PATH}/bin/python" -m pip install --no-cache-dir -r requirements.txt
+    else
+        warning "requirements.txt not found, installing basic Django dependencies..."
+        "${VENV_PATH}/bin/python" -m pip install --no-cache-dir django gunicorn whitenoise dj-database-url python-dotenv
+    fi
+}
+
+set +e
+install_requirements
+REQ_STATUS=$?
+set -e
+if [[ ${REQ_STATUS} -ne 0 ]]; then
+    warning "Dependency install failed. Applying pip/tooling fallback and retrying..."
+    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1" "setuptools>=65" "wheel>=0.38"
+    install_requirements
 fi
 
 # =============================================================================
