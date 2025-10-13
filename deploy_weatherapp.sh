@@ -86,16 +86,22 @@ fi
 
 source "$VENV_PATH/bin/activate"
 
-# Upgrade pip in the selected venv
-pip install --upgrade pip
+# Prepare a writable pip cache within the project to avoid permission issues
+PIP_CACHE_DIR="${APP_ROOT}/.cache/pip"
+mkdir -p "${PIP_CACHE_DIR}"
+export PIP_CACHE_DIR
+
+# Bootstrap and robustly upgrade packaging tooling inside the venv
+"${VENV_PATH}/bin/python" -m ensurepip --upgrade || true
+"${VENV_PATH}/bin/python" -m pip install --upgrade pip setuptools wheel --no-cache-dir
 
 # Install requirements
 if [[ -f "requirements.txt" ]]; then
     log "Installing Python dependencies..."
-    pip install -r requirements.txt
+    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir -r requirements.txt
 else
     warning "requirements.txt not found, installing basic Django dependencies..."
-    pip install django gunicorn whitenoise dj-database-url python-dotenv
+    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir django gunicorn whitenoise dj-database-url python-dotenv
 fi
 
 # =============================================================================
