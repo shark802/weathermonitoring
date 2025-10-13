@@ -86,7 +86,7 @@ scaler_X = None
 scaler_y = None
 
 # --- FIX START: Define dummy classes to handle deprecated/missing objects ---
-# 1. Fix for 'batch_shape' in InputLayer (from previous issue)
+# 1. Fix for 'batch_shape' in InputLayer
 class FixedInputLayer(tf.keras.layers.InputLayer):
     """Fixes 'Unrecognized keyword arguments: ['batch_shape']'"""
     def __init__(self, **kwargs):
@@ -94,12 +94,18 @@ class FixedInputLayer(tf.keras.layers.InputLayer):
             kwargs.pop('batch_shape')
         super(FixedInputLayer, self).__init__(**kwargs)
 
-# 2. Fix for 'Unknown dtype policy: 'DTypePolicy'' (the new issue)
+# 2. Fix for 'DTypePolicy' issues (Unknown dtype policy and missing .name attribute)
 class DTypePolicy:
-    """Fixes 'Unknown dtype policy: 'DTypePolicy'' by providing a dummy class."""
+    """Fixes 'DTypePolicy' compatibility issues by providing a dummy class 
+    with a placeholder .name attribute.
+    """
     def __init__(self, *args, **kwargs):
-        pass # The object exists in the model config but is no longer needed/used.
-# --- FIX END ---
+        pass
+
+    @property
+    def name(self):
+        # The loader expects a .name attribute, provide a harmless string
+        return 'float32' 
 
 try:
     # Include BOTH dummy objects in the custom_object_scope
