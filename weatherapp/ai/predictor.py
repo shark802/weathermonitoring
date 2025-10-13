@@ -86,11 +86,11 @@ scaler_X = None
 scaler_y = None
 
 # Define the expected sequence length and feature count
-SEQUENCE_LENGTH = 6 # (Copied from earlier in your script for clarity here)
+SEQUENCE_LENGTH = 6 
 FEATURE_COUNT = 5
 
 # --- FIX START: Define dummy classes to handle deprecated/missing objects ---
-# 1. Fix for InputLayer issues ('batch_shape' and 'as_list() is not defined...')
+# 1. Fix for InputLayer issues
 class FixedInputLayer(tf.keras.layers.InputLayer):
     """Fixes multiple InputLayer compatibility issues."""
     def __init__(self, **kwargs):
@@ -100,15 +100,15 @@ class FixedInputLayer(tf.keras.layers.InputLayer):
             kwargs.pop('batch_shape')
         
         # 2. Handle the shape issue causing the 'as_list() is not defined' error
-        # We explicitly set the 'input_shape' to the expected value: (6, 5)
-        # The 'None' batch size is automatically handled by the InputLayer.
         kwargs['input_shape'] = (SEQUENCE_LENGTH, FEATURE_COUNT)
 
         super(FixedInputLayer, self).__init__(**kwargs)
 
-# 2. Fix for 'DTypePolicy' issues
+# 2. Fix for 'DTypePolicy' issues (Now with .variable_dtype)
 class DTypePolicy:
-    """Fixes 'DTypePolicy' compatibility issues."""
+    """Fixes 'DTypePolicy' compatibility issues by providing a dummy class 
+    with placeholder attributes: .name, .compute_dtype, and .variable_dtype.
+    """
     def __init__(self, *args, **kwargs):
         pass
 
@@ -118,6 +118,11 @@ class DTypePolicy:
         
     @property
     def compute_dtype(self):
+        return tf.float32 
+        
+    @property
+    def variable_dtype(self):
+        # ✨ NEW FIX: Fixes 'DTypePolicy' object has no attribute 'variable_dtype'
         return tf.float32 
 # --- FIX END ---
 
