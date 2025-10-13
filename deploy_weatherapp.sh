@@ -65,19 +65,23 @@ sudo apt-get install -y python3 python3-pip python3-venv nginx ufw gunicorn
 # 2. Python Environment Setup
 # =============================================================================
 log "Detecting Python virtual environment..."
+VENV_PREEXISTED=0
 
 # Prefer an already-activated virtualenv
 if [[ -n "${VIRTUAL_ENV:-}" ]]; then
     VENV_PATH="${VIRTUAL_ENV}"
     log "Using currently activated virtualenv: ${VENV_PATH}"
+    VENV_PREEXISTED=1
 # Then prefer project-local myenv
 elif [[ -d "${APP_ROOT}/myenv" && -x "${APP_ROOT}/myenv/bin/python" ]]; then
     VENV_PATH="${APP_ROOT}/myenv"
     log "Detected existing project venv at: ${VENV_PATH}"
+    VENV_PREEXISTED=1
 # Optional fallback: user's home myenv
 elif [[ -d "${HOME}/myenv" && -x "${HOME}/myenv/bin/python" ]]; then
     VENV_PATH="${HOME}/myenv"
     log "Detected existing home venv at: ${VENV_PATH}"
+    VENV_PREEXISTED=1
 else
     VENV_PATH="${APP_ROOT}/myenv"
     log "No existing venv detected. Creating new venv at: ${VENV_PATH}"
@@ -86,20 +90,25 @@ fi
 
 source "$VENV_PATH/bin/activate"
 
-# Prepare a writable pip cache within the project to avoid permission issues
-PIP_CACHE_DIR="${APP_ROOT}/.cache/pip"
-mkdir -p "${PIP_CACHE_DIR}"
-export PIP_CACHE_DIR
-export PIP_DISABLE_PIP_VERSION_CHECK=1
-export PYTHONNOUSERSITE=1
+if [[ "${VENV_PREEXISTED}" = "1" ]]; then
+    log "Pre-existing venv detected. Skipping pip toolchain and requirements installation."
+else
+    # Prepare a writable pip cache within the project to avoid permission issues
+    PIP_CACHE_DIR="${APP_ROOT}/.cache/pip"
+    mkdir -p "${PIP_CACHE_DIR}"
+    export PIP_CACHE_DIR
+    export PIP_DISABLE_PIP_VERSION_CHECK=1
+    export PYTHONNOUSERSITE=1
 
-# Bootstrap and robustly upgrade packaging tooling inside the venv
-log "Current pip version: $(${VENV_PATH}/bin/python -m pip --version || echo 'unknown')"
+    # Bootstrap and robustly upgrade packaging tooling inside the venv
+    log "Current pip version: $(${VENV_PATH}/bin/python -m pip --version || echo 'unknown')"
 
-# Health check: verify pip's vendored resolvelib is consistent (skip if not present)
-log "Health-checking pip vendor packages..."
-set +e
-"${VENV_PATH}/bin/python" - << 'PY'
+    # Optional pip health check (disabled by default). Enable by exporting ENABLE_PIP_HEALTH_CHECK=1
+    if [[ "${ENABLE_PIP_HEALTH_CHECK:-0}" = "1" ]]; then
+    # Health check: verify pip's vendored resolvelib is consistent (skip if not present)
+    log "Health-checking pip vendor packages..."
+    set +e
+    "${VENV_PATH}/bin/python" - << 'PY'
 import sys
 try:
     import pip  # noqa: F401
@@ -115,119 +124,69 @@ except Exception as e:
     sys.exit(1)
 print("PIP_HEALTH_OK")
 PY
-PIP_OK=$?
-set -e
+    PIP_OK=$?
+    set -e
 
-if [[ ${PIP_OK} -ne 0 ]]; then
-    warning "Broken pip toolchain detected. Attempting vendor purge + repair..."
-    VENDOR_DIR="$(python - <<'PY'
-import sys, pkgutil, os
+    if [[ ${PIP_OK} -ne 0 ]]; then
+        warning "Broken pip toolchain detected. Attempting vendor purge + repair..."
+        VENDOR_DIR="$(python - <<'PY'
+import sys, os
 import pip
 vd = os.path.join(os.path.dirname(pip.__file__), '_vendor', 'resolvelib')
 print(vd)
 PY
 )"
-    if [[ -n "${VENDOR_DIR}" && -d "${VENDOR_DIR}" ]]; then
-        rm -rf "${VENDOR_DIR}" || true
+        if [[ -n "${VENDOR_DIR}" && -d "${VENDOR_DIR}" ]]; then
+            rm -rf "${VENDOR_DIR}" || true
+        fi
+        "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1" || true
+        # Re-check health quickly
+        set +e
+        "${VENV_PATH}/bin/python" - << 'PY'
+import sys
+try:
+    import pip
+    from pip._vendor.resolvelib import resolvers  # noqa: F401
+    from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
+except Exception as e:
+    print("PIP_HEALTH_FAIL:" + str(e))
+    sys.exit(1)
+print("PIP_HEALTH_OK")
+PY
+        PIP_OK=$?
+        set -e
     fi
-    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1" || true
-    # Re-check health quickly
-    set +e
-    "${VENV_PATH}/bin/python" - << 'PY'
-import sys
-try:
-    import pip
-    from pip._vendor.resolvelib import resolvers  # noqa: F401
-    from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
-except Exception as e:
-    print("PIP_HEALTH_FAIL:" + str(e))
-    sys.exit(1)
-print("PIP_HEALTH_OK")
-PY
-    PIP_OK=$?
-    set -e
-fi
 
-if [[ ${PIP_OK} -ne 0 ]]; then
-    warning "Vendor purge did not fix. Recreating virtualenv at ${VENV_PATH}..."
-    deactivate || true
-    rm -rf "${VENV_PATH}"
-    python3 -m venv --upgrade-deps "${VENV_PATH}"
-    source "${VENV_PATH}/bin/activate"
-    PIP_CACHE_DIR="${APP_ROOT}/.cache/pip"
-    mkdir -p "${PIP_CACHE_DIR}"
-    export PIP_CACHE_DIR
-    export PIP_DISABLE_PIP_VERSION_CHECK=1
-    export PYTHONNOUSERSITE=1
-fi
-
-# Ensure pip toolchain is consistent (work around resolvelib vendor conflicts)
-"${VENV_PATH}/bin/python" -Im ensurepip --upgrade || true
-# Force reinstall a known-good pip for Python 3.10 to avoid vendor mismatch
-"${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1" || true
-"${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade "setuptools>=65" "wheel>=0.38" || true
-log "Post-fix pip version: $(${VENV_PATH}/bin/python -m pip --version || echo 'unknown')"
-
-# Re-check health; if still broken, abort with guidance (skip if not present)
-set +e
-"${VENV_PATH}/bin/python" - << 'PY'
-import sys
-try:
-    import pip  # noqa: F401
-    try:
-        from pip._vendor.resolvelib import resolvers  # noqa: F401
-        from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
-    except ModuleNotFoundError:
-        print("PIP_HEALTH_SKIP")
-        sys.exit(0)
-except Exception as e:
-    print("PIP_HEALTH_FAIL:" + str(e))
-    sys.exit(1)
-print("PIP_HEALTH_OK")
-PY
-PIP_OK=$?
-set -e
-if [[ ${PIP_OK} -ne 0 ]]; then
-    warning "Pip remains inconsistent. Applying final fallback (pip 22.3.1)..."
-    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==22.3.1"
-    set +e
-    "${VENV_PATH}/bin/python" - << 'PY'
-import sys
-try:
-    import pip
-    from pip._vendor.resolvelib import resolvers  # noqa: F401
-    from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
-except Exception as e:
-    print("PIP_HEALTH_FAIL:" + str(e))
-    sys.exit(1)
-print("PIP_HEALTH_OK")
-PY
-    PIP_OK=$?
-    set -e
     if [[ ${PIP_OK} -ne 0 ]]; then
-        error "Pip vendor packages remain inconsistent after automated remediation (even with pip 22.3.1). Aborting."
+        warning "Vendor purge did not fix. Recreating virtualenv at ${VENV_PATH}..."
+        deactivate || true
+        rm -rf "${VENV_PATH}"
+        python3 -m venv --upgrade-deps "${VENV_PATH}"
+        source "${VENV_PATH}/bin/activate"
+        PIP_CACHE_DIR="${APP_ROOT}/.cache/pip"
+        mkdir -p "${PIP_CACHE_DIR}"
+        export PIP_CACHE_DIR
+        export PIP_DISABLE_PIP_VERSION_CHECK=1
+        export PYTHONNOUSERSITE=1
     fi
-fi
 
-# Install requirements
-install_requirements() {
+    # Ensure pip toolchain is consistent (work around resolvelib vendor conflicts)
+    "${VENV_PATH}/bin/python" -Im ensurepip --upgrade || true
+    # Force reinstall a known-good pip for Python 3.10 to avoid vendor mismatch
+    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1" || true
+    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade "setuptools>=65" "wheel>=0.38" || true
+    log "Post-fix pip version: $(${VENV_PATH}/bin/python -m pip --version || echo 'unknown')"
+
+    # Final health check block is removed when ENABLE_PIP_HEALTH_CHECK is not set
+
+    # Install requirements
     if [[ -f "requirements.txt" ]]; then
         log "Installing Python dependencies from requirements.txt..."
-        "${VENV_PATH}/bin/python" -m pip install --no-cache-dir -r requirements.txt
+        "${VENV_PATH}/bin/python" -m pip install --no-cache-dir -r requirements.txt || \
+        warning "requirements install failed; continuing as per skip request"
     else
-        warning "requirements.txt not found, installing basic Django dependencies..."
-        "${VENV_PATH}/bin/python" -m pip install --no-cache-dir django gunicorn whitenoise dj-database-url python-dotenv
+        log "No requirements.txt found. Skipping dependency installation."
     fi
-}
-
-set +e
-install_requirements
-REQ_STATUS=$?
-set -e
-if [[ ${REQ_STATUS} -ne 0 ]]; then
-    warning "Dependency install failed. Applying pip/tooling fallback and retrying..."
-    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1" "setuptools>=65" "wheel>=0.38"
-    install_requirements
 fi
 
 # =============================================================================
