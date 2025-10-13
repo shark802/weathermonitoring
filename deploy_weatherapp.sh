@@ -6,6 +6,13 @@ set -euo pipefail
 # Deploys Django app at http://119.93.148.180/weatherapp
 # =============================================================================
 
+# Self-heal CRLF line endings if present (when edited on Windows)
+if grep -q $'\r' "$0" 2>/dev/null; then
+    echo "Fixing Windows CRLF line endings..."
+    sed -i 's/\r$//' "$0" || true
+    exec bash "$0" "$@"
+fi
+
 # Configuration (auto-detected where possible)
 APP_NAME="weatherapp"
 APP_USER="$(whoami)"
