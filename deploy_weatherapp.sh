@@ -91,6 +91,7 @@ PIP_CACHE_DIR="${APP_ROOT}/.cache/pip"
 mkdir -p "${PIP_CACHE_DIR}"
 export PIP_CACHE_DIR
 export PIP_DISABLE_PIP_VERSION_CHECK=1
+export PYTHONNOUSERSITE=1
 
 # Bootstrap and robustly upgrade packaging tooling inside the venv
 log "Current pip version: $(${VENV_PATH}/bin/python -m pip --version || echo 'unknown')"
@@ -113,16 +114,46 @@ PIP_OK=$?
 set -e
 
 if [[ ${PIP_OK} -ne 0 ]]; then
-    warning "Broken pip toolchain detected. Auto-recreating virtualenv at ${VENV_PATH}..."
+    warning "Broken pip toolchain detected. Attempting vendor purge + repair..."
+    VENDOR_DIR="$(python - <<'PY'
+import sys, pkgutil, os
+import pip
+vd = os.path.join(os.path.dirname(pip.__file__), '_vendor', 'resolvelib')
+print(vd)
+PY
+)"
+    if [[ -n "${VENDOR_DIR}" && -d "${VENDOR_DIR}" ]]; then
+        rm -rf "${VENDOR_DIR}" || true
+    fi
+    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1" || true
+    # Re-check health quickly
+    set +e
+    "${VENV_PATH}/bin/python" - << 'PY'
+import sys
+try:
+    import pip
+    from pip._vendor.resolvelib import resolvers  # noqa: F401
+    from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
+except Exception as e:
+    print("PIP_HEALTH_FAIL:" + str(e))
+    sys.exit(1)
+print("PIP_HEALTH_OK")
+PY
+    PIP_OK=$?
+    set -e
+fi
+
+if [[ ${PIP_OK} -ne 0 ]]; then
+    warning "Vendor purge did not fix. Recreating virtualenv at ${VENV_PATH}..."
     deactivate || true
     rm -rf "${VENV_PATH}"
-    python3 -m venv "${VENV_PATH}"
+    python3 -m venv --upgrade-deps "${VENV_PATH}"
     source "${VENV_PATH}/bin/activate"
-    # Recreate cache dir for new venv
     PIP_CACHE_DIR="${APP_ROOT}/.cache/pip"
     mkdir -p "${PIP_CACHE_DIR}"
     export PIP_CACHE_DIR
     export PIP_DISABLE_PIP_VERSION_CHECK=1
+    export PYTHONNOUSERSITE=1
 fi
 
 # Ensure pip toolchain is consistent (work around resolvelib vendor conflicts)
