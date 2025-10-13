@@ -6,11 +6,13 @@ set -euo pipefail
 # Deploys Django app at http://119.93.148.180/weatherapp
 # =============================================================================
 
-# Configuration
+# Configuration (auto-detected where possible)
 APP_NAME="weatherapp"
-APP_USER="bccbsis-py-admin"
-APP_ROOT="/home/${APP_USER}/weatherapp"
-VENV_PATH="/home/${APP_USER}/.venvs/${APP_NAME}"
+APP_USER="$(whoami)"
+# Use current working directory as app root (run the script from the project root)
+APP_ROOT="$(pwd)"
+# Use current user's home for virtualenv to avoid permission issues
+VENV_PATH="${HOME}/.venvs/${APP_NAME}"
 SERVICE_NAME="${APP_NAME}"
 NGINX_SITE="${APP_NAME}"
 PUBLIC_IP="119.93.148.180"
@@ -40,9 +42,9 @@ error() {
     exit 1
 }
 
-# Check if running as root
+# Warn if running as root; continue but ensure paths use HOME and PWD
 if [[ $EUID -eq 0 ]]; then
-    error "Don't run this script as root. Run as the app user: ${APP_USER}"
+    warning "Running as root. It's recommended to run as the application user. Proceeding with caution."
 fi
 
 # Check if we're in the right directory
@@ -62,12 +64,24 @@ sudo apt-get install -y python3 python3-pip python3-venv nginx ufw gunicorn
 # =============================================================================
 # 2. Python Environment Setup
 # =============================================================================
-log "Setting up Python virtual environment..."
-mkdir -p "$(dirname "$VENV_PATH")"
-python3 -m venv "$VENV_PATH"
+log "Detecting Python virtual environment..."
+
+# Prefer an already-activated virtualenv
+if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+    VENV_PATH="${VIRTUAL_ENV}"
+    log "Using currently activated virtualenv: ${VENV_PATH}"
+elif [[ -d "${HOME}/myenv" && -x "${HOME}/myenv/bin/python" ]]; then
+    VENV_PATH="${HOME}/myenv"
+    log "Detected existing myenv at: ${VENV_PATH}"
+else
+    log "No existing venv detected. Preparing new venv at: ${VENV_PATH}"
+    mkdir -p "$(dirname "$VENV_PATH")"
+    python3 -m venv "$VENV_PATH"
+fi
+
 source "$VENV_PATH/bin/activate"
 
-# Upgrade pip
+# Upgrade pip in the selected venv
 pip install --upgrade pip
 
 # Install requirements
