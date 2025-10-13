@@ -90,10 +90,15 @@ source "$VENV_PATH/bin/activate"
 PIP_CACHE_DIR="${APP_ROOT}/.cache/pip"
 mkdir -p "${PIP_CACHE_DIR}"
 export PIP_CACHE_DIR
+export PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Bootstrap and robustly upgrade packaging tooling inside the venv
+# Ensure pip toolchain is consistent (work around resolvelib vendor conflicts)
 "${VENV_PATH}/bin/python" -m ensurepip --upgrade || true
-"${VENV_PATH}/bin/python" -m pip install --upgrade pip setuptools wheel --no-cache-dir
+# Remove external resolvelib if present (pip vendors its own)
+"${VENV_PATH}/bin/python" -m pip uninstall -y resolvelib || true
+# Pin to a stable pip known to work on Python 3.10 and avoid vendor mismatch
+"${VENV_PATH}/bin/python" -m pip install --no-cache-dir "pip==24.2" "setuptools>=65" "wheel>=0.38"
 
 # Install requirements
 if [[ -f "requirements.txt" ]]; then
