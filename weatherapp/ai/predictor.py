@@ -94,18 +94,24 @@ class FixedInputLayer(tf.keras.layers.InputLayer):
             kwargs.pop('batch_shape')
         super(FixedInputLayer, self).__init__(**kwargs)
 
-# 2. Fix for 'DTypePolicy' issues (Unknown dtype policy and missing .name attribute)
+# 2. Fix for 'DTypePolicy' issues (Unknown dtype policy, missing .name, missing .compute_dtype)
 class DTypePolicy:
     """Fixes 'DTypePolicy' compatibility issues by providing a dummy class 
-    with a placeholder .name attribute.
+    with placeholder attributes: .name and .compute_dtype.
     """
     def __init__(self, *args, **kwargs):
         pass
 
     @property
     def name(self):
-        # The loader expects a .name attribute, provide a harmless string
-        return 'float32' 
+        # Fixes 'DTypePolicy' object has no attribute 'name'
+        return 'float32'
+        
+    @property
+    def compute_dtype(self):
+        # ✨ NEW FIX: Fixes 'DTypePolicy' object has no attribute 'compute_dtype'
+        return tf.float32 
+# --- FIX END ---
 
 try:
     # Include BOTH dummy objects in the custom_object_scope
