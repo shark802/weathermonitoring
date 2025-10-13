@@ -1,5 +1,3 @@
-import numpy as np
-import joblib
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0' 
@@ -10,6 +8,8 @@ import django
 from django.conf import settings
 from django.db import connection
 from dotenv import load_dotenv
+import numpy as np
+import joblib
 
 # Load environment variables (needed for Django settings/DB config)
 load_dotenv()
