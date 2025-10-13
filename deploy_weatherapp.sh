@@ -93,11 +93,64 @@ export PIP_CACHE_DIR
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Bootstrap and robustly upgrade packaging tooling inside the venv
+log "Current pip version: $(${VENV_PATH}/bin/python -m pip --version || echo 'unknown')"
+
+# Health check: verify pip's vendored resolvelib is consistent
+log "Health-checking pip vendor packages..."
+set +e
+"${VENV_PATH}/bin/python" - << 'PY'
+import sys
+try:
+    import pip
+    from pip._vendor.resolvelib import resolvers  # noqa: F401
+    from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
+except Exception as e:
+    print("PIP_HEALTH_FAIL:" + str(e))
+    sys.exit(1)
+print("PIP_HEALTH_OK")
+PY
+PIP_OK=$?
+set -e
+
+if [[ ${PIP_OK} -ne 0 ]]; then
+    warning "Broken pip toolchain detected. Recreating virtualenv at ${VENV_PATH}..."
+    deactivate || true
+    rm -rf "${VENV_PATH}"
+    python3 -m venv "${VENV_PATH}"
+    source "${VENV_PATH}/bin/activate"
+    # Recreate cache dir for new venv
+    PIP_CACHE_DIR="${APP_ROOT}/.cache/pip"
+    mkdir -p "${PIP_CACHE_DIR}"
+    export PIP_CACHE_DIR
+    export PIP_DISABLE_PIP_VERSION_CHECK=1
+fi
+
 # Ensure pip toolchain is consistent (work around resolvelib vendor conflicts)
 "${VENV_PATH}/bin/python" -m ensurepip --upgrade || true
 # Force reinstall a known-good pip for Python 3.10 to avoid vendor mismatch
+"${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1" --break-system-packages || \
 "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1"
 "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade "setuptools>=65" "wheel>=0.38"
+log "Post-fix pip version: $(${VENV_PATH}/bin/python -m pip --version || echo 'unknown')"
+
+# Re-check health; if still broken, abort with guidance
+set +e
+"${VENV_PATH}/bin/python" - << 'PY'
+import sys
+try:
+    import pip
+    from pip._vendor.resolvelib import resolvers  # noqa: F401
+    from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
+except Exception as e:
+    print("PIP_HEALTH_FAIL:" + str(e))
+    sys.exit(1)
+print("PIP_HEALTH_OK")
+PY
+PIP_OK=$?
+set -e
+if [[ ${PIP_OK} -ne 0 ]]; then
+    error "Pip vendor packages remain inconsistent after remediation. Please remove ${VENV_PATH} and rerun the script."
+fi
 
 # Install requirements
 install_requirements() {
