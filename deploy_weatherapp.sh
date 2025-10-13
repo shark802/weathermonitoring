@@ -113,7 +113,7 @@ PIP_OK=$?
 set -e
 
 if [[ ${PIP_OK} -ne 0 ]]; then
-    warning "Broken pip toolchain detected. Recreating virtualenv at ${VENV_PATH}..."
+    warning "Broken pip toolchain detected. Auto-recreating virtualenv at ${VENV_PATH}..."
     deactivate || true
     rm -rf "${VENV_PATH}"
     python3 -m venv "${VENV_PATH}"
@@ -126,11 +126,10 @@ if [[ ${PIP_OK} -ne 0 ]]; then
 fi
 
 # Ensure pip toolchain is consistent (work around resolvelib vendor conflicts)
-"${VENV_PATH}/bin/python" -m ensurepip --upgrade || true
+"${VENV_PATH}/bin/python" -Im ensurepip --upgrade || true
 # Force reinstall a known-good pip for Python 3.10 to avoid vendor mismatch
-"${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1" --break-system-packages || \
-"${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1"
-"${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade "setuptools>=65" "wheel>=0.38"
+"${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==23.2.1" || true
+"${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade "setuptools>=65" "wheel>=0.38" || true
 log "Post-fix pip version: $(${VENV_PATH}/bin/python -m pip --version || echo 'unknown')"
 
 # Re-check health; if still broken, abort with guidance
@@ -149,7 +148,25 @@ PY
 PIP_OK=$?
 set -e
 if [[ ${PIP_OK} -ne 0 ]]; then
-    error "Pip vendor packages remain inconsistent after remediation. Please remove ${VENV_PATH} and rerun the script."
+    warning "Pip remains inconsistent. Applying final fallback (pip 22.3.1)..."
+    "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade --force-reinstall "pip==22.3.1"
+    set +e
+    "${VENV_PATH}/bin/python" - << 'PY'
+import sys
+try:
+    import pip
+    from pip._vendor.resolvelib import resolvers  # noqa: F401
+    from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
+except Exception as e:
+    print("PIP_HEALTH_FAIL:" + str(e))
+    sys.exit(1)
+print("PIP_HEALTH_OK")
+PY
+    PIP_OK=$?
+    set -e
+    if [[ ${PIP_OK} -ne 0 ]]; then
+        error "Pip vendor packages remain inconsistent after automated remediation (even with pip 22.3.1). Aborting."
+    fi
 fi
 
 # Install requirements
