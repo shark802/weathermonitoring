@@ -85,23 +85,31 @@ model = None
 scaler_X = None
 scaler_y = None
 
-# --- FIX START: Define a dummy InputLayer to handle the 'batch_shape' deprecation ---
+# --- FIX START: Define dummy classes to handle deprecated/missing objects ---
+# 1. Fix for 'batch_shape' in InputLayer (from previous issue)
 class FixedInputLayer(tf.keras.layers.InputLayer):
-    """
-    A temporary fix class to handle the 'batch_shape' argument, 
-    which was present in older Keras models but is unrecognized/deprecated
-    in newer Keras/TensorFlow versions.
-    """
+    """Fixes 'Unrecognized keyword arguments: ['batch_shape']'"""
     def __init__(self, **kwargs):
-        # Remove the problematic 'batch_shape' argument if present
         if 'batch_shape' in kwargs:
             kwargs.pop('batch_shape')
         super(FixedInputLayer, self).__init__(**kwargs)
+
+# 2. Fix for 'Unknown dtype policy: 'DTypePolicy'' (the new issue)
+class DTypePolicy:
+    """Fixes 'Unknown dtype policy: 'DTypePolicy'' by providing a dummy class."""
+    def __init__(self, *args, **kwargs):
+        pass # The object exists in the model config but is no longer needed/used.
 # --- FIX END ---
 
 try:
-    # Use the custom_object_scope to substitute the InputLayer during loading
-    with tf.keras.utils.custom_object_scope({'InputLayer': FixedInputLayer}):
+    # Include BOTH dummy objects in the custom_object_scope
+    custom_objects = {
+        'InputLayer': FixedInputLayer,
+        'DTypePolicy': DTypePolicy
+    }
+    
+    with tf.keras.utils.custom_object_scope(custom_objects):
+        # The model loader will now use the custom classes for the problematic components
         model = tf.keras.models.load_model(MODEL_FILE, compile=False)
 
     model.compile(optimizer="adam", loss="mean_squared_error")
@@ -112,12 +120,10 @@ try:
     print("✅ Scalers loaded successfully.")
 
 except FileNotFoundError as e:
-    # ... (rest of the FileNotFoundError block)
     print(f"Warning: One of the required files was not found: {e.filename}")
     print("Please ensure 'rain_model.h5', 'scaler_X.pkl', and 'scaler_y.pkl' are in the same directory.")
     print("ML prediction will be disabled.")
 except Exception as e:
-    # ... (rest of the generic Exception block)
     print(f"Warning: An unexpected error occurred during file loading: {e}")
     print("ML prediction will be disabled.")
 
