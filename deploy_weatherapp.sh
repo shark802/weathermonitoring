@@ -11,8 +11,8 @@ APP_NAME="weatherapp"
 APP_USER="$(whoami)"
 # Use current working directory as app root (run the script from the project root)
 APP_ROOT="$(pwd)"
-# Use current user's home for virtualenv to avoid permission issues
-VENV_PATH="${HOME}/.venvs/${APP_NAME}"
+# Default virtualenv inside project directory to meet requirement: weatherapp/myenv
+VENV_PATH="${APP_ROOT}/myenv"
 SERVICE_NAME="${APP_NAME}"
 NGINX_SITE="${APP_NAME}"
 PUBLIC_IP="119.93.148.180"
@@ -70,12 +70,17 @@ log "Detecting Python virtual environment..."
 if [[ -n "${VIRTUAL_ENV:-}" ]]; then
     VENV_PATH="${VIRTUAL_ENV}"
     log "Using currently activated virtualenv: ${VENV_PATH}"
+# Then prefer project-local myenv
+elif [[ -d "${APP_ROOT}/myenv" && -x "${APP_ROOT}/myenv/bin/python" ]]; then
+    VENV_PATH="${APP_ROOT}/myenv"
+    log "Detected existing project venv at: ${VENV_PATH}"
+# Optional fallback: user's home myenv
 elif [[ -d "${HOME}/myenv" && -x "${HOME}/myenv/bin/python" ]]; then
     VENV_PATH="${HOME}/myenv"
-    log "Detected existing myenv at: ${VENV_PATH}"
+    log "Detected existing home venv at: ${VENV_PATH}"
 else
-    log "No existing venv detected. Preparing new venv at: ${VENV_PATH}"
-    mkdir -p "$(dirname "$VENV_PATH")"
+    VENV_PATH="${APP_ROOT}/myenv"
+    log "No existing venv detected. Creating new venv at: ${VENV_PATH}"
     python3 -m venv "$VENV_PATH"
 fi
 
