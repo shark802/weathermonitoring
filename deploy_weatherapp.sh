@@ -144,6 +144,14 @@ EOF
 # =============================================================================
 log "Configuring Django application..."
 
+# Ensure log directory for production logging exists before Django initializes
+LOG_BASE_DIR="/var/log/django-apps"
+LOG_APP_DIR="${LOG_BASE_DIR}/${APP_NAME}"
+log "Provisioning log directory at ${LOG_APP_DIR}..."
+sudo mkdir -p "${LOG_APP_DIR}"
+sudo chown -R "${APP_USER}:${APP_USER}" "${LOG_APP_DIR}"
+sudo chmod -R 755 "${LOG_APP_DIR}"
+
 # Set environment variables for this session
 export DJANGO_SETTINGS_MODULE=weatheralert.settings_production
 export FORCE_SCRIPT_NAME=/weatherapp
