@@ -85,18 +85,39 @@ model = None
 scaler_X = None
 scaler_y = None
 
+# --- FIX START: Define a dummy InputLayer to handle the 'batch_shape' deprecation ---
+class FixedInputLayer(tf.keras.layers.InputLayer):
+    """
+    A temporary fix class to handle the 'batch_shape' argument, 
+    which was present in older Keras models but is unrecognized/deprecated
+    in newer Keras/TensorFlow versions.
+    """
+    def __init__(self, **kwargs):
+        # Remove the problematic 'batch_shape' argument if present
+        if 'batch_shape' in kwargs:
+            kwargs.pop('batch_shape')
+        super(FixedInputLayer, self).__init__(**kwargs)
+# --- FIX END ---
+
 try:
-    model = tf.keras.models.load_model(MODEL_FILE, compile=False)
+    # Use the custom_object_scope to substitute the InputLayer during loading
+    with tf.keras.utils.custom_object_scope({'InputLayer': FixedInputLayer}):
+        model = tf.keras.models.load_model(MODEL_FILE, compile=False)
+
     model.compile(optimizer="adam", loss="mean_squared_error")
     print("✅ Model loaded successfully.")
+    
     scaler_X = joblib.load(SCALER_X_FILE)
     scaler_y = joblib.load(SCALER_Y_FILE)
     print("✅ Scalers loaded successfully.")
+
 except FileNotFoundError as e:
+    # ... (rest of the FileNotFoundError block)
     print(f"Warning: One of the required files was not found: {e.filename}")
     print("Please ensure 'rain_model.h5', 'scaler_X.pkl', and 'scaler_y.pkl' are in the same directory.")
     print("ML prediction will be disabled.")
 except Exception as e:
+    # ... (rest of the generic Exception block)
     print(f"Warning: An unexpected error occurred during file loading: {e}")
     print("ML prediction will be disabled.")
 
