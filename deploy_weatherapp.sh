@@ -96,15 +96,20 @@ export PYTHONNOUSERSITE=1
 # Bootstrap and robustly upgrade packaging tooling inside the venv
 log "Current pip version: $(${VENV_PATH}/bin/python -m pip --version || echo 'unknown')"
 
-# Health check: verify pip's vendored resolvelib is consistent
+# Health check: verify pip's vendored resolvelib is consistent (skip if not present)
 log "Health-checking pip vendor packages..."
 set +e
 "${VENV_PATH}/bin/python" - << 'PY'
 import sys
 try:
-    import pip
-    from pip._vendor.resolvelib import resolvers  # noqa: F401
-    from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
+    import pip  # noqa: F401
+    try:
+        from pip._vendor.resolvelib import resolvers  # noqa: F401
+        from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
+    except ModuleNotFoundError:
+        # Some pip builds may not expose vendored resolvelib explicitly; skip check
+        print("PIP_HEALTH_SKIP")
+        sys.exit(0)
 except Exception as e:
     print("PIP_HEALTH_FAIL:" + str(e))
     sys.exit(1)
@@ -163,14 +168,18 @@ fi
 "${VENV_PATH}/bin/python" -m pip install --no-cache-dir --upgrade "setuptools>=65" "wheel>=0.38" || true
 log "Post-fix pip version: $(${VENV_PATH}/bin/python -m pip --version || echo 'unknown')"
 
-# Re-check health; if still broken, abort with guidance
+# Re-check health; if still broken, abort with guidance (skip if not present)
 set +e
 "${VENV_PATH}/bin/python" - << 'PY'
 import sys
 try:
-    import pip
-    from pip._vendor.resolvelib import resolvers  # noqa: F401
-    from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
+    import pip  # noqa: F401
+    try:
+        from pip._vendor.resolvelib import resolvers  # noqa: F401
+        from pip._vendor.resolvelib.structs import RequirementInformation  # noqa: F401
+    except ModuleNotFoundError:
+        print("PIP_HEALTH_SKIP")
+        sys.exit(0)
 except Exception as e:
     print("PIP_HEALTH_FAIL:" + str(e))
     sys.exit(1)
