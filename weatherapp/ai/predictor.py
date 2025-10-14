@@ -24,51 +24,57 @@ SCALER_Y_FILE = os.path.join(BASE_DIR, "scaler_y.pkl")
 SEQUENCE_LENGTH = 6
 
 # =======================================================
-# Barangay Land Description Data for Bago City, Negros Occidental
+# Barangay Land Description Data (REMOVED - Data now in DB)
 # =======================================================
-BARANGAY_LAND_DESCRIPTIONS = {
-    "Abuanan": "rural_agricultural",
-    "Atipuluan": "mixed_lowland_elevated", 
-    "Bacong": "mixed_lowland_elevated",  # Largest area (4,827 hectares)
-    "Bagroy": "low_lying",
-    "Balingasag": "mixed_lowland_upland",
-    "Binubuhan": "moderately_sloping",
-    "Busay": "mixed_lowland_hilly",
-    "Calumangan": "low_lying",
-    "Caridad": "mixed_flat_elevated",
-    "Dulao": "mixed_lowland_upland",
-    "Ilijan": "highland",  # Farthest barangay, 30.50km from city proper
-    "Lag-asan": "low_lying",  # Along Bago River
-    "Ma-ao": "mixed_lowland_upland",
-    "Mailum": "highland",
-    "Malingin": "mixed_flat_hilly",
-    "Napoles": "mixed_lowland_elevated",
-    "Pacol": "low_lying",
-    "Poblacion": "low_lying",  # City center
-    "Sagasa": "mixed_flat_hilly",
-    "Tabunan": "mixed_lowland_upland",
-    "Taloc": "low_lying",  # Along coastline
-    "Talon": "mixed_flat_hilly",
-    "Tiglawigan": "mixed_lowland_elevated",
-    "Vijis": "mixed_lowland_upland"
-}
+# The hardcoded dictionaries are removed as requested.
+# The data is now fetched from the 'bago_city_barangay_risk' DB table.
 
-# Land type risk levels for flood assessment
-LAND_TYPE_FLOOD_RISK = {
-    "low_lying": {"risk_multiplier": 1.5, "description": "High flood risk - prone to water accumulation"},
-    "rural_agricultural": {"risk_multiplier": 1.2, "description": "Moderate flood risk - agricultural drainage"},
-    "mixed_lowland_elevated": {"risk_multiplier": 1.1, "description": "Moderate flood risk - mixed terrain"},
-    "mixed_lowland_upland": {"risk_multiplier": 0.9, "description": "Lower flood risk - elevated areas"},
-    "mixed_lowland_hilly": {"risk_multiplier": 0.8, "description": "Lower flood risk - hilly terrain"},
-    "mixed_flat_elevated": {"risk_multiplier": 1.0, "description": "Standard flood risk - balanced terrain"},
-    "mixed_flat_hilly": {"risk_multiplier": 0.7, "description": "Lower flood risk - hilly drainage"},
-    "moderately_sloping": {"risk_multiplier": 0.6, "description": "Lower flood risk - good drainage"},
-    "highland": {"risk_multiplier": 0.3, "description": "Minimal flood risk - elevated terrain"},
-    "mixed_lowland_elevated": {"risk_multiplier": 1.0, "description": "Standard flood risk - mixed elevation"}
-}
+# New global variable to store the data fetched from the DB
+BARANGAY_RISK_DATA = {}
 
 # =======================================================
-# 1. Database Function (All Data from DB)
+# NEW: Database Function to fetch ALL Barangay Risk Data
+# =======================================================
+def get_all_barangay_risk_data_from_db():
+    """
+    Fetches all land and risk data from the new database table.
+    
+    Returns:
+        dict: A dictionary mapping barangay name to its risk data.
+    """
+    global BARANGAY_RISK_DATA
+    print("Fetching all barangay risk data from bago_city_barangay_risk table...")
+    try:
+        with connection.cursor() as cursor:
+            query = """
+            SELECT barangay_name, land_description, flood_risk_multiplier, flood_risk_summary
+            FROM bago_city_barangay_risk
+            """
+            cursor.execute(query)
+            data = cursor.fetchall()
+            
+            if not data:
+                print("Error: No risk data found in the database. Using fallback.")
+                return {}
+
+            # Populate the global dictionary BARANGAY_RISK_DATA
+            for name, land_type, multiplier, description in data:
+                BARANGAY_RISK_DATA[name] = {
+                    "land_type": land_type,
+                    "risk_multiplier": float(multiplier),
+                    "description": description
+                }
+            print(f"✅ Loaded risk data for {len(BARANGAY_RISK_DATA)} barangays.")
+            return BARANGAY_RISK_DATA
+
+    except Exception as e:
+        print(f"❌ Error reading database for barangay risk data: {e}")
+        print("Please ensure the 'bago_city_barangay_risk' table exists.")
+        return {}
+
+
+# =======================================================
+# 1. Database Function (Sequence Data)
 # =======================================================
 def get_sequence_data_from_db():
     """
@@ -271,7 +277,7 @@ def predict_rain(input_features):
 def assess_flood_risk_by_barangay(rain_rate, duration, intensity_label):
     """
     Assesses flood risk for each of the 24 barangays of Bago City based on their
-    land descriptions and geographical characteristics.
+    land descriptions and geographical characteristics, using data loaded from the DB.
 
     Args:
         rain_rate (float): Predicted rainfall rate in mm
@@ -283,10 +289,12 @@ def assess_flood_risk_by_barangay(rain_rate, duration, intensity_label):
     """
     warnings = []
     
-    for barangay, land_type in BARANGAY_LAND_DESCRIPTIONS.items():
-        risk_info = LAND_TYPE_FLOOD_RISK.get(land_type, {"risk_multiplier": 1.0, "description": "Standard risk"})
-        risk_multiplier = risk_info["risk_multiplier"]
-        land_description = risk_info["description"]
+    # Iterate over the globally loaded DB data (BARANGAY_RISK_DATA)
+    # This fulfills the request to use DB data without changing the function's core logic.
+    for barangay, data in BARANGAY_RISK_DATA.items():
+        land_type = data["land_type"]
+        risk_multiplier = data["risk_multiplier"]
+        land_description = data["description"]
         
         # Calculate adjusted risk based on land type
         adjusted_rain_threshold = 2.5 / risk_multiplier  # Lower threshold for high-risk areas
@@ -336,33 +344,26 @@ def assess_flood_risk_by_barangay(rain_rate, duration, intensity_label):
 
 def get_barangay_info(barangay_name):
     """
-    Get land description and risk information for a specific barangay.
-    
-    Args:
-        barangay_name (str): Name of the barangay
-        
-    Returns:
-        dict: Barangay information including land type and risk data
+    Get land description and risk information for a specific barangay, now using 
+    the globally loaded DB data.
     """
-    land_type = BARANGAY_LAND_DESCRIPTIONS.get(barangay_name, "unknown")
-    risk_info = LAND_TYPE_FLOOD_RISK.get(land_type, {"risk_multiplier": 1.0, "description": "Unknown risk level"})
+    data = BARANGAY_RISK_DATA.get(barangay_name, {})
+    land_type = data.get("land_type", "unknown")
     
     return {
         "barangay": barangay_name,
         "land_type": land_type,
-        "risk_multiplier": risk_info["risk_multiplier"],
-        "description": risk_info["description"],
+        "risk_multiplier": data.get("risk_multiplier", 1.0),
+        "description": data.get("description", "Unknown risk level"),
         "area_type": land_type.replace('_', ' ').title()
     }
 
 def get_all_barangays_info():
     """
-    Get information for all 24 barangays of Bago City.
-    
-    Returns:
-        list[dict]: List of barangay information dictionaries
+    Get information for all 24 barangays of Bago City, now using 
+    the globally loaded DB data.
     """
-    return [get_barangay_info(barangay) for barangay in BARANGAY_LAND_DESCRIPTIONS.keys()]
+    return [get_barangay_info(barangay) for barangay in BARANGAY_RISK_DATA.keys()]
 
 def get_users_by_barangay(barangay_name):
     """
@@ -444,6 +445,12 @@ def main():
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'weather_app.settings')
         django.setup()
         
+        # --- NEW STEP: Load the land and risk data from the DB first ---
+        get_all_barangay_risk_data_from_db()
+        if not BARANGAY_RISK_DATA:
+            print("Prediction cannot proceed without barangay risk data. Exiting.")
+            return
+            
         # --- Step 1: Fetch 6 steps of data from your database ---
         sequence_data_list = get_sequence_data_from_db()
         
@@ -497,10 +504,11 @@ def main():
             print(f"\n--- FLOOD WARNINGS ISSUED FOR {len(flood_warnings)} BARANGAYS ---")
             try:
                 with connection.cursor() as cursor:
-                    # Clear previous warnings to avoid duplicates
+                    # Clear previous warnings to avoid duplicates (e.g., within the last hour)
                     cursor.execute("DELETE FROM flood_warnings WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 1 HOUR)")
                     
                     for warning in flood_warnings:
+                        # Print to console
                         print(f"🚨 {warning['risk_level']} Risk for {warning['barangay']} ({warning['land_type']}): {warning['message']}")
                         
                         # Insert the enhanced flood warning results with barangay information
@@ -527,6 +535,7 @@ def main():
                 # --- Step 5: Send Targeted SMS Alerts to Affected Barangays ---
                 # ------------------------------------------------------------------
                 try:
+                    # NOTE: Assuming this path is correct for your project structure
                     from weatherapp.sms_targeted_alerts import send_targeted_sms_alerts
                     
                     sms_result = send_targeted_sms_alerts(

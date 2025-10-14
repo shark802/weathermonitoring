@@ -18,7 +18,8 @@ import re
 import os
 from django.core.files.storage import FileSystemStorage
 from django.http import JsonResponse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from datetime import time as time_class
 from calendar import month_name
 import pytz
 from decimal import Decimal
@@ -658,12 +659,18 @@ def admin_dashboard(request):
             }
 
         forecast = {}
+        today_start = datetime.combine(date.today(), time_class(0, 0, 0))
+        
+        today_start_str = today_start.strftime('%Y-%m-%d %H:%M:%S')
+
         cursor.execute("""
             SELECT predicted_rain, duration, intensity, created_at
             FROM ai_predictions
+            WHERE created_at >= %s
             ORDER BY created_at DESC
             LIMIT 1
-        """)
+        """, (today_start_str,)) 
+
         row = cursor.fetchone()
         if row:
             forecast = {
@@ -674,7 +681,7 @@ def admin_dashboard(request):
                 'error': None
             }
         else:
-            forecast = {'error': 'No AI prediction data available.'}
+            forecast = {'error': 'No AI prediction data available for today.'}
         
         flood_warning = {}
         cursor.execute("""
@@ -2763,3 +2770,114 @@ def send_alert(request):
 
     # 7. Handle incorrect request method
     return HttpResponse("Invalid request method.", status=405)
+
+LAND_TYPE_FLOOD_RISK = {
+    "low_lying": {"risk_multiplier": 1.5, "description": "High flood risk - prone to water accumulation"},
+    "rural_agricultural": {"risk_multiplier": 1.2, "description": "Moderate flood risk - agricultural drainage"},
+    "mixed_lowland_elevated": {"risk_multiplier": 1.1, "description": "Moderate flood risk - mixed terrain"},
+    "mixed_lowland_upland": {"risk_multiplier": 0.9, "description": "Lower flood risk - elevated areas"},
+    "mixed_lowland_hilly": {"risk_multiplier": 0.8, "description": "Lower flood risk - hilly terrain"},
+    "mixed_flat_elevated": {"risk_multiplier": 1.0, "description": "Standard flood risk - balanced terrain"},
+    "mixed_flat_hilly": {"risk_multiplier": 0.7, "description": "Lower flood risk - hilly drainage"},
+    "moderately_sloping": {"risk_multiplier": 0.6, "description": "Lower flood risk - good drainage"},
+    "highland": {"risk_multiplier": 0.3, "description": "Minimal flood risk - elevated terrain"}
+}
+
+
+@cache_control(no_cache=True, must_revalidate=True, no_store=True)
+def barangays(request):
+    if 'admin_id' not in request.session:
+        messages.error(request, 'Please login to access this page')
+        return redirect('home')
+    
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [request.session['admin_id']])
+            row = cursor.fetchone()
+            admin_name = row[0] if row else 'Admin'
+
+            cursor.execute("SELECT id, barangay_name, land_description, flood_risk_multiplier, flood_risk_summary FROM bago_city_barangay_risk ORDER BY barangay_name")
+            
+            barangays = [{
+                'id': row[0],
+                'barangay_name': row[1],
+                'land_description': row[2],
+                'flood_risk_multiplier': row[3],
+                'flood_risk_summary': row[4]
+            } for row in cursor.fetchall()]
+
+        form_errors = request.session.pop('form_errors', {})
+        form_data = request.session.pop('form_data', {})
+
+        return render(request, 'barangays.html', {
+            'barangays': barangays,
+            'admin': {'name': admin_name},
+            'form_errors': form_errors,
+            'form_data': form_data,
+            'LAND_RISK_OPTIONS': LAND_TYPE_FLOOD_RISK 
+        })
+
+    except Exception as e:
+        messages.error(request, f'Database error loading barangays: {str(e)}')
+        return redirect('admin_dashboard')
+    
+def update_barangay(request):
+    if 'admin_id' not in request.session:
+        return HttpResponseForbidden("Not authorized")
+    
+    if request.method != 'POST':
+        return HttpResponseForbidden("Invalid request method")
+
+    id = request.POST.get('id')
+    barangay_name = request.POST.get('barangay_name', '').strip()
+    land_description = request.POST.get('land_description', '').strip()
+    flood_risk_multiplier = request.POST.get('flood_risk_multiplier', '').strip()
+    flood_risk_summary = request.POST.get('flood_risk_summary', '').strip()
+
+    errors = {}
+    if not barangay_name:
+        errors['barangay_name'] = 'Barangay name is required'
+    if not land_description:
+        errors['land_description'] = 'Land description is required'
+    if not flood_risk_multiplier:
+        errors['flood_risk_multiplier'] = 'Flood risk multiplier is required'
+    if not flood_risk_summary:
+        errors['flood_risk_summary'] = 'Flood risk summary is required'
+
+    if errors:
+        messages.error(request, 'Invalid barangay data')
+        return redirect('barangays')
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                UPDATE bago_city_barangay_risk 
+                SET barangay_name = %s, land_description = %s, flood_risk_multiplier = %s, flood_risk_summary = %s
+                WHERE id = %s
+            """, [barangay_name, land_description, flood_risk_multiplier, flood_risk_summary, id])
+        
+        messages.success(request, 'Barangay updated successfully')
+        return redirect('barangays')
+        
+    except Exception as e:
+        messages.error(request, f'Failed to update barangay: {str(e)}')
+        return redirect('barangays') 
+
+def delete_barangay(request, id):
+    if 'admin_id' not in request.session:
+        return HttpResponseForbidden("Not authorized")
+    
+    if request.method != 'POST':
+        return HttpResponseForbidden("Invalid request method")
+
+    try:
+        with connection.cursor() as cursor:
+            # FIX 4: Removed the extraneous backtick (`) from the table name
+            cursor.execute("DELETE FROM bago_city_barangay_risk WHERE id = %s", [id])
+        
+        messages.success(request, 'Barangay deleted successfully')
+        return redirect('barangays')
+        
+    except Exception as e:
+        messages.error(request, f'Failed to delete barangay: {str(e)}')
+        return redirect('barangays')

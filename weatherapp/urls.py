@@ -40,4 +40,7 @@ urlpatterns = [
     path("mark-alerts-read/", views.mark_alerts_read, name="mark_alerts_read"),
     path("clear-read-alerts/", views.clear_read_alerts, name="clear_read_alerts"),
     path('api/dashboard-data/', views.latest_dashboard_data, name='latest_dashboard_data'),
+    path('manage-barangays/', views.barangays, name='manage_barangays'),
+    path('update-barangay/', views.update_barangay, name='update_barangay'),
+    path('delete-barangay/<int:id>/', views.delete_barangay, name='delete_barangay')
 ]
