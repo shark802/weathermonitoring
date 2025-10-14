@@ -24,6 +24,50 @@ SCALER_Y_FILE = os.path.join(BASE_DIR, "scaler_y.pkl")
 SEQUENCE_LENGTH = 6
 
 # =======================================================
+# Barangay Land Description Data for Bago City, Negros Occidental
+# =======================================================
+BARANGAY_LAND_DESCRIPTIONS = {
+    "Abuanan": "rural_agricultural",
+    "Atipuluan": "mixed_lowland_elevated", 
+    "Bacong": "mixed_lowland_elevated",  # Largest area (4,827 hectares)
+    "Bagroy": "low_lying",
+    "Balingasag": "mixed_lowland_upland",
+    "Binubuhan": "moderately_sloping",
+    "Busay": "mixed_lowland_hilly",
+    "Calumangan": "low_lying",
+    "Caridad": "mixed_flat_elevated",
+    "Dulao": "mixed_lowland_upland",
+    "Ilijan": "highland",  # Farthest barangay, 30.50km from city proper
+    "Lag-asan": "low_lying",  # Along Bago River
+    "Ma-ao": "mixed_lowland_upland",
+    "Mailum": "highland",
+    "Malingin": "mixed_flat_hilly",
+    "Napoles": "mixed_lowland_elevated",
+    "Pacol": "low_lying",
+    "Poblacion": "low_lying",  # City center
+    "Sagasa": "mixed_flat_hilly",
+    "Tabunan": "mixed_lowland_upland",
+    "Taloc": "low_lying",  # Along coastline
+    "Talon": "mixed_flat_hilly",
+    "Tiglawigan": "mixed_lowland_elevated",
+    "Vijis": "mixed_lowland_upland"
+}
+
+# Land type risk levels for flood assessment
+LAND_TYPE_FLOOD_RISK = {
+    "low_lying": {"risk_multiplier": 1.5, "description": "High flood risk - prone to water accumulation"},
+    "rural_agricultural": {"risk_multiplier": 1.2, "description": "Moderate flood risk - agricultural drainage"},
+    "mixed_lowland_elevated": {"risk_multiplier": 1.1, "description": "Moderate flood risk - mixed terrain"},
+    "mixed_lowland_upland": {"risk_multiplier": 0.9, "description": "Lower flood risk - elevated areas"},
+    "mixed_lowland_hilly": {"risk_multiplier": 0.8, "description": "Lower flood risk - hilly terrain"},
+    "mixed_flat_elevated": {"risk_multiplier": 1.0, "description": "Standard flood risk - balanced terrain"},
+    "mixed_flat_hilly": {"risk_multiplier": 0.7, "description": "Lower flood risk - hilly drainage"},
+    "moderately_sloping": {"risk_multiplier": 0.6, "description": "Lower flood risk - good drainage"},
+    "highland": {"risk_multiplier": 0.3, "description": "Minimal flood risk - elevated terrain"},
+    "mixed_lowland_elevated": {"risk_multiplier": 1.0, "description": "Standard flood risk - mixed elevation"}
+}
+
+# =======================================================
 # 1. Database Function (All Data from DB)
 # =======================================================
 def get_sequence_data_from_db():
@@ -224,49 +268,167 @@ def predict_rain(input_features):
     intensity = get_rain_intensity(rain_rate)
     return rain_rate, duration, intensity
 
-def assess_flood_risk(rain_rate, duration, intensity_label):
+def assess_flood_risk_by_barangay(rain_rate, duration, intensity_label):
     """
-    Assesses the predicted rain against a simplified set of flood thresholds
-    for two example areas (Low-Lying Area and Industrial Area).
+    Assesses flood risk for each of the 24 barangays of Bago City based on their
+    land descriptions and geographical characteristics.
 
-    In a real application, these thresholds would come from a configuration
-    or a dedicated flood-modeling system.
+    Args:
+        rain_rate (float): Predicted rainfall rate in mm
+        duration (float): Predicted duration in minutes
+        intensity_label (str): Rain intensity category
 
     Returns:
-        list[dict]: A list of active flood warnings (can be empty).
+        list[dict]: A list of flood warnings for affected barangays
     """
     warnings = []
     
-    # --- Example 1: Low-Lying Residential Area Thresholds ---
-    # Low-lying areas flood easily, so the threshold is lower.
-    # High risk for Moderate rain (rate >= 2.5 mm) or prolonged Light rain (rate > 0.5 and duration > 60 min).
-    if rain_rate >= 2.5 or (rain_rate > 0.5 and duration > 60):
-        warning = {
-            "area": "Low-Lying Residential Area",
-            "risk_level": "High",
-            "message": f"High risk of flooding due to predicted {intensity_label} rain over {duration:.0f} minutes."
-        }
-        warnings.append(warning)
-    elif rain_rate > 1.0: # Moderate risk for persistent light rain
-        warning = {
-            "area": "Low-Lying Residential Area",
-            "risk_level": "Moderate",
-            "message": f"Moderate risk of standing water/minor flooding. Monitor conditions."
-        }
-        warnings.append(warning)
-
-    # --- Example 2: Industrial Area Thresholds ---
-    # Industrial areas often have better drainage, so the threshold is higher.
-    # Risk for Heavy rain (rate >= 7.6 mm) or Intense rain.
-    if rain_rate >= 7.6 or intensity_label in ["Heavy", "Intense", "Torrential"]:
-        warning = {
-            "area": "Industrial Area",
-            "risk_level": "High",
-            "message": f"High risk of localized flooding affecting operations due to predicted {intensity_label} rain."
-        }
-        warnings.append(warning)
+    for barangay, land_type in BARANGAY_LAND_DESCRIPTIONS.items():
+        risk_info = LAND_TYPE_FLOOD_RISK.get(land_type, {"risk_multiplier": 1.0, "description": "Standard risk"})
+        risk_multiplier = risk_info["risk_multiplier"]
+        land_description = risk_info["description"]
         
+        # Calculate adjusted risk based on land type
+        adjusted_rain_threshold = 2.5 / risk_multiplier  # Lower threshold for high-risk areas
+        adjusted_duration_threshold = 60 / risk_multiplier  # Lower duration threshold for high-risk areas
+        
+        # Determine risk level based on adjusted thresholds
+        if rain_rate >= adjusted_rain_threshold or (rain_rate > 0.5 and duration > adjusted_duration_threshold):
+            # High risk conditions
+            if intensity_label in ["Heavy", "Intense", "Torrential"] or rain_rate >= 7.6:
+                risk_level = "High"
+                message = f"High flood risk in {barangay} due to predicted {intensity_label} rain ({rain_rate:.1f}mm) over {duration:.0f} minutes. {land_description}."
+            else:
+                risk_level = "Moderate"
+                message = f"Moderate flood risk in {barangay} due to predicted {intensity_label} rain. {land_description}."
+                
+            warning = {
+                "barangay": barangay,
+                "land_type": land_type,
+                "area": f"{barangay} ({land_type.replace('_', ' ').title()})",
+                "risk_level": risk_level,
+                "message": message,
+                "rain_rate": rain_rate,
+                "duration": duration,
+                "intensity": intensity_label
+            }
+            warnings.append(warning)
+            
+        elif rain_rate > 1.0 and risk_multiplier > 1.0:  # Only warn low-lying areas for light rain
+            # Low risk conditions for high-risk areas only
+            warning = {
+                "barangay": barangay,
+                "land_type": land_type,
+                "area": f"{barangay} ({land_type.replace('_', ' ').title()})",
+                "risk_level": "Low",
+                "message": f"Low flood risk in {barangay}. Monitor conditions as {land_description}.",
+                "rain_rate": rain_rate,
+                "duration": duration,
+                "intensity": intensity_label
+            }
+            warnings.append(warning)
+    
+    # Sort warnings by risk level (High, Moderate, Low)
+    risk_priority = {"High": 3, "Moderate": 2, "Low": 1}
+    warnings.sort(key=lambda x: risk_priority.get(x["risk_level"], 0), reverse=True)
+    
     return warnings
+
+def get_barangay_info(barangay_name):
+    """
+    Get land description and risk information for a specific barangay.
+    
+    Args:
+        barangay_name (str): Name of the barangay
+        
+    Returns:
+        dict: Barangay information including land type and risk data
+    """
+    land_type = BARANGAY_LAND_DESCRIPTIONS.get(barangay_name, "unknown")
+    risk_info = LAND_TYPE_FLOOD_RISK.get(land_type, {"risk_multiplier": 1.0, "description": "Unknown risk level"})
+    
+    return {
+        "barangay": barangay_name,
+        "land_type": land_type,
+        "risk_multiplier": risk_info["risk_multiplier"],
+        "description": risk_info["description"],
+        "area_type": land_type.replace('_', ' ').title()
+    }
+
+def get_all_barangays_info():
+    """
+    Get information for all 24 barangays of Bago City.
+    
+    Returns:
+        list[dict]: List of barangay information dictionaries
+    """
+    return [get_barangay_info(barangay) for barangay in BARANGAY_LAND_DESCRIPTIONS.keys()]
+
+def get_users_by_barangay(barangay_name):
+    """
+    Get all users from a specific barangay for targeted SMS alerts.
+    
+    Args:
+        barangay_name (str): Name of the barangay
+        
+    Returns:
+        list[dict]: List of user information with phone numbers
+    """
+    try:
+        from django.db import connection
+        
+        with connection.cursor() as cursor:
+            # Get users from the specified barangay (using address field to match barangay)
+            cursor.execute("""
+                SELECT u.user_id, u.name, u.phone_num, u.address
+                FROM user u
+                WHERE u.address LIKE %s AND u.phone_num IS NOT NULL AND u.phone_num != ''
+            """, [f"%{barangay_name}%"])
+            
+            users = []
+            for row in cursor.fetchall():
+                user_id, name, phone_num, address = row
+                users.append({
+                    'user_id': user_id,
+                    'name': name,
+                    'phone_num': phone_num,
+                    'barangay': barangay_name,
+                    'address': address
+                })
+            
+            return users
+            
+    except Exception as e:
+        print(f"Error getting users by barangay {barangay_name}: {e}")
+        return []
+
+def get_users_by_affected_barangays(flood_warnings):
+    """
+    Get all users from barangays that have flood warnings.
+    
+    Args:
+        flood_warnings (list): List of flood warning dictionaries
+        
+    Returns:
+        dict: Dictionary with barangay names as keys and user lists as values
+    """
+    affected_users = {}
+    
+    for warning in flood_warnings:
+        barangay = warning.get('barangay')
+        if barangay and barangay not in affected_users:
+            users = get_users_by_barangay(barangay)
+            if users:
+                affected_users[barangay] = users
+    
+    return affected_users
+
+def assess_flood_risk(rain_rate, duration, intensity_label):
+    """
+    Legacy function maintained for backward compatibility.
+    Now calls the enhanced barangay-specific assessment.
+    """
+    return assess_flood_risk_by_barangay(rain_rate, duration, intensity_label)
 
 # =======================================================
 # 4. Main Execution Block
@@ -327,27 +489,65 @@ def main():
             print(f"❌ Error inserting rain prediction results into the database: {e}")
             
         # ------------------------------------------------------------------
-        # --- Step 4: Assess Flood Risk and Insert Flood Warnings (NEW) ---
+        # --- Step 4: Assess Flood Risk by Barangay and Insert Warnings ---
         # ------------------------------------------------------------------
-        flood_warnings = assess_flood_risk(predicted_rain_rate, predicted_duration, intensity_label)
+        flood_warnings = assess_flood_risk_by_barangay(predicted_rain_rate, predicted_duration, intensity_label)
         
         if flood_warnings:
-            print("\n--- FLOOD WARNINGS ISSUED ---")
+            print(f"\n--- FLOOD WARNINGS ISSUED FOR {len(flood_warnings)} BARANGAYS ---")
             try:
                 with connection.cursor() as cursor:
+                    # Clear previous warnings to avoid duplicates
+                    cursor.execute("DELETE FROM flood_warnings WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 1 HOUR)")
+                    
                     for warning in flood_warnings:
-                        print(f"🚨 {warning['risk_level']} Risk for {warning['area']}: {warning['message']}")
+                        print(f"🚨 {warning['risk_level']} Risk for {warning['barangay']} ({warning['land_type']}): {warning['message']}")
                         
-                        # Insert the flood warning results
+                        # Insert the enhanced flood warning results with barangay information
                         cursor.execute("""
                             INSERT INTO flood_warnings (area, risk_level, message, prediction_date)
                             VALUES (%s, %s, %s, NOW())
-                        """, [warning['area'], warning['risk_level'], warning['message']])
-                print("✅ Flood warnings successfully inserted into the database.")
+                        """, [warning['area'], warning['message'], warning['risk_level']])
+                        
+                print(f"✅ {len(flood_warnings)} flood warnings successfully inserted into the database.")
+                
+                # Print summary by risk level
+                high_risk = [w for w in flood_warnings if w['risk_level'] == 'High']
+                moderate_risk = [w for w in flood_warnings if w['risk_level'] == 'Moderate']
+                low_risk = [w for w in flood_warnings if w['risk_level'] == 'Low']
+                
+                if high_risk:
+                    print(f"🔴 HIGH RISK: {len(high_risk)} barangays - {', '.join([w['barangay'] for w in high_risk])}")
+                if moderate_risk:
+                    print(f"🟡 MODERATE RISK: {len(moderate_risk)} barangays - {', '.join([w['barangay'] for w in moderate_risk])}")
+                if low_risk:
+                    print(f"🟢 LOW RISK: {len(low_risk)} barangays - {', '.join([w['barangay'] for w in low_risk])}")
+                
+                # ------------------------------------------------------------------
+                # --- Step 5: Send Targeted SMS Alerts to Affected Barangays ---
+                # ------------------------------------------------------------------
+                try:
+                    from weatherapp.sms_targeted_alerts import send_targeted_sms_alerts
+                    
+                    sms_result = send_targeted_sms_alerts(
+                        flood_warnings, 
+                        predicted_rain_rate, 
+                        predicted_duration, 
+                        intensity_label
+                    )
+                    
+                    if sms_result["success"]:
+                        print(f"✅ SMS Alerts: {sms_result['total_sent']} sent, {sms_result['total_failed']} failed")
+                    else:
+                        print(f"❌ SMS Alert Error: {sms_result.get('error', 'Unknown error')}")
+                        
+                except Exception as e:
+                    print(f"❌ Error sending targeted SMS alerts: {e}")
+                    
             except Exception as e:
                 print(f"❌ Error inserting flood warnings into the database: {e}")
         else:
-            print("\nNo flood warnings issued for the target areas.")
+            print("\n✅ No flood warnings issued - all barangays are safe from flooding.")
 
 
     except Exception as e:

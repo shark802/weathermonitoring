@@ -505,25 +505,34 @@ def latest_dashboard_data(request):
         else:
             forecast = {'error': 'No AI prediction data available.'}
             
-        flood_warning = {}
+        # Fetch all recent flood warnings (last 24 hours) for barangay-specific display
+        flood_warnings = []
         cursor.execute("""
-            SELECT area, risk_level, message
+            SELECT area, risk_level, message, prediction_date
             FROM flood_warnings
-            ORDER BY prediction_date DESC
-            LIMIT 1
+            WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            ORDER BY 
+                CASE risk_level 
+                    WHEN 'High' THEN 1 
+                    WHEN 'Moderate' THEN 2 
+                    WHEN 'Low' THEN 3 
+                    ELSE 4 
+                END,
+                prediction_date DESC
         """)
-        row = cursor.fetchone()
-        if row:
-            # We combine the retrieved values into the dictionary
-            flood_warning = {
-                'area': row[0],
-                'risk_level': row[1],
-                'message': row[2],
-                'error': None
-            }
-        else:
-            # Error if no recent warning is found
-            flood_warning = {'error': 'No recent flood warning data available.'}
+        rows = cursor.fetchall()
+        
+        if rows:
+            for row in rows:
+                flood_warnings.append({
+                    'area': row[0],
+                    'risk_level': row[1],
+                    'message': row[2],
+                    'prediction_date': row[3].strftime('%Y-%m-%d %H:%M:%S') if row[3] else None
+                })
+        
+        # For backward compatibility, keep the first warning as the main flood_warning
+        flood_warning = flood_warnings[0] if flood_warnings else {'error': 'No recent flood warning data available.'}
 
         # 4. Fetch Alerts (the logic is copied directly from your original admin_dashboard view)
         alerts = []
@@ -565,6 +574,7 @@ def latest_dashboard_data(request):
         'alerts': alerts,
         'forecast': [forecast] if forecast.get('error') is None else [],
         'flood_warning': flood_warning,
+        'flood_warnings': flood_warnings,  # Include all barangay warnings
         'chart_labels': chart_labels,
         'chart_data': chart_data,
     })
@@ -755,7 +765,8 @@ def admin_dashboard(request):
                 'longitude': float(lon) if lon else None,
                 'has_alert': has_alert,
                 'alert_text': alert_text,
-                'date_time': date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else None
+                'date_time': date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else None,
+                'radius': 5000  # 5km radius in meters for geo-fencing
             })
 
         # 6. Fetch phone numbers for SMS alerts
@@ -1081,7 +1092,7 @@ def user_dashboard(request):
                     'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S')
                 })
 
-    # ✅ Send context to template
+        # ✅ Send context to template
     context = {
         'user': {'name': user_name},
         'weather': weather,
@@ -1101,6 +1112,8 @@ def user_dashboard(request):
 def get_alerts(request):
     try:
         alerts = []
+        
+        # 1. Get sensor-based alerts
         with connection.cursor() as cursor:
             cursor.execute("""
                 SELECT s.name, wr.rain_rate, wr.wind_speed, wr.date_time
@@ -1129,6 +1142,28 @@ def get_alerts(request):
                         'severity': 'strong'
                     })
 
+        # 2. Get flood warnings from ML predictions (last 24 hours)
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT area, risk_level, message, prediction_date
+                FROM flood_warnings
+                WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                ORDER BY prediction_date DESC
+            """)
+            flood_warnings = cursor.fetchall()
+            
+            for row in flood_warnings:
+                area, risk_level, message, prediction_date = row
+                # Add flood warning as alert
+                alerts.append({
+                    'text': f"🌊 {risk_level} Flood Risk: {area}",
+                    'timestamp': prediction_date.strftime('%Y-%m-%d %H:%M:%S') if prediction_date else '',
+                    'type': 'flood',
+                    'severity': risk_level.lower(),
+                    'message': message,
+                    'area': area
+                })
+
         # Check if user has marked alerts as read
         read_alerts_data = request.session.get('read_alerts', {})
         read_alerts = read_alerts_data.get('alerts', [])
@@ -1155,6 +1190,8 @@ def mark_alerts_read(request):
         try:
             # Get current alerts using the same logic as get_alerts function
             alerts = []
+            
+            # 1. Get sensor-based alerts
             with connection.cursor() as cursor:
                 cursor.execute("""
                     SELECT s.name, wr.rain_rate, wr.wind_speed, wr.date_time
@@ -1183,6 +1220,28 @@ def mark_alerts_read(request):
                             'type': 'wind',
                             'severity': 'strong'
                         })
+
+            # 2. Get flood warnings from ML predictions (last 24 hours)
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT area, risk_level, message, prediction_date
+                    FROM flood_warnings
+                    WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                    ORDER BY prediction_date DESC
+                """)
+                flood_warnings = cursor.fetchall()
+                
+                for row in flood_warnings:
+                    area, risk_level, message, prediction_date = row
+                    # Add flood warning as alert
+                    alerts.append({
+                        'text': f"🌊 {risk_level} Flood Risk: {area}",
+                        'timestamp': prediction_date.strftime('%Y-%m-%d %H:%M:%S') if prediction_date else '',
+                        'type': 'flood',
+                        'severity': risk_level.lower(),
+                        'message': message,
+                        'area': area
+                    })
 
             # Save read alerts in session with timestamp
             current_time = datetime.now().isoformat()

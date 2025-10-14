@@ -202,11 +202,15 @@ document.addEventListener('DOMContentLoaded', function() {
         const locationsData = document.getElementById('locations-data').textContent;
         const locations = locationsData ? JSON.parse(locationsData) : [];
         
-        // Clear existing markers if any (for refresh scenarios)
+        // Clear existing markers and circles if any (for refresh scenarios)
         if (window.mapMarkers) {
             window.mapMarkers.forEach(marker => map.removeLayer(marker));
         }
+        if (window.mapCircles) {
+            window.mapCircles.forEach(circle => map.removeLayer(circle));
+        }
         window.mapMarkers = [];
+        window.mapCircles = [];
 
         locations.forEach(loc => {
             // Skip if missing coordinates
@@ -234,6 +238,36 @@ document.addEventListener('DOMContentLoaded', function() {
             marker.on('click', function() {
                 map.setView([loc.latitude, loc.longitude], 15);
             });
+
+            // Create geo-fencing circle (5km radius)
+            if (loc.radius) {
+                const circle = L.circle([loc.latitude, loc.longitude], {
+                    color: hasActiveAlert ? '#dc2626' : '#3b82f6',  // Red for alerts, blue for normal
+                    fillColor: hasActiveAlert ? '#fca5a5' : '#93c5fd',  // Light red for alerts, light blue for normal
+                    fillOpacity: 0.2,
+                    radius: loc.radius,
+                    weight: 2,
+                    dashArray: hasActiveAlert ? '10, 5' : '5, 5'  // Dashed line for alerts, solid for normal
+                }).addTo(map);
+
+                // Store reference to circle
+                window.mapCircles.push(circle);
+
+                // Add popup to circle showing geo-fence info
+                circle.bindPopup(`
+                    <div class="geofence-popup">
+                        <h4>${loc.name} - Geo-fence</h4>
+                        <p><strong>Radius:</strong> ${(loc.radius / 1000).toFixed(1)} km</p>
+                        <p><strong>Status:</strong> ${hasActiveAlert ? '<span style="color: red;">Alert Active</span>' : '<span style="color: green;">Normal</span>'}</p>
+                        <p><small>This area is monitored for weather alerts</small></p>
+                    </div>
+                `);
+
+                // Add click event to zoom to circle center
+                circle.on('click', function() {
+                    map.setView([loc.latitude, loc.longitude], 12);
+                });
+            }
         });
 
         // Fix map size after load
@@ -241,8 +275,9 @@ document.addEventListener('DOMContentLoaded', function() {
             map.invalidateSize();
             
             if (locations.length > 0 && locations.some(loc => loc.latitude && loc.longitude)) {
-                const markerGroup = new L.FeatureGroup(window.mapMarkers);
-                map.fitBounds(markerGroup.getBounds().pad(0.2));
+                const allFeatures = [...window.mapMarkers, ...window.mapCircles];
+                const featureGroup = new L.FeatureGroup(allFeatures);
+                map.fitBounds(featureGroup.getBounds().pad(0.2));
             }
         }, 100);
     }

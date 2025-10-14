@@ -194,31 +194,33 @@
                         </div>
 
                         <div>
-                            <h3 class="font-bold text-lg mb-2 text-gray-700 border-b pb-1">🚨 Flood Warning</h3>
-                            <div id="floodWarningContent" class="space-y-3 text-medium">
-                                {% if flood_warning.error %}
-                                    <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
-                                        <p>✅ No active flood warnings at this time.</p>
-                                    </div>
+                            <h3 class="font-bold text-lg mb-2 text-gray-700 border-b pb-1">🚨 Flood Warnings by Barangay</h3>
+                            <div id="floodWarningContent" class="space-y-3 text-medium max-h-64 overflow-y-auto">
+                                {% if flood_warnings %}
+                                    {% for warning in flood_warnings %}
+                                        <div class="border rounded-lg p-3 {% if warning.risk_level == 'High' %}border-red-300 bg-red-50{% elif warning.risk_level == 'Moderate' %}border-orange-300 bg-orange-50{% else %}border-yellow-300 bg-yellow-50{% endif %}">
+                                            <div class="flex justify-between items-center mb-2">
+                                                <span class="font-semibold text-gray-800">
+                                                    <i class="fas fa-map-marker-alt mr-1"></i>{{ warning.area }}
+                                                </span>
+                                                <span class="px-2 py-1 rounded text-white text-xs font-bold
+                                                    {% if warning.risk_level == 'High' %}bg-red-600
+                                                    {% elif warning.risk_level == 'Moderate' %}bg-orange-500
+                                                    {% else %}bg-yellow-500{% endif %}">
+                                                    {{ warning.risk_level }}
+                                                </span>
+                                            </div>
+                                            <p class="text-sm text-gray-600 mb-1">{{ warning.message }}</p>
+                                            {% if warning.prediction_date %}
+                                                <p class="text-xs text-gray-500">
+                                                    <i class="fas fa-clock mr-1"></i>{{ warning.prediction_date }}
+                                                </p>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
                                 {% else %}
-                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                                        <span class="font-medium text-gray-700"><i class="fas fa-map-marker-alt mr-2"></i>Area</span>
-                                        <span class="text-right font-semibold text-gray-800">{{ flood_warning.area }}</span>
-                                    </div>
-                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                                        <span class="font-medium text-gray-700"><i class="fas fa-exclamation-triangle mr-2"></i>Risk Level</span>
-                                        <span class="
-                                            text-right px-2 py-1 rounded text-white font-bold
-                                            {% if flood_warning.risk_level == 'High' %} bg-red-600
-                                            {% elif flood_warning.risk_level == 'Medium' %} bg-orange-500
-                                            {% else %} bg-yellow-500 {% endif %}
-                                        ">
-                                            {{ flood_warning.risk_level }}
-                                        </span>
-                                    </div>
-                                    <div class="p-2 border border-gray-300 rounded bg-gray-50">
-                                        <p class="font-medium text-gray-700 mb-1">Warning Message:</p>
-                                        <p class="text-sm text-gray-600 italic">{{ flood_warning.message }}</p>
+                                    <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
+                                        <p>✅ No active flood warnings for any barangay at this time.</p>
                                     </div>
                                 {% endif %}
                             </div>
@@ -235,11 +237,6 @@
                 <div class="relative h-64 w-full">
                     <canvas id="tempChart" class="absolute inset-0"></canvas>
                 </div>
-            </div>
-
-            <div class="bg-white p-4 rounded shadow">
-                <h2 class="text-xl font-semibold mb-2">Additional Dashboard Sections</h2>
-                <p class="text-gray-500">Location Map and full Alerts list would typically go here.</p>
             </div>
 
         </main>
@@ -359,37 +356,44 @@
                             `<p class="text-gray-500 text-medium">No AI prediction available.</p>`;
                         rainForecastContent.innerHTML = forecastHTML;
 
-                        // 3. Update Flood Warning
-                        const warning = data.flood_warning;
-                        if (warning && warning.error) {
+                        // 3. Update Flood Warnings by Barangay
+                        const warnings = data.flood_warnings || [];
+                        if (warnings.length === 0) {
                             floodWarningContent.innerHTML = `
                                 <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
-                                    <p>✅ No active flood warnings at this time.</p>
-                                </div>
-                            `;
-                        } else if (warning && warning.risk_level) {
-                            const riskClass = warning.risk_level === 'High' ? 'bg-red-600' : warning.risk_level === 'Medium' ? 'bg-orange-500' : 'bg-yellow-500';
-                            
-                            floodWarningContent.innerHTML = `
-                                <div class="space-y-3 text-medium">
-                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                                        <span class="font-medium text-gray-700"><i class="fas fa-map-marker-alt mr-2"></i>Area</span>
-                                        <span class="text-right font-semibold text-gray-800">${warning.area}</span>
-                                    </div>
-                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                                        <span class="font-medium text-gray-700"><i class="fas fa-exclamation-triangle mr-2"></i>Risk Level</span>
-                                        <span class="text-right px-2 py-1 rounded text-white font-bold ${riskClass}">
-                                            ${warning.risk_level}
-                                        </span>
-                                    </div>
-                                    <div class="p-2 border border-gray-300 rounded bg-gray-50">
-                                        <p class="font-medium text-gray-700 mb-1">Warning Message:</p>
-                                        <p class="text-sm text-gray-600 italic">${warning.message}</p>
-                                    </div>
+                                    <p>✅ No active flood warnings for any barangay at this time.</p>
                                 </div>
                             `;
                         } else {
-                            floodWarningContent.innerHTML = `<p class="text-gray-500 text-medium">No flood warning data available.</p>`;
+                            const warningsHTML = warnings.map(warning => {
+                                const borderClass = warning.risk_level === 'High' ? 'border-red-300 bg-red-50' : 
+                                                  warning.risk_level === 'Moderate' ? 'border-orange-300 bg-orange-50' : 
+                                                  'border-yellow-300 bg-yellow-50';
+                                const riskClass = warning.risk_level === 'High' ? 'bg-red-600' : 
+                                                warning.risk_level === 'Moderate' ? 'bg-orange-500' : 
+                                                'bg-yellow-500';
+                                
+                                return `
+                                    <div class="border rounded-lg p-3 ${borderClass}">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <span class="font-semibold text-gray-800">
+                                                <i class="fas fa-map-marker-alt mr-1"></i>${warning.area}
+                                            </span>
+                                            <span class="px-2 py-1 rounded text-white text-xs font-bold ${riskClass}">
+                                                ${warning.risk_level}
+                                            </span>
+                                        </div>
+                                        <p class="text-sm text-gray-600 mb-1">${warning.message}</p>
+                                        ${warning.prediction_date ? `
+                                            <p class="text-xs text-gray-500">
+                                                <i class="fas fa-clock mr-1"></i>${warning.prediction_date}
+                                            </p>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            }).join('');
+                            
+                            floodWarningContent.innerHTML = warningsHTML;
                         }
 
                         // 4. Update Temperature Chart
@@ -450,38 +454,66 @@
                 let response = await fetch("{% url 'get_alerts' %}");
                 let data = await response.json();
                 let alerts = data.alerts;
+                let readAlerts = data.read_alerts || [];
 
                 let notifCount = document.getElementById("notifCount");
                 let alertList = document.getElementById("alertList");
 
-                // Update bell count
-                if (alerts.length > 0) {
-                    notifCount.textContent = alerts.length;
+                // Calculate unread count (alerts that are not in read_alerts)
+                let unreadCount = 0;
+                alerts.forEach(alert => {
+                    let isRead = readAlerts.some(readAlert => 
+                        readAlert.text === alert.text && readAlert.timestamp === alert.timestamp
+                    );
+                    if (!isRead) unreadCount++;
+                });
+
+                // Update bell count with unread count only
+                if (unreadCount > 0) {
+                    notifCount.textContent = unreadCount;
                     notifCount.classList.remove("hidden");
                 } else {
                     notifCount.classList.add("hidden");
                 }
 
-                // Update dropdown list
+                // Update dropdown list - show all alerts but mark read ones
                 alertList.innerHTML = "";
                 if (alerts.length > 0) {
                     alerts.forEach(alert => {
                         let li = document.createElement("li");
-                        li.className = "px-3 py-2 text-sm hover:bg-gray-100 w-full text-left";
+                        
+                        // Check if this alert is read
+                        let isRead = readAlerts.some(readAlert => 
+                            readAlert.text === alert.text && readAlert.timestamp === alert.timestamp
+                        );
+                        
+                        // Set base classes
+                        li.className = `px-3 py-2 text-sm hover:bg-gray-100 w-full text-left ${isRead ? 'opacity-60' : ''}`;
 
-                        // Color code alerts (using 'type' from previous code's alert structure)
+                        // Color code alerts
                         let textColor = "text-gray-800";
-                        if (alert.type === "warning") textColor = "text-yellow-700";
-                        if (alert.type === "critical") textColor = "text-red-700";
+                        if (alert.type === "rain" || alert.type === "warning") textColor = "text-yellow-700";
+                        if (alert.type === "wind" || alert.type === "critical") textColor = "text-red-700";
+                        if (alert.type === "flood") {
+                            if (alert.severity === "high") textColor = "text-red-700";
+                            else if (alert.severity === "moderate") textColor = "text-orange-600";
+                            else textColor = "text-blue-700";
+                        }
                         if (alert.type === "info") textColor = "text-blue-700";
 
+                        // Add read indicator
+                        let readIndicator = isRead ? '<span class="text-xs text-green-600 ml-2">✓ Read</span>' : '<span class="text-xs text-blue-600 ml-2">● New</span>';
+
                         li.innerHTML = `
-                            <div class="truncate max-w-[240px] ${textColor}">${alert.text}</div>
+                            <div class="flex items-center justify-between">
+                                <div class="truncate max-w-[200px] ${textColor}">${alert.text}</div>
+                                ${readIndicator}
+                            </div>
                             <div class="text-xs text-gray-500">${alert.timestamp}</div>`;
                         alertList.appendChild(li);
                     });
                 } else {
-                    alertList.innerHTML = '<li class="px-3 py-2 text-sm text-gray-500 text-center w-full">No new alerts</li>';
+                    alertList.innerHTML = '<li class="px-3 py-2 text-sm text-gray-500 text-center w-full">No alerts available</li>';
                 }
 
             } catch (err) {
@@ -493,15 +525,46 @@
         async function markAllRead() {
             try {
                 // Assuming you have a Django URL named 'mark_alerts_read'
-                await fetch("{% url 'mark_alerts_read' %}", {
+                let response = await fetch("{% url 'mark_alerts_read' %}", {
                     method: "POST",
                     headers: {
                         "X-CSRFToken": "{{ csrf_token }}",
                     }
                 });
-                fetchAlerts(); // refresh list
+                
+                let result = await response.json();
+                if (result.status === "success") {
+                    console.log(`✅ Marked ${result.marked_count} alerts as read`);
+                }
+                
+                fetchAlerts(); // refresh list to update read status
             } catch (err) {
                 console.error("Error marking alerts as read:", err);
+            }
+        }
+
+        // Mark individual alert as read (for future use)
+        async function markAlertAsRead(alertText, alertTimestamp) {
+            try {
+                let response = await fetch("{% url 'mark_alerts_read' %}", {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": "{{ csrf_token }}",
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        alert_text: alertText,
+                        alert_timestamp: alertTimestamp
+                    })
+                });
+                
+                let result = await response.json();
+                if (result.status === "success") {
+                    console.log("✅ Alert marked as read");
+                    fetchAlerts(); // refresh list
+                }
+            } catch (err) {
+                console.error("Error marking alert as read:", err);
             }
         }
 

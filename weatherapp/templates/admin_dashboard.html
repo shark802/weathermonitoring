@@ -11,7 +11,32 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="{% static 'css/logout.css' %}">
-  <link rel="stylesheet" href="{% static 'css/alert.css' %}">
+  <link rel="stylesheet" href="{% static 'css/alert.css' %}">
+  <style>
+    .geofence-popup {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-width: 200px;
+    }
+    .geofence-popup h4 {
+      margin: 0 0 8px 0;
+      color: #1f2937;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .geofence-popup p {
+      margin: 4px 0;
+      font-size: 12px;
+      color: #4b5563;
+    }
+    .geofence-popup small {
+      color: #6b7280;
+      font-style: italic;
+    }
+    .leaflet-popup-content-wrapper {
+      border-radius: 8px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+  </style>
 </head>
 <body class="bg-gray-200 font-sans min-h-auto">
 
@@ -133,31 +158,33 @@
                         </div>
 
                         <div>
-                            <h3 class="font-bold text-lg mb-2 text-gray-700 border-b pb-1">🚨 Flood Warning</h3>
-                            <div id="floodWarningContent" class="space-y-3 text-medium">
-                                {% if flood_warning.error %}
-                                    <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
-                                        <p>✅ No active flood warnings at this time.</p>
-                                    </div>
+                            <h3 class="font-bold text-lg mb-2 text-gray-700 border-b pb-1">🚨 Flood Warnings by Barangay</h3>
+                            <div id="floodWarningContent" class="space-y-3 text-medium max-h-64 overflow-y-auto">
+                                {% if flood_warnings %}
+                                    {% for warning in flood_warnings %}
+                                        <div class="border rounded-lg p-3 {% if warning.risk_level == 'High' %}border-red-300 bg-red-50{% elif warning.risk_level == 'Moderate' %}border-orange-300 bg-orange-50{% else %}border-yellow-300 bg-yellow-50{% endif %}">
+                                            <div class="flex justify-between items-center mb-2">
+                                                <span class="font-semibold text-gray-800">
+                                                    <i class="fas fa-map-marker-alt mr-1"></i>{{ warning.area }}
+                                                </span>
+                                                <span class="px-2 py-1 rounded text-white text-xs font-bold
+                                                    {% if warning.risk_level == 'High' %}bg-red-600
+                                                    {% elif warning.risk_level == 'Moderate' %}bg-orange-500
+                                                    {% else %}bg-yellow-500{% endif %}">
+                                                    {{ warning.risk_level }}
+                                                </span>
+                                            </div>
+                                            <p class="text-sm text-gray-600 mb-1">{{ warning.message }}</p>
+                                            {% if warning.prediction_date %}
+                                                <p class="text-xs text-gray-500">
+                                                    <i class="fas fa-clock mr-1"></i>{{ warning.prediction_date }}
+                                                </p>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
                                 {% else %}
-                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                                        <span class="font-medium text-gray-700"><i class="fas fa-map-marker-alt mr-2"></i>Area</span>
-                                        <span class="text-right font-semibold text-gray-800">{{ flood_warning.area }}</span>
-                                    </div>
-                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                                        <span class="font-medium text-gray-700"><i class="fas fa-exclamation-triangle mr-2"></i>Risk Level</span>
-                                        <span class="
-                                            text-right px-2 py-1 rounded text-white font-bold
-                                            {% if flood_warning.risk_level == 'High' %} bg-red-600
-                                            {% elif flood_warning.risk_level == 'Medium' %} bg-orange-500
-                                            {% else %} bg-yellow-500 {% endif %}
-                                        ">
-                                            {{ flood_warning.risk_level }}
-                                        </span>
-                                    </div>
-                                    <div class="p-2 border border-gray-300 rounded bg-gray-50">
-                                        <p class="font-medium text-gray-700 mb-1">Warning Message:</p>
-                                        <p class="text-sm text-gray-600 italic">{{ flood_warning.message }}</p>
+                                    <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
+                                        <p>✅ No active flood warnings for any barangay at this time.</p>
                                     </div>
                                 {% endif %}
                             </div>
@@ -175,7 +202,28 @@
             </div>
             
             <div class="bg-white p-4 rounded shadow">
-                <h2 class="text-xl font-semibold mb-2">Weather Station Location</h2>
+                <h2 class="text-xl font-semibold mb-2 flex items-center">
+                    <i class="fas fa-map-marker-alt mr-2 text-blue-500"></i>
+                    Weather Station Locations & Geo-fencing
+                </h2>
+                <p class="text-sm text-gray-600 mb-3">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Blue circles show 5km monitoring radius for each sensor. Red circles indicate active alerts.
+                </p>
+                <div class="flex flex-wrap gap-4 mb-3 text-xs">
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-blue-500 rounded-full mr-2 opacity-20"></div>
+                        <span class="text-gray-600">Normal monitoring zone (5km)</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 bg-red-500 rounded-full mr-2 opacity-20"></div>
+                        <span class="text-gray-600">Alert zone (5km)</span>
+                    </div>
+                    <div class="flex items-center">
+                        <i class="fas fa-map-marker-alt text-gray-600 mr-2"></i>
+                        <span class="text-gray-600">Sensor location</span>
+                    </div>
+                </div>
                 <div id="map" class="h-96 w-full relative z-10"></div>
             </div>
 
@@ -597,37 +645,44 @@ let tempChart;
                             `<p class="text-gray-500 text-medium">No AI prediction available.</p>`;
                         rainForecastContent.innerHTML = forecastHTML;
 
-                        // 3. Update Flood Warning
-                        const warning = data.flood_warning;
-                        if (warning && warning.error) {
+                        // 3. Update Flood Warnings by Barangay
+                        const warnings = data.flood_warnings || [];
+                        if (warnings.length === 0) {
                             floodWarningContent.innerHTML = `
                                 <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
-                                    <p>✅ No active flood warnings at this time.</p>
-                                </div>
-                            `;
-                        } else if (warning && warning.risk_level) {
-                            const riskClass = warning.risk_level === 'High' ? 'bg-red-600' : warning.risk_level === 'Medium' ? 'bg-orange-500' : 'bg-yellow-500';
-                            
-                            floodWarningContent.innerHTML = `
-                                <div class="space-y-3 text-medium">
-                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                                        <span class="font-medium text-gray-700"><i class="fas fa-map-marker-alt mr-2"></i>Area</span>
-                                        <span class="text-right font-semibold text-gray-800">${warning.area}</span>
-                                    </div>
-                                    <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                                        <span class="font-medium text-gray-700"><i class="fas fa-exclamation-triangle mr-2"></i>Risk Level</span>
-                                        <span class="text-right px-2 py-1 rounded text-white font-bold ${riskClass}">
-                                            ${warning.risk_level}
-                                        </span>
-                                    </div>
-                                    <div class="p-2 border border-gray-300 rounded bg-gray-50">
-                                        <p class="font-medium text-gray-700 mb-1">Warning Message:</p>
-                                        <p class="text-sm text-gray-600 italic">${warning.message}</p>
-                                    </div>
+                                    <p>✅ No active flood warnings for any barangay at this time.</p>
                                 </div>
                             `;
                         } else {
-                            floodWarningContent.innerHTML = `<p class="text-gray-500 text-medium">No flood warning data available.</p>`;
+                            const warningsHTML = warnings.map(warning => {
+                                const borderClass = warning.risk_level === 'High' ? 'border-red-300 bg-red-50' : 
+                                                  warning.risk_level === 'Moderate' ? 'border-orange-300 bg-orange-50' : 
+                                                  'border-yellow-300 bg-yellow-50';
+                                const riskClass = warning.risk_level === 'High' ? 'bg-red-600' : 
+                                                warning.risk_level === 'Moderate' ? 'bg-orange-500' : 
+                                                'bg-yellow-500';
+                                
+                                return `
+                                    <div class="border rounded-lg p-3 ${borderClass}">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <span class="font-semibold text-gray-800">
+                                                <i class="fas fa-map-marker-alt mr-1"></i>${warning.area}
+                                            </span>
+                                            <span class="px-2 py-1 rounded text-white text-xs font-bold ${riskClass}">
+                                                ${warning.risk_level}
+                                            </span>
+                                        </div>
+                                        <p class="text-sm text-gray-600 mb-1">${warning.message}</p>
+                                        ${warning.prediction_date ? `
+                                            <p class="text-xs text-gray-500">
+                                                <i class="fas fa-clock mr-1"></i>${warning.prediction_date}
+                                            </p>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            }).join('');
+                            
+                            floodWarningContent.innerHTML = warningsHTML;
                         }
 
                         // 4. Update Temperature Chart
