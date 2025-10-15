@@ -2436,17 +2436,18 @@ def send_alert(request):
     if request.method == 'POST': 
         
         # 1. EXTRACT PARAMETERS from the request
-        
-        # Get the text values directly from the form
         alert_type = request.POST.get('alert_type', 'Manual Alert') 
-        severity = request.POST.get('severity', 'Moderate') # Heavy, Torrential, Gale, etc.
+        severity = request.POST.get('severity', 'Moderate')
+        custom_message = request.POST.get('alert_message', '').strip() # Get custom message
         
         # Determine the category for the message
-        category = 'Rain' if alert_type == 'Rain' else 'Wind' 
+        category = 'Rain' if alert_type.lower() == 'rain' else 'Wind' 
         
-        # Construct the detailed message based on the form inputs
+        # Construct the detailed message
         message = f"🚨 NEW MANUAL {category.upper()} ALERT 🚨\n"
         message += f"Severity: {severity}\n"
+        if custom_message:
+            message += f"Message: {custom_message}\n" # Add custom message if present
         message += f"Source: Local Weather Monitor\n"
         message += "Please ensure safety measures are in place immediately."
         
@@ -2466,18 +2467,20 @@ def send_alert(request):
                 # Fallback: Get all user phone numbers if no verified contacts
                 if not phone_numbers:
                     print("No verified contacts found, getting all user phone numbers...")
+                    # FIX SQL ERROR HERE: SELECT phone_num FROM user ...
                     cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
                     phone_numbers = [row[0] for row in cursor.fetchall() if row and row[0]]
                     
         except Exception as e:
             print(f"[DB ERROR] Failed to retrieve contacts: {e}")
-            messages.error(request, "Failed to retrieve contacts from database.")
-            return HttpResponse("Failed to retrieve contacts from database", status=500)
+            # For AJAX/modal, return JSON response
+            return HttpResponse('{"status": "error", "message": "Failed to retrieve contacts from database."}', status=200, content_type='application/json')
         
         if not phone_numbers:
-            messages.warning(request, "No phone numbers found for SMS alerts.")
-            return HttpResponse("No contacts found", status=200)
+            # For AJAX/modal, return JSON response
+            return HttpResponse('{"status": "warning", "message": "No phone numbers found for SMS alerts."}', status=200, content_type='application/json')
 
+        # ... (Steps 3, 4, 5 remain the same) ...
         # 3. Number formatting
         formatted_numbers = []
         for num in phone_numbers:
@@ -2537,7 +2540,6 @@ def send_alert(request):
                 if response.status_code == 200 and result.get("success", True):
                     total_sent += 1
                     sent_count_burst += 1
-                    # print(f"✅ SMS sent successfully to {number}") # Removed for cleaner console output
                 else:
                     print(f"❌ SMS failed to {number}: Status {response.status_code}, Result: {result.get('message', response.text)}")
                     
@@ -2554,7 +2556,6 @@ def send_alert(request):
                     if response.status_code == 200 and result.get("success", True):
                         total_sent += 1
                         sent_count_burst += 1
-                        # print(f"✅ SMS sent successfully via fallback to {number}") # Removed for cleaner console output
                     else:
                         print(f"❌ SMS failed via fallback to {number}: Status {response.status_code}, Result: {result.get('message', response.text)}")
                 
@@ -2564,10 +2565,11 @@ def send_alert(request):
             except requests.exceptions.RequestException as e:
                 print(f"SMS Error for {number}: {str(e)}")
 
-        # 6. Final response
-        messages.success(request, f"Manual Alert Sent: {severity} {alert_type}. Attempted to send to {total_sent} contacts.")
-        # Assuming you want to redirect the user back to the originating page (common in Django POST/REDIRECT/GET pattern)
-        return HttpResponse(f"Alert sent successfully to {total_sent} contacts.", status=200) 
+        # 6. Final response - **Return JSON for modal success**
+        final_message = f"Alert Sent: {severity} {alert_type}. Attempted to send to {total_sent} contacts."
+        # Note: messages.success is for full page redirect, use JSON for AJAX
+        return HttpResponse('{"status": "success", "message": "' + final_message + '", "sent_count": ' + str(total_sent) + '}', status=200, content_type='application/json')
+    
 
     # 7. Handle incorrect request method
     return HttpResponse("Invalid request method.", status=405)
