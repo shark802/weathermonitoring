@@ -79,12 +79,7 @@ def get_all_barangay_risk_data_from_db():
 def get_sequence_data_from_db():
     """
     Fetches the last SEQUENCE_LENGTH time steps of all required features
-    from the database: temperature, humidity, wind_speed, barometric_pressure,
-    and the hour of the day (derived from date_time).
-
-    Returns:
-        list[list]: A sequence of historical weather data (oldest to newest),
-                    or None if insufficient data is found.
+    ... (docstring remains the same)
     """
     print(f"Fetching last {SEQUENCE_LENGTH} time steps of data from database...")
     try:
@@ -104,9 +99,13 @@ def get_sequence_data_from_db():
                 print(f"Error: Found only {len(data)} records. {SEQUENCE_LENGTH} required for prediction.")
                 return None
             
+            # 💡 FIX HERE: Convert the fetched 'data' (which might be a tuple) to a list 
+            # so the reverse() method can be used.
+            data = list(data)
+            
             # The data is fetched in reverse chronological order (newest first).
             # The sequence must be oldest to newest for the model.
-            data.reverse()
+            data.reverse() # This will now work as 'data' is a mutable list
             
             sequence = []
             for temp, humid, wind, pressure, dt in data:
@@ -442,7 +441,7 @@ def main():
         # Django setup (copied from original)
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         sys.path.append(project_root)
-        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'weather_app.settings')
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'weatheralert.settings')
         django.setup()
         
         # --- NEW STEP: Load the land and risk data from the DB first ---
@@ -488,7 +487,7 @@ def main():
             with connection.cursor() as cursor:
                 # Insert the prediction results
                 cursor.execute("""
-                    INSERT INTO ai_predictions (predicted_rain, duration, intensity, prediction_date)
+                    INSERT INTO ai_predictions (predicted_rain, duration, intensity, created_at)
                     VALUES (%s, %s, %s, NOW())
                 """, [predicted_rain_rate, predicted_duration, intensity_label])
             print("✅ Rain prediction results successfully inserted into the database.")
