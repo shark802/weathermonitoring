@@ -585,7 +585,7 @@ def latest_dashboard_data(request):
 def admin_dashboard(request):
     """
     Renders the admin dashboard with real-time weather data, alerts,
-    and a map of sensor locations. AI prediction is now handled by a Celery task.
+    and a map of sensor locations.
     """
     if 'admin_id' not in request.session:
         return redirect('home')
@@ -593,8 +593,15 @@ def admin_dashboard(request):
     admin_id = request.session['admin_id']
     selected_sensor_id = request.GET.get('sensor_id')
 
-    # Initialize alerts list
-    alerts = [] # <--- Initialize here
+    # Initialize lists/dictionaries
+    alerts = []
+    locations = []
+    current_sensor_id = None
+    weather = {}
+    forecast = {}
+    flood_warning = {}
+    labels = []
+    temps = []
 
     # Use a single `with` block for ALL database operations
     with connection.cursor() as cursor:
@@ -607,11 +614,11 @@ def admin_dashboard(request):
         cursor.execute("SELECT sensor_id, name FROM sensor ORDER BY name")
         available_sensors = [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
 
-        # ✅ Get latest weather data for the main card
+        # 3. Get latest weather data for the main card (current sensor)
         if selected_sensor_id:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                       wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 WHERE wr.sensor_id = %s
@@ -621,7 +628,7 @@ def admin_dashboard(request):
         else:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                       wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 ORDER BY wr.date_time DESC
@@ -629,137 +636,119 @@ def admin_dashboard(request):
             """)
         
         row = cursor.fetchone()
-        weather = {}
-        current_sensor_id = None
         if row:
             weather = {
-                'temperature': row[0],
-                'humidity': row[1],
-                'rain_rate': row[2],
-                'dew_point': row[3],
-                'wind_speed': row[4],
-                'barometric_pressure': row[5],
-                'date_time': row[6].strftime('%Y-%m-%d %H:%M:%S'),
-                'location': row[7],
-                'latitude': row[8],
-                'longitude': row[9],
-                'error': None
+                'temperature': row[0], 'humidity': row[1], 'rain_rate': row[2], 
+                'dew_point': row[3], 'wind_speed': row[4], 'barometric_pressure': row[5], 
+                'date_time': row[6].strftime('%Y-%m-%d %H:%M:%S'), 'location': row[7], 
+                'latitude': row[8], 'longitude': row[9], 'error': None
             }
-            # The sensor_id is the last element (index 10) in the SELECT list
             current_sensor_id = selected_sensor_id if selected_sensor_id else row[10] 
         else:
-            weather = {
-                'error': 'No weather data available',
-                'temperature': 'N/A',
-                'humidity': 'N/A',
-                'rain_rate': 'N/A',
-                'dew_point': 'N/A',
-                'wind_speed': 'N/A',
-                'barometric_pressure': 'N/A',
-                'date_time': 'N/A',
-                'location': 'Unknown',
-                'latitude': None,
-                'longitude': None
+             weather = {
+                'error': 'No weather data available', 'temperature': 'N/A', 
+                'humidity': 'N/A', 'rain_rate': 'N/A', 'dew_point': 'N/A', 
+                'wind_speed': 'N/A', 'barometric_pressure': 'N/A', 
+                'date_time': 'N/A', 'location': 'Unknown', 
+                'latitude': None, 'longitude': None
             }
 
-        # --- AI Prediction, Flood Warning, and Chart Data logic (Omitted for brevity, assuming it remains unchanged) ---
-
-        forecast = {}
+        # 4. Forecast Data (Logic retained from original)
         today_start = datetime.combine(date.today(), time_class(0, 0, 0))
-        
         today_start_str = today_start.strftime('%Y-%m-%d %H:%M:%S')
 
         cursor.execute("""
-            SELECT predicted_rain, duration, intensity, created_at
-            FROM ai_predictions
-            WHERE created_at >= %s
-            ORDER BY created_at DESC
-            LIMIT 1
-        """, (today_start_str,)) 
+             SELECT predicted_rain, duration, intensity, created_at
+             FROM ai_predictions
+             WHERE created_at >= %s
+             ORDER BY created_at DESC
+             LIMIT 1
+         """, (today_start_str,)) 
 
         row = cursor.fetchone()
         if row:
-            forecast = {
-                'prediction': float(row[0]),
-                'duration': float(row[1]),
-                'intensity': row[2],
-                'created_at': row[3].strftime('%Y-%m-%d %H:%M:%S'),
-                'error': None
-            }
+             forecast = {
+                 'prediction': float(row[0]), 'duration': float(row[1]), 
+                 'intensity': row[2], 'created_at': row[3].strftime('%Y-%m-%d %H:%M:%S'), 
+                 'error': None
+             }
         else:
-            forecast = {'error': 'No AI prediction data available for today.'}
+             forecast = {'error': 'No AI prediction data available for today.'}
         
-        flood_warning = {}
+        # 5. Flood Warning (Logic retained from original)
         cursor.execute("""
-            SELECT area, risk_level, message
-            FROM flood_warnings
-            ORDER BY prediction_date DESC
-            LIMIT 1
-        """)
+             SELECT area, risk_level, message
+             FROM flood_warnings
+             ORDER BY prediction_date DESC
+             LIMIT 1
+         """)
         row = cursor.fetchone()
         if row:
-            # We combine the retrieved values into the dictionary
-            flood_warning = {
-                'area': row[0],
-                'risk_level': row[1],
-                'message': row[2],
-                'error': None
-            }
+             flood_warning = {
+                 'area': row[0], 'risk_level': row[1], 'message': row[2], 'error': None
+             }
         else:
-            # Error if no recent warning is found
-            flood_warning = {'error': 'No recent flood warning data available.'}
+             flood_warning = {'error': 'No recent flood warning data available.'}
 
-        # ✅ Chart data (last 10 records)
-        # Note: The original code had a separate `with connection.cursor() as cursor:` block here, 
-        # which is inefficient. I've kept the logic but consolidated the execution below:
-
+        # 6. Chart data (Logic retained from original)
         cursor.execute("""
-            SELECT DATE_FORMAT(date_time, '%a %b %d') AS label, temperature
-            FROM weather_reports
-            ORDER BY date_time DESC
-            LIMIT 10
-        """)
+             SELECT DATE_FORMAT(date_time, '%a %b %d') AS label, temperature
+             FROM weather_reports
+             ORDER BY date_time DESC
+             LIMIT 10
+         """)
         rows = cursor.fetchall()
         labels = [row[0] for row in rows]
         temps = [float(row[1]) for row in rows]
 
-        # 5. Fetch all sensor locations for the map and GENERATE ALERTS
-        # The query remains the same as it fetches the latest data for ALL sensors
+        # 7. Fetch all sensor locations for the map, PROCESS ALERTS, and build locations data
         cursor.execute("""
-            SELECT s.sensor_id, s.name, s.latitude, s.longitude, 
+             SELECT s.sensor_id, s.name, s.latitude, s.longitude, 
                     wr.rain_rate, wr.wind_speed, wr.date_time
-            FROM sensor s
-            LEFT JOIN weather_reports wr ON s.sensor_id = wr.sensor_id
-            WHERE wr.date_time = (
-                SELECT MAX(date_time) 
-                FROM weather_reports 
-                WHERE sensor_id = s.sensor_id
-            ) OR wr.date_time IS NULL
-        """)
-        locations = []
+             FROM sensor s
+             LEFT JOIN weather_reports wr ON s.sensor_id = wr.sensor_id
+             WHERE wr.date_time = (
+                 SELECT MAX(date_time) 
+                 FROM weather_reports 
+                 WHERE sensor_id = s.sensor_id
+             ) OR wr.date_time IS NULL
+         """)
+        
         for row in cursor.fetchall():
             sensor_id, name, lat, lng, rain_rate, wind_speed, date_time = row
+            has_alert = False
+            alert_text = ""
+            date_time_str = date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else None
+
+            # --- ⚠️ ALERT GENERATION LOGIC: UI List + Map Data Enrichment ⚠️ ---
             
-            # --- ⚠️ ALERT GENERATION LOGIC ADDED HERE ⚠️ ---
-            
-            # 1. Generate Alert: Heavy Rainfall (rain_rate >= 7.6 mm)
+            # 1. Heavy Rainfall Alert (rain_rate >= 7.6 mm)
             if rain_rate is not None and rain_rate >= 7.6:
+                alert_msg = f"⚠️ Heavy Rainfall Alert in {name} ({rain_rate} mm/hr)"
+                # Add to the UI Alerts List
                 alerts.append({
-                    'text': f"⚠️ Heavy Rainfall Alert in {name} ({rain_rate} mm/hr)",
-                    'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else 'N/A',
-                    'location_name': name # Added for potential map/UI use
+                    'text': alert_msg, 
+                    'timestamp': date_time_str,
+                    'location_name': name
                 })
-            
-            # 2. Generate Alert: Strong Wind (wind_speed > 30 km/h)
+                alert_text += alert_msg + "<br>"
+                has_alert = True
+                
+            # 2. Strong Wind Alert (wind_speed > 30 km/h)
             if wind_speed is not None and wind_speed > 30:
+                alert_msg = f"⚠️ Strong Wind Alert in {name} ({wind_speed} km/h)"
+                # Add to the UI Alerts List
                 alerts.append({
-                    'text': f"⚠️ Strong Wind Alert in {name} ({wind_speed} km/h)",
-                    'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else 'N/A',
-                    'location_name': name # Added for potential map/UI use
+                    'text': alert_msg, 
+                    'timestamp': date_time_str,
+                    'location_name': name
                 })
+                alert_text += alert_msg + "<br>"
+                has_alert = True
             
             # --- END ALERT GENERATION ---
 
+            # Prepare enriched data for the map (JavaScript 'locations' array)
             locations.append({
                 'sensor_id': sensor_id,
                 'name': name,
@@ -767,14 +756,16 @@ def admin_dashboard(request):
                 'longitude': float(lng) if lng is not None else None,
                 'rain_rate': float(rain_rate) if rain_rate is not None else None,
                 'wind_speed': float(wind_speed) if wind_speed is not None else None,
-                'date_time': date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else None,
-                'radius': 5000
+                'date_time': date_time_str,
+                'has_alert': has_alert, # <--- 🔑 Crucial field for JS map logic
+                'alert_text': alert_text.strip('<br>'), # <--- 🔑 Crucial field for JS map logic popup/icon
+                'radius': 5000 # Geo-fence radius
             })
             
-    # Prepare context for the template
+    # Prepare final context for the template
     context = {
         'admin': {'name': admin_name},
-        'locations': json.dumps(locations),
+        'locations': json.dumps(locations), # <--- 🔑 Enriched locations data for the map
         'weather': weather,
         'forecast': [forecast] if forecast.get('error') is None else [],
         'flood_warning': flood_warning,
@@ -782,8 +773,8 @@ def admin_dashboard(request):
         'data': json.dumps(temps),
         'available_sensors': available_sensors,
         'current_sensor_id': current_sensor_id,
-        'alerts': alerts,
-        'map_center': {
+        'alerts': alerts, # Alerts list for the sidebar/UI
+        'map_center': { # For map initialization
             'lat': weather['latitude'] if weather['latitude'] else 10.508884,
             'lng': weather['longitude'] if weather['longitude'] else 122.957527
         }
