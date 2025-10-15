@@ -10,8 +10,8 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <link rel="stylesheet" href="{% static 'css/logout.css' %}">
-  <link rel="stylesheet" href="{% static 'css/alert.css' %}">
+  <link rel="stylesheet" href="{% static 'weatherapp/css/logout.css' %}">
+  <link rel="stylesheet" href="{% static 'weatherapp/css/alert.css' %}">
   <style>
     .geofence-popup {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -347,7 +347,7 @@
  </div>
 
 
-<audio id="alertSound" src="{% static 'sounds/alert.mp3' %}" preload="auto"></audio>
+<audio id="alertSound" src="{% static 'weatherapp/sounds/alert.mp3' %}" preload="auto"></audio>
 
   <script id="locations-data" type="application/json">{{ locations|safe }}</script>
   <script>
@@ -358,8 +358,8 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="{% static 'js/alert.js' %}"></script>
-  <script src="{% static 'js/alertbox.js' %}"></script>
+  <script src="{% static 'weatherapp/js/alert.js' %}"></script>
+  <script src="{% static 'weatherapp/js/alertbox.js' %}"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
     const alertTypeSelect = document.getElementById('alert_type');
