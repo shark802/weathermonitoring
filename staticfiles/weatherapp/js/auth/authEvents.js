@@ -1,117 +1,233 @@
-import { Validators, validateField, setupPasswordStrengthIndicator } from './formValidation.js';
-import { loadProvinces } from './addressSelect.js';
-import QRScanner from './qrScanner.js'; // Updated import
-import { 
-  showError, 
-  clearError, 
-  showToast, 
-  switchModal, 
-  clearModalErrors, 
-  setupPasswordToggles 
+import { QRScanner } from './qrScanner.js';
+import {
+  Validators,
+  validateField,
+  setupPasswordStrengthIndicator
+} from './formValidation.js';
+import {
+  loadProvinces,
+  setupProvinceDropdownListener
+} from './addressSelect.js';
+import {
+  showError,
+  clearError,
+  showToast,
+  switchModal,
+  clearModalErrors,
+  setupPasswordToggles
 } from './uiHelpers.js';
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', () => {
+  // 1) Basic UI wiring
   setupFormValidation();
-  initializeAuthModules();
+  setupPasswordToggles();
+  loadProvinces();
+  setupProvinceDropdownListener();
+  setupEventListeners();
+
+  // 2) QR Scanner wiring
+  const container   = document.getElementById('qrScannerContainer');
+  const videoEl     = document.getElementById('qr-video');
+  const canvasEl  = document.getElementById('qr-overlay');
+  const qrDataInput = document.getElementById('qrData');
+  const scanBtn     = document.getElementById('scanPhilSysQR');
+  const closeBtn    = document.getElementById('closeScannerBtn');
+
+  // Scanner creation
+  const scanner = new QRScanner(
+    videoEl,
+    canvasEl,
+    async (rawJwt) => {
+      console.log('%c[DEBUG] Raw scanned data:', 'color: orange;', rawJwt);
+
+      if (!rawJwt || rawJwt.length < 10) {
+        console.warn('[DEBUG] Scan result too short — maybe misread.');
+        return;
+      }
+
+      // Store raw QR data
+      qrDataInput.value = rawJwt;
+
+      // Try to parse JSON if not JWT
+      let qrJson = null;
+      try {
+        qrJson = JSON.parse(rawJwt);
+      } catch (err) {
+        console.warn('[DEBUG] Not JSON, skipping parse:', err);
+      }
+
+      // If it's JSON with "subject"
+      if (qrJson && qrJson.subject) {
+        console.log('%c[DEBUG] Parsed QR JSON:', 'color: green;', qrJson);
+
+        const subject = qrJson.subject || {};
+        const address = subject.address || {};
+
+        // Fill name fields (matching backend logic)
+        document.getElementById('firstName').value  ||= subject.fName || '';
+        document.getElementById('middleName').value ||= subject.mName || '';
+        document.getElementById('lastName').value   ||= subject.lName || '';
+
+        // Fill address fields if present
+        document.getElementById('barangay').value ||= address.barangay || '';
+        document.getElementById('city').value     ||= address.city || '';
+        document.getElementById('province').value ||= address.province || '';
+      } else {
+        console.warn('[DEBUG] QR does not contain expected "subject" field.');
+      }
+
+      showToast('success', 'PhilSys QR scanned');
+      scanner.stop();
+      container.classList.add('d-none');
+    },
+
+    { 
+      preferredCamera: 'environment', 
+      maxScansPerSecond: 10,
+      highlightScanRegion: true,
+      highlightCodeOutline: true
+    }
+  );
+
+  // ⬇ Replace your old click event with this
+  scanBtn.addEventListener('click', async () => {
+    container.classList.remove('d-none');
+    try {
+      // Request HD camera stream explicitly
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      });
+      videoEl.srcObject = stream;
+
+      // Start scanner after stream is ready
+      await new Promise(res => videoEl.onloadedmetadata = res);
+      await scanner.start();
+    } catch (e) {
+      showToast('error', e.message || 'Unable to access camera');
+      container.classList.add('d-none');
+    }
+  });
+    closeBtn.addEventListener('click', () => {
+      scanner.stop();
+      container.classList.add('d-none');
+    });
 });
 
 function setupFormValidation() {
   const fieldMap = {
-    firstName: () => validateField('firstName', Validators.name, { fieldName: 'First name' }),
-    lastName: () => validateField('lastName', Validators.name, { fieldName: 'Last name' }),
-    regEmail: () => validateField('regEmail', Validators.email),
-    regPhone: () => validateField('regPhone', Validators.phone),
+    firstName:   () => validateField('firstName', Validators.name,    { fieldName: 'First name' }),
+    lastName:    () => validateField('lastName',  Validators.name,    { fieldName: 'Last name' }),
+    regEmail:    () => validateField('regEmail',  Validators.email,    { fieldName: 'Email' }),
+    regPhone:    () => validateField('regPhone',  Validators.phone,    { fieldName: 'Phone Number' }),
     regUsername: () => validateField('regUsername', Validators.required, { fieldName: 'Username' }),
     regPassword: () => validateField('regPassword', Validators.password),
     confirm_Password: () => {
-      const password = document.getElementById('regPassword').value;
-      return validateField('confirm_Password', (value) => Validators.confirmPassword(password, value));
+      const pw = document.getElementById('regPassword').value;
+      return validateField('confirm_Password', v => Validators.confirmPassword(pw, v));
     }
   };
 
-  Object.entries(fieldMap).forEach(([id, validatorFn]) => {
+  Object.entries(fieldMap).forEach(([id, fn]) => {
     const input = document.getElementById(id);
-    if (input) {
-      input.addEventListener('input', () => {
-        if (validatorFn()) clearError(id);
-      });
-    }
+    if (!input) return;
+    input.addEventListener('input', () => {
+      if (fn()) clearError(id);
+    });
   });
 
   setupPasswordStrengthIndicator();
 
-  // Username uniqueness check
-  document.getElementById('regUsername')?.addEventListener('blur', function () {
-    const username = this.value.trim();
-    if (!username) return;
+  function attachCheck(fieldIds, urlParam, urlPath, message, extraFields = []) {
+  if (!Array.isArray(fieldIds)) fieldIds = [fieldIds];
 
-    fetch(`/check-username?username=${encodeURIComponent(username)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.exists) showError('regUsername', 'Username already exists.');
-        else clearError('regUsername');
-      });
-  });
+  fieldIds.forEach(fieldId => {
+    const field = document.getElementById(fieldId);
+    if (!field) return;
 
-  // Name uniqueness check
-  document.getElementById('regName')?.addEventListener('blur', function () {
-    const name = this.value.trim();
-    if (!name) return;
+    field.addEventListener('blur', function() {
+      let params = new URLSearchParams();
 
-    fetch(`/check-name?name=${encodeURIComponent(name)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.exists) showError('regName', 'Name already exists.');
-        else clearError('regName');
-      });
+      if (!extraFields.length) {
+        const val = this.value.trim();
+        if (!val) return;
+        params.append(urlParam, val);
+      } 
+      else {
+        let hasValue = false;
+        extraFields.forEach(f => {
+          const el = document.getElementById(f.id);
+          if (el && el.value.trim()) {
+            params.append(f.param, el.value.trim());
+            hasValue = true;
+          }
+        });
+        if (!hasValue) return;
+      }
+
+      fetch(`/${urlPath}?${params.toString()}`)
+        .then(r => r.json())
+        .then(d => d.exists ? showError(fieldIds[0], message) : clearError(fieldIds[0]));
+    });
   });
 }
 
-export function initializeAuthModules() {
-  setupPasswordToggles();
-  loadProvinces();
-  setupEventListeners();
+// Attach checks
+attachCheck('regUsername', 'username', 'check-username', 'Username already exists.');
+attachCheck('regEmail', 'email', 'check-email', 'Email already exists.');
+attachCheck('regPhone', 'phone_num', 'check-phone', 'Phone number already exists.');
+attachCheck(
+  ['firstName', 'middleName', 'lastName'], 
+  null, 
+  'check-name', 
+  'Name already exists.', 
+  [
+    {id: 'firstName', param: 'firstName'},
+    {id: 'middleName', param: 'middleName'},
+    {id: 'lastName', param: 'lastName'}
+  ]
+);
 }
 
 function setupEventListeners() {
-  // Modal switch links
-  document.getElementById('openRegisterLink')?.addEventListener('click', function(e) {
+  // modal toggles
+  document.getElementById('openRegisterLink')?.addEventListener('click', e => {
     e.preventDefault();
-    switchModal('loginModal', 'registerModal');
+    switchModal('loginModal','registerModal');
+  });
+  document.getElementById('openLoginLink')?.addEventListener('click', e => {
+    e.preventDefault();
+    switchModal('registerModal','loginModal');
   });
 
-  document.getElementById('openLoginLink')?.addEventListener('click', function(e) {
-    e.preventDefault();
-    switchModal('registerModal', 'loginModal');
-  });
-
-  // Form submissions
+  // forms
   document.getElementById('registerForm')?.addEventListener('submit', handleRegisterSubmit);
   document.getElementById('loginForm')?.addEventListener('submit', handleLoginSubmit);
 
-  // Modal cleanup
+  // reset on close
   document.getElementById('registerModal')?.addEventListener('hidden.bs.modal', function() {
     this.querySelector('form').reset();
     clearModalErrors('registerModal');
   });
-
   document.getElementById('loginModal')?.addEventListener('hidden.bs.modal', function() {
     this.querySelector('form').reset();
   });
 }
 
+
 async function handleRegisterSubmit(e) {
   e.preventDefault();
   clearModalErrors('registerModal');
 
-  // Validate all fields
-  const isValid = validateAllFields();
-  if (!isValid) return;
+  if (!validateAllFields()) return;
 
   const form = e.target;
   const submitBtn = form.querySelector('#registerSubmitBtn');
   const originalText = submitBtn.innerHTML;
-  
+
   submitBtn.disabled = true;
   submitBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Registering...`;
 
@@ -123,7 +239,18 @@ async function handleRegisterSubmit(e) {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     });
 
-    const data = await response.json();
+    if (!response.ok) {
+      const text = await response.text(); 
+      throw new Error(`HTTP ${response.status} – ${text}`);
+    }
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (err) {
+      const text = await response.text();
+      throw new Error(`Invalid JSON from server: ${text}`);
+    }
 
     if (data.success) {
       showToast('success', data.message);
@@ -131,11 +258,11 @@ async function handleRegisterSubmit(e) {
       modal?.hide();
       setTimeout(() => window.location.href = "/", 1500);
     } else {
-      handleFormErrors(data.errors);
+      handleFormErrors(data.errors || {});
     }
   } catch (error) {
     console.error('Registration Error:', error);
-    showToast('error', 'Unexpected error occurred. Please try again.');
+    showToast('error', error.message || 'Unexpected error occurred. Please try again.');
   } finally {
     submitBtn.disabled = false;
     submitBtn.innerHTML = originalText;
@@ -150,13 +277,13 @@ function validateAllFields() {
   if (!validateField('lastName', Validators.name, { fieldName: 'Last name' })) isValid = false;
   
   // Address fields
-  if (!validateField('province-dropdown', Validators.required, { fieldName: 'Province' })) isValid = false;
-  if (!validateField('city-dropdown', Validators.required, { fieldName: 'City/Municipality' })) isValid = false;
-  if (!validateField('barangay-dropdown', Validators.required, { fieldName: 'Barangay' })) isValid = false;
+  if (!validateField('province', Validators.required, { fieldName: 'Province' })) isValid = false;
+  if (!validateField('city', Validators.required, { fieldName: 'City/Municipality' })) isValid = false;
+  if (!validateField('barangay', Validators.required, { fieldName: 'Barangay' })) isValid = false;
   
   // Contact info
-  if (!validateField('regEmail', Validators.email)) isValid = false;
-  if (!validateField('regPhone', Validators.phone)) isValid = false;
+  if (!validateField('regEmail', Validators.email, { fieldName: 'Email' })) isValid = false;
+  if (!validateField('regPhone', Validators.phone, { fieldName: 'Phone Number' })) isValid = false;
   
   // Credentials
   if (!validateField('regUsername', Validators.required, { fieldName: 'Username' })) isValid = false;
@@ -180,9 +307,9 @@ function handleFormErrors(errors) {
     qr_data: 'scanPhilSysQR',
     first_name: 'firstName',
     last_name: 'lastName',
-    province: 'province-dropdown',
-    city: 'city-dropdown',
-    barangay: 'barangay-dropdown'
+    province: 'province',
+    city: 'city',
+    barangay: 'barangay'
   };
 
   Object.entries(errors).forEach(([field, message]) => {

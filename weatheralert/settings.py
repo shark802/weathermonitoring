@@ -137,7 +137,9 @@ USE_TZ = True
 # Replace your static files config with:
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'weatherapp/static/weatherapp')]
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'weatherapp/static'),
+]
 
 # WhiteNoise configuration
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
