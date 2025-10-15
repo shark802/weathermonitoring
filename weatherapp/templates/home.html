@@ -51,7 +51,7 @@
   <nav class="bg-white/50 backdrop-blur-md shadow-sm fixed w-full z-50 border-b border-gray-100">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
         <div class="flex items-center space-x-3">
-            <img src="{% static 'images/logo.png' %}" alt="Logo" class="h-8 w-8">
+            <img src="{% static 'weatherapp/images/logo.png' %}" alt="Logo" class="h-8 w-8">
             <h1 class="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent whitespace-nowrap">
                 WeatherAlert
             </h1>
@@ -73,7 +73,7 @@
   <section class="relative pt-32 pb-20 px-6 bg-gray-900">
     <div class="absolute inset-0 overflow-hidden">
       <div class="absolute inset-0 bg-gradient-to-br from-primary-100 to-primary-50 opacity-90"></div>
-      <div class="absolute inset-0 bg-[url('{% static 'images/background.jpg' %}')] bg-[length:100%] opacity-30"></div>
+      <div class="absolute inset-0 bg-[url('{% static 'weatherapp/images/background.jpg' %}')] bg-[length:100%] opacity-30"></div>
     </div>
     
     <div class="max-w-7xl mx-auto relative z-10 text-center">
@@ -325,7 +325,7 @@
             <div class="flex flex-col lg:flex-row w-100" style="min-height: 500px;">
                 <div class="hidden lg:flex lg:w-1/2 bg-blue-600 text-white items-center justify-center p-4">
                     <div class="text-center">
-                        <img src="{% static 'images/logo.png' %}" alt="Weather Alert" class="w-50 mx-auto mb-4">
+                        <img src="{% static 'weatherapp/images/logo.png' %}" alt="Weather Alert" class="w-50 mx-auto mb-4">
                         <p class="fs-5 font-serif">Welcome back! Please login to continue.</p>
                     </div>
                 </div>
@@ -404,7 +404,7 @@
         {% csrf_token %}
         <div class="modal-header position-relative">
           <div class="flex items-center justify-center w-full">
-            <img src="{% static 'images/logo.png' %}" alt="Logo" class="h-8 w-8 mr-2">
+            <img src="{% static 'weatherapp/images/logo.png' %}" alt="Logo" class="h-8 w-8 mr-2">
             <h5 class="modal-title text-blue-600 fw-bold" id="registerModalLabel">Create An Account</h5>
           </div>
           <button type="button" class="btn-close position-absolute end-0 me-2" data-bs-dismiss="modal" aria-label="Close"></button>
