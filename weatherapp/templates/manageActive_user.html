@@ -44,7 +44,7 @@
 
   {% if messages %}
     {% for message in messages %}
-      <div class="fixed top-4 left-1/2 transform -translate-x-1/2 max-w-md w-full z-100">
+      <div class="fixed top-4 left-1/2 transform -translate-x-1/2 max-w-md w-full z-50">
         <div class="mb-4 px-6 py-4 text-white rounded-lg shadow-md text-center 
                     {% if message.tags == 'error' %}bg-red-500{% else %}bg-green-500{% endif %}">
           {{ message }}
