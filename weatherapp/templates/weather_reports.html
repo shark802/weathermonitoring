@@ -549,59 +549,6 @@
     updateSeverityOptions(); 
 });
 
-$(document).ready(function() {
-    $('#sendAlertForm').on('submit', function(e) {
-        // 1. Prevent default form submission (stops page refresh)
-        e.preventDefault(); 
-        
-        var form = $(this);
-        var url = form.attr('action');
-        var method = form.attr('method');
-        var data = form.serialize();
-        var $statusDiv = $('#alert-status');
-        var $button = $('#sendAlertButton');
-
-        // Clear previous status and disable button
-        $statusDiv.html('<i class="fas fa-spinner fa-spin mr-2"></i> Sending alert...');
-        $statusDiv.removeClass('text-green-600 text-red-600 text-yellow-600').addClass('text-gray-600');
-        $button.prop('disabled', true).html('<i class="fas fa-paper-plane"></i> Sending...');
-
-        // 2. Send data via AJAX
-        $.ajax({
-            type: method,
-            url: url,
-            data: data,
-            dataType: 'json', // Expecting JSON response from Django view
-            success: function(response) {
-                // 3. Update modal based on JSON response
-                if (response.status === 'success') {
-                    $statusDiv.html('<i class="fas fa-check-circle mr-2"></i> ' + response.message);
-                    $statusDiv.removeClass('text-gray-600').addClass('text-green-600');
-                    // Optionally close the modal after a delay
-                    setTimeout(function() {
-                        $('#sendAlertModal').modal('hide');
-                    }, 3000); 
-                } else if (response.status === 'warning') {
-                    $statusDiv.html('<i class="fas fa-exclamation-circle mr-2"></i> ' + response.message);
-                    $statusDiv.removeClass('text-gray-600').addClass('text-yellow-600');
-                } else { // status === 'error'
-                    $statusDiv.html('<i class="fas fa-times-circle mr-2"></i> ' + response.message);
-                    $statusDiv.removeClass('text-gray-600').addClass('text-red-600');
-                }
-            },
-            error: function(xhr, status, error) {
-                // Handle network or server-side error (e.g., 500 status)
-                $statusDiv.html('<i class="fas fa-exclamation-triangle mr-2"></i> A critical error occurred: ' + error);
-                $statusDiv.removeClass('text-gray-600').addClass('text-red-600');
-            },
-            complete: function() {
-                // Re-enable the button regardless of success/error
-                $button.prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send Alert');
-            }
-        });
-    });
-});
-
     function showLogoutModal() {
       document.getElementById('logoutModal').classList.remove('hidden');
     }
@@ -960,6 +907,59 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize
     initSidebar();
+});
+
+$(document).ready(function() {
+    $('#sendAlertForm').on('submit', function(e) {
+        // 1. Prevent default form submission (stops page refresh)
+        e.preventDefault(); 
+        
+        var form = $(this);
+        var url = form.attr('action');
+        var method = form.attr('method');
+        var data = form.serialize();
+        var $statusDiv = $('#alert-status');
+        var $button = $('#sendAlertButton');
+
+        // Clear previous status and disable button
+        $statusDiv.html('<i class="fas fa-spinner fa-spin mr-2"></i> Sending alert...');
+        $statusDiv.removeClass('text-green-600 text-red-600 text-yellow-600').addClass('text-gray-600');
+        $button.prop('disabled', true).html('<i class="fas fa-paper-plane"></i> Sending...');
+
+        // 2. Send data via AJAX
+        $.ajax({
+            type: method,
+            url: url,
+            data: data,
+            dataType: 'json', // Expecting JSON response from Django view
+            success: function(response) {
+                // 3. Update modal based on JSON response
+                if (response.status === 'success') {
+                    $statusDiv.html('<i class="fas fa-check-circle mr-2"></i> ' + response.message);
+                    $statusDiv.removeClass('text-gray-600').addClass('text-green-600');
+                    // Optionally close the modal after a delay
+                    setTimeout(function() {
+                        $('#sendAlertModal').modal('hide');
+                    }, 3000); 
+                } else if (response.status === 'warning') {
+                    $statusDiv.html('<i class="fas fa-exclamation-circle mr-2"></i> ' + response.message);
+                    $statusDiv.removeClass('text-gray-600').addClass('text-yellow-600');
+                } else { // status === 'error'
+                    $statusDiv.html('<i class="fas fa-times-circle mr-2"></i> ' + response.message);
+                    $statusDiv.removeClass('text-gray-600').addClass('text-red-600');
+                }
+            },
+            error: function(xhr, status, error) {
+                // Handle network or server-side error (e.g., 500 status)
+                $statusDiv.html('<i class="fas fa-exclamation-triangle mr-2"></i> A critical error occurred: ' + error);
+                $statusDiv.removeClass('text-gray-600').addClass('text-red-600');
+            },
+            complete: function() {
+                // Re-enable the button regardless of success/error
+                $button.prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send Alert');
+            }
+        });
+    });
 });
   </script>
 </body>
