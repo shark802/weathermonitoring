@@ -765,7 +765,7 @@ def admin_dashboard(request):
     # Prepare final context for the template
     context = {
         'admin': {'name': admin_name},
-        'locations': json.dumps(locations), # <--- 🔑 Enriched locations data for the map
+        'locations': json.dumps(locations),
         'weather': weather,
         'forecast': [forecast] if forecast.get('error') is None else [],
         'flood_warning': flood_warning,
@@ -966,7 +966,7 @@ def get_alerts(request):
                     })
                 if wind_speed and wind_speed > 30:
                     alerts.append({
-                        'text': f"⚠️ Strong Wind Alert in {name} ({wind_speed} km/h)",
+                        'text': f"⚠️ Strong Wind Alert in {name} ({wind_speed} m/s)",
                         'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S'),
                         'type': 'wind',
                         'severity': 'strong'
@@ -2452,149 +2452,6 @@ def receive_sensor_data(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
-
-def send_alert(request):
-    
-    if request.method == 'POST': 
-        
-        # 1. EXTRACT PARAMETERS from the request
-        alert_type = request.POST.get('alert_type', 'Manual Alert') 
-        severity = request.POST.get('severity', 'Moderate')
-        custom_message = request.POST.get('alert_message', '').strip() # Get custom message
-        
-        # Determine the category for the message
-        category = 'Rain' if alert_type.lower() == 'rain' else 'Wind' 
-        
-        # Construct the detailed message
-        message = f"🚨 NEW MANUAL {category.upper()} ALERT 🚨\n"
-        message += f"Severity: {severity}\n"
-        if custom_message:
-            message += f"Message: {custom_message}\n" # Add custom message if present
-        message += f"Source: Local Weather Monitor\n"
-        message += "Please ensure safety measures are in place immediately."
-        
-        
-        # 2. Contact Retrieval (Standardized and robust)
-        phone_numbers = []
-        try:
-            with connection.cursor() as cursor:
-                # Primary: Get verified phone numbers from verified_contacts
-                cursor.execute("""
-                    SELECT contact_value
-                    FROM verified_contacts
-                    WHERE contact_type = 'number'
-                """)
-                phone_numbers = [row[0] for row in cursor.fetchall() if row and row[0]]
-
-                # Fallback: Get all user phone numbers if no verified contacts
-                if not phone_numbers:
-                    print("No verified contacts found, getting all user phone numbers...")
-                    # FIX SQL ERROR HERE: SELECT phone_num FROM user ...
-                    cursor.execute("SELECT phone_num FROM user WHERE phone_num IS NOT NULL")
-                    phone_numbers = [row[0] for row in cursor.fetchall() if row and row[0]]
-                    
-        except Exception as e:
-            print(f"[DB ERROR] Failed to retrieve contacts: {e}")
-            # For AJAX/modal, return JSON response
-            return HttpResponse('{"status": "error", "message": "Failed to retrieve contacts from database."}', status=200, content_type='application/json')
-        
-        if not phone_numbers:
-            # For AJAX/modal, return JSON response
-            return HttpResponse('{"status": "warning", "message": "No phone numbers found for SMS alerts."}', status=200, content_type='application/json')
-
-        # ... (Steps 3, 4, 5 remain the same) ...
-        # 3. Number formatting
-        formatted_numbers = []
-        for num in phone_numbers:
-            if num and num.startswith("09"): # Assume PH format starting with 09
-                formatted_numbers.append("+63" + num[1:])
-            elif num and not num.startswith("+63"):
-                formatted_numbers.append("+63" + num)
-            elif num:
-                formatted_numbers.append(num)
-
-        # 4. Setup common SMS parameters and session
-        headers = {
-            "apikey": settings.SMS_API_KEY,
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
-        
-        session = requests.Session()
-        session.verify = certifi.where()
-
-        print(f"📱 Sending manual SMS alerts ({severity} {alert_type}) to {len(formatted_numbers)} numbers.")
-        
-        sent_count_burst = 0
-        total_sent = 0
-        
-        # 5. Iterate and send SMS with robust error handling
-        for number in formatted_numbers:
-            
-            if sent_count_burst >= 2:
-                time.sleep(2)
-                sent_count_burst = 0
-
-            payload = {
-                "message": message, # ⬅️ Customized message content
-                "mobile_number": number,
-                "device": settings.SMS_DEVICE_ID,
-                "device_sim": "1"
-            }
-            encoded_payload = urllib.parse.urlencode(payload)
-
-            # Structured SMS sending with SSL error handling
-            try:
-                print(f"Sending SMS to {number}: {message[:20]}...")
-                
-                # Primary attempt with SSL verification
-                response = session.post(
-                    settings.SMS_API_URL,
-                    headers=headers,
-                    data=encoded_payload,
-                    timeout=10
-                )
-                
-                try:
-                    result = response.json()
-                except ValueError:
-                    result = {}
-                    
-                if response.status_code == 200 and result.get("success", True):
-                    total_sent += 1
-                    sent_count_burst += 1
-                else:
-                    print(f"❌ SMS failed to {number}: Status {response.status_code}, Result: {result.get('message', response.text)}")
-                    
-            except requests.exceptions.SSLError as e:
-                print(f"SSL Error for {number}: {str(e)}. Attempting fallback...")
-                # Fallback without SSL verification
-                try:
-                    response = requests.post(settings.SMS_API_URL, headers=headers, data=encoded_payload, timeout=10, verify=False)
-                    try:
-                        result = response.json()
-                    except ValueError:
-                        result = {}
-
-                    if response.status_code == 200 and result.get("success", True):
-                        total_sent += 1
-                        sent_count_burst += 1
-                    else:
-                        print(f"❌ SMS failed via fallback to {number}: Status {response.status_code}, Result: {result.get('message', response.text)}")
-                
-                except Exception as fallback_error:
-                    print(f"Fallback SMS Error for {number}: {str(fallback_error)}")
-                    
-            except requests.exceptions.RequestException as e:
-                print(f"SMS Error for {number}: {str(e)}")
-
-        # 6. Final response - **Return JSON for modal success**
-        final_message = f"Alert Sent: {severity} {alert_type}. Attempted to send to {total_sent} contacts."
-        # Note: messages.success is for full page redirect, use JSON for AJAX
-        return HttpResponse('{"status": "success", "message": "' + final_message + '", "sent_count": ' + str(total_sent) + '}', status=200, content_type='application/json')
-    
-
-    # 7. Handle incorrect request method
-    return HttpResponse("Invalid request method.", status=405)
 
 LAND_TYPE_FLOOD_RISK = {
     "low_lying": {"risk_multiplier": 1.5, "description": "High flood risk - prone to water accumulation"},

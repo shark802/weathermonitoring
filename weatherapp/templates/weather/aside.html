@@ -73,14 +73,6 @@
         <a href="{% url 'manage_barangays' %}" class="flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-600 hover:text-white {% if request.resolver_match.url_name == 'manage_barangays' %}bg-blue-600 text-white{% else %}text-gray-700{% endif %}">
           <i class="fas fa-map-marked-alt w-5 text-center"></i> Manage Barangays
         </a>
-        
-        <!-- Send Alerts Button - Fixed position -->
-        <button type="button" 
-                class="w-full flex items-center gap-2 px-2 py-2 rounded-md font-medium no-underline hover:bg-blue-600 hover:text-white text-gray-700"
-                data-bs-toggle="modal" 
-                data-bs-target="#sendAlertModal">
-          <i class="fas fa-bell w-5 text-center"></i> Send Alerts
-        </button>
       </nav>
     </div>
 
