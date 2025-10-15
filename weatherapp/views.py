@@ -729,6 +729,16 @@ def admin_dashboard(request):
             ) OR wr.date_time IS NULL
         """)
         locations = []
+        for row in cursor.fetchall():
+            locations.append({
+                'sensor_id': row[0],
+                'name': row[1],
+                'latitude': row[2],
+                'longitude': row[3],
+                'rain_rate': row[4],
+                'wind_speed': row[5],
+                'date_time': row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None
+            })
 
     # Prepare context for the template
     context = {
