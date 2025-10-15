@@ -2862,22 +2862,3 @@ def update_barangay(request):
     except Exception as e:
         messages.error(request, f'Failed to update barangay: {str(e)}')
         return redirect('barangays') 
-
-def delete_barangay(request, id):
-    if 'admin_id' not in request.session:
-        return HttpResponseForbidden("Not authorized")
-    
-    if request.method != 'POST':
-        return HttpResponseForbidden("Invalid request method")
-
-    try:
-        with connection.cursor() as cursor:
-            # FIX 4: Removed the extraneous backtick (`) from the table name
-            cursor.execute("DELETE FROM bago_city_barangay_risk WHERE id = %s", [id])
-        
-        messages.success(request, 'Barangay deleted successfully')
-        return redirect('barangays')
-        
-    except Exception as e:
-        messages.error(request, f'Failed to delete barangay: {str(e)}')
-        return redirect('barangays')
