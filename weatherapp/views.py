@@ -593,6 +593,9 @@ def admin_dashboard(request):
     admin_id = request.session['admin_id']
     selected_sensor_id = request.GET.get('sensor_id')
 
+    # Initialize alerts list
+    alerts = [] # <--- Initialize here
+
     # Use a single `with` block for ALL database operations
     with connection.cursor() as cursor:
         # 1. Fetch admin name
@@ -604,7 +607,7 @@ def admin_dashboard(request):
         cursor.execute("SELECT sensor_id, name FROM sensor ORDER BY name")
         available_sensors = [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
 
-        # ✅ Get latest weather data
+        # ✅ Get latest weather data for the main card
         if selected_sensor_id:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
@@ -642,8 +645,8 @@ def admin_dashboard(request):
                 'longitude': row[9],
                 'error': None
             }
-            # Assign current_sensor_id from the query result, this is the fix
-            current_sensor_id = selected_sensor_id if selected_sensor_id else row[9]
+            # The sensor_id is the last element (index 10) in the SELECT list
+            current_sensor_id = selected_sensor_id if selected_sensor_id else row[10] 
         else:
             weather = {
                 'error': 'No weather data available',
@@ -658,6 +661,8 @@ def admin_dashboard(request):
                 'latitude': None,
                 'longitude': None
             }
+
+        # --- AI Prediction, Flood Warning, and Chart Data logic (Omitted for brevity, assuming it remains unchanged) ---
 
         forecast = {}
         today_start = datetime.combine(date.today(), time_class(0, 0, 0))
@@ -704,8 +709,10 @@ def admin_dashboard(request):
             # Error if no recent warning is found
             flood_warning = {'error': 'No recent flood warning data available.'}
 
-    # ✅ Chart data (last 10 records)
-    with connection.cursor() as cursor:
+        # ✅ Chart data (last 10 records)
+        # Note: The original code had a separate `with connection.cursor() as cursor:` block here, 
+        # which is inefficient. I've kept the logic but consolidated the execution below:
+
         cursor.execute("""
             SELECT DATE_FORMAT(date_time, '%a %b %d') AS label, temperature
             FROM weather_reports
@@ -716,7 +723,8 @@ def admin_dashboard(request):
         labels = [row[0] for row in rows]
         temps = [float(row[1]) for row in rows]
 
-        # 5. Fetch all sensor locations for the map and alerts
+        # 5. Fetch all sensor locations for the map and GENERATE ALERTS
+        # The query remains the same as it fetches the latest data for ALL sensors
         cursor.execute("""
             SELECT s.sensor_id, s.name, s.latitude, s.longitude, 
                     wr.rain_rate, wr.wind_speed, wr.date_time
@@ -730,17 +738,39 @@ def admin_dashboard(request):
         """)
         locations = []
         for row in cursor.fetchall():
+            sensor_id, name, lat, lng, rain_rate, wind_speed, date_time = row
+            
+            # --- ⚠️ ALERT GENERATION LOGIC ADDED HERE ⚠️ ---
+            
+            # 1. Generate Alert: Heavy Rainfall (rain_rate >= 7.6 mm)
+            if rain_rate is not None and rain_rate >= 7.6:
+                alerts.append({
+                    'text': f"⚠️ Heavy Rainfall Alert in {name} ({rain_rate} mm/hr)",
+                    'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else 'N/A',
+                    'location_name': name # Added for potential map/UI use
+                })
+            
+            # 2. Generate Alert: Strong Wind (wind_speed > 30 km/h)
+            if wind_speed is not None and wind_speed > 30:
+                alerts.append({
+                    'text': f"⚠️ Strong Wind Alert in {name} ({wind_speed} km/h)",
+                    'timestamp': date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else 'N/A',
+                    'location_name': name # Added for potential map/UI use
+                })
+            
+            # --- END ALERT GENERATION ---
+
             locations.append({
-                'sensor_id': row[0],
-                'name': row[1],
-                'latitude': float(row[2]) if row[2] is not None else None,
-                'longitude': float(row[3]) if row[3] is not None else None,
-                'rain_rate': float(row[4]) if row[4] is not None else None,
-                'wind_speed': float(row[5]) if row[5] is not None else None,
-                'date_time': row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None,
+                'sensor_id': sensor_id,
+                'name': name,
+                'latitude': float(lat) if lat is not None else None,
+                'longitude': float(lng) if lng is not None else None,
+                'rain_rate': float(rain_rate) if rain_rate is not None else None,
+                'wind_speed': float(wind_speed) if wind_speed is not None else None,
+                'date_time': date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else None,
                 'radius': 5000
             })
-
+            
     # Prepare context for the template
     context = {
         'admin': {'name': admin_name},
@@ -752,6 +782,7 @@ def admin_dashboard(request):
         'data': json.dumps(temps),
         'available_sensors': available_sensors,
         'current_sensor_id': current_sensor_id,
+        'alerts': alerts,
         'map_center': {
             'lat': weather['latitude'] if weather['latitude'] else 10.508884,
             'lng': weather['longitude'] if weather['longitude'] else 122.957527
