@@ -164,7 +164,7 @@
               <div>
                 <p class="text-xs text-gray-400">Min</p>
                 <p class="text-lg font-bold">
-                  {{ summary_stats.min_wind|default:"N/A"|floatformat:1 }} km/h
+                  {{ summary_stats.min_wind|default:"N/A"|floatformat:1 }} m/s
                 </p>
                 <p class="text-xs text-gray-400">
                   {{ summary_stats.min_wind_date|date:"M d, Y" }}
@@ -173,7 +173,7 @@
               <div class="text-right">
                 <p class="text-xs text-gray-400">Max</p>
                 <p class="text-lg font-bold">
-                  {{ summary_stats.max_wind|default:"N/A"|floatformat:1 }} km/h
+                  {{ summary_stats.max_wind|default:"N/A"|floatformat:1 }} m/s
                 </p>
                 <p class="text-xs text-gray-400">
                   {{ summary_stats.max_wind_date|date:"M d, Y" }}
