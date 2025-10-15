@@ -145,12 +145,12 @@
                 </div>
 
 
-                <div class="bg-white p-4 rounded shadow md:col-span-2">
+                <div class="bg-white p-4 rounded shadow">
                     <h2 class="text-xl font-semibold mb-4 flex items-center">
                         <i class="fas fa-robot mr-2 text-blue-500"></i> AI Predictions & Warnings
                     </h2>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         
                         <div>
                             <h3 class="font-bold text-lg mb-2 text-gray-700 border-b pb-1">🌧 Rain Forecast</h3>
@@ -198,9 +198,9 @@
                                         {% endif %}
                                     {% endfor %}
                                 {% else %}
-                                <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
-                                    <p>No AI prediction available.</p>
-                                </div>
+                                    <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
+                                        <p>No AI prediction available.</p>
+                                    </div>
                                 {% endif %}
                             </div>
                         </div>
