@@ -737,7 +737,8 @@ def admin_dashboard(request):
                 'longitude': float(row[3]) if row[3] is not None else None,
                 'rain_rate': float(row[4]) if row[4] is not None else None,
                 'wind_speed': float(row[5]) if row[5] is not None else None,
-                'date_time': row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None
+                'date_time': row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None,
+                'radius': 5000
             })
 
     # Prepare context for the template
