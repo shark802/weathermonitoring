@@ -52,7 +52,7 @@
                 <div class="bg-white p-4 rounded shadow flex flex-col justify-between h-full">
                     <div>
                         <h2 class="text-xl font-semibold mb-2 flex items-center justify-between">
-                            <div class="flex items-center">
+                            <div class="flex items-center font-bold text-lg mb-2 text-gray-700 border-b pb-1">
                                 Live Data – 
                                 <form method="get" class="ml-2" id="sensorForm">
                                     <select name="sensor_id" id="sensorSelect" 
@@ -79,7 +79,13 @@
 
                         <div id="weatherDataContainer" class="mt-4">
                             {% if weather.error %}
-                                <p class="text-red-600">Error: {{ weather.error }}</p>
+                                {% if weather.error == 'No weather data available' %}
+                                    <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
+                                        <p>No weather data available.</p>
+                                    </div>
+                                {% else %}
+                                    <p class="text-red-600">Error: {{ weather.error }}</p>
+                                {% endif %}
                             {% else %}
                                 <ul class="space-y-2 mr-2 list-none text-left">
                                     <li><i class="fas fa-thermometer-half text-red-700 ml-2"></i> Temperature: {{ weather.temperature }}°C</li>
@@ -92,8 +98,8 @@
                         </div>
                     </div>
                     <p class="text-gray-600 text-center mt-4">
-                        Last Updated: {{ weather.date_time }}<br>
-                        <span class="text-sm text-gray-500">Location: {{ weather.location }}</span>
+                        Last Updated: {{ weather.date_time|default:"N/A" }}<br>
+                        <span class="text-sm text-gray-500">Location: {{ weather.location|default:"N/A" }}</span>
                     </p>
                 </div>
 
@@ -151,7 +157,9 @@
                                         {% endif %}
                                     {% endfor %}
                                 {% else %}
-                                    <p class="text-gray-500 text-medium">No AI prediction available.</p>
+                                <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
+                                    <p>No AI prediction available.</p>
+                                </div>
                                 {% endif %}
                             </div>
                         </div>
