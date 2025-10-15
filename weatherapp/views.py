@@ -33,6 +33,7 @@ from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 import logging
 import sys
+import urllib.parse 
 
 logger = logging.getLogger(__name__)
 
