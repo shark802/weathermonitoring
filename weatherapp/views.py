@@ -788,8 +788,17 @@ def user_dashboard(request):
     if 'user_id' not in request.session:
         return redirect('home')
     
-    selected_sensor_id = request.GET.get('sensor_id')
     user_id = request.session['user_id']
+    selected_sensor_id = request.GET.get('sensor_id')
+    
+    alerts = []
+    locations = []
+    current_sensor_id = None
+    weather = {}
+    forecast = {}
+    flood_warning = {}
+    labels = []
+    temps = []
 
     # ✅ Get logged-in user name
     with connection.cursor() as cursor:
@@ -797,15 +806,14 @@ def user_dashboard(request):
         row = cursor.fetchone()
         user_name = row[0] if row else 'User'
     
-        # ✅ Get available sensors
         cursor.execute("SELECT sensor_id, name FROM sensor ORDER BY name")
         available_sensors = [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
 
-        # ✅ Get latest weather data
+        # 3. Get latest weather data for the main card (current sensor)
         if selected_sensor_id:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                       wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 WHERE wr.sensor_id = %s
@@ -815,7 +823,7 @@ def user_dashboard(request):
         else:
             cursor.execute("""
                 SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                       wr.wind_speed, wr.barometric_pressure, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
                 FROM weather_reports wr
                 JOIN sensor s ON wr.sensor_id = s.sensor_id
                 ORDER BY wr.date_time DESC
@@ -823,89 +831,70 @@ def user_dashboard(request):
             """)
         
         row = cursor.fetchone()
-        weather = {}
-        current_sensor_id = None
         if row:
             weather = {
-                'temperature': row[0],
-                'humidity': row[1],
-                'rain_rate': row[2],
-                'dew_point': row[3],
-                'wind_speed': row[4],
-                'barometric_pressure': row[5],
-                'date_time': row[6].strftime('%Y-%m-%d %H:%M:%S'),
-                'location': row[7],
-                'latitude': row[8],
-                'longitude': row[9],
-                'error': None
+                'temperature': row[0], 'humidity': row[1], 'rain_rate': row[2], 
+                'dew_point': row[3], 'wind_speed': row[4], 'barometric_pressure': row[5], 
+                'date_time': row[6].strftime('%Y-%m-%d %H:%M:%S'), 'location': row[7], 
+                'latitude': row[8], 'longitude': row[9], 'error': None
             }
-            # Assign current_sensor_id from the query result, this is the fix
-            current_sensor_id = selected_sensor_id if selected_sensor_id else row[9]
+            current_sensor_id = selected_sensor_id if selected_sensor_id else row[10] 
         else:
-            weather = {
-                'error': 'No weather data available',
-                'temperature': 'N/A',
-                'humidity': 'N/A',
-                'rain_rate': 'N/A',
-                'dew_point': 'N/A',
-                'wind_speed': 'N/A',
-                'barometric_pressure': 'N/A',
-                'date_time': 'N/A',
-                'location': 'Unknown',
-                'latitude': None,
-                'longitude': None
+             weather = {
+                'error': 'No weather data available', 'temperature': 'N/A', 
+                'humidity': 'N/A', 'rain_rate': 'N/A', 'dew_point': 'N/A', 
+                'wind_speed': 'N/A', 'barometric_pressure': 'N/A', 
+                'date_time': 'N/A', 'location': 'Unknown', 
+                'latitude': None, 'longitude': None
             }
 
-        forecast = {}
+        # 4. Forecast Data (Logic retained from original)
+        today_start = datetime.combine(date.today(), time_class(0, 0, 0))
+        today_start_str = today_start.strftime('%Y-%m-%d %H:%M:%S')
+
         cursor.execute("""
-            SELECT predicted_rain, duration, intensity, created_at
-            FROM ai_predictions
-            ORDER BY created_at DESC
-            LIMIT 1
-        """)
+             SELECT predicted_rain, duration, intensity, created_at
+             FROM ai_predictions
+             WHERE created_at >= %s
+             ORDER BY created_at DESC
+             LIMIT 1
+         """, (today_start_str,)) 
+
         row = cursor.fetchone()
         if row:
-            forecast = {
-                'prediction': float(row[0]),
-                'duration': float(row[1]),
-                'intensity': row[2],
-                'created_at': row[3].strftime('%Y-%m-%d %H:%M:%S'),
-                'error': None
-            }
+             forecast = {
+                 'prediction': float(row[0]), 'duration': float(row[1]), 
+                 'intensity': row[2], 'created_at': row[3].strftime('%Y-%m-%d %H:%M:%S'), 
+                 'error': None
+             }
         else:
-            forecast = {'error': 'No AI prediction data available.'}
+             forecast = {'error': 'No AI prediction data available for today.'}
         
-        flood_warning = {}
+        # 5. Flood Warning (Logic retained from original)
         cursor.execute("""
-            SELECT area, risk_level, message
-            FROM flood_warnings
-            ORDER BY prediction_date DESC
-            LIMIT 1
-        """)
+             SELECT area, risk_level, message
+             FROM flood_warnings
+             ORDER BY prediction_date DESC
+             LIMIT 1
+         """)
         row = cursor.fetchone()
         if row:
-            # We combine the retrieved values into the dictionary
-            flood_warning = {
-                'area': row[0],
-                'risk_level': row[1],
-                'message': row[2],
-                'error': None
-            }
+             flood_warning = {
+                 'area': row[0], 'risk_level': row[1], 'message': row[2], 'error': None
+             }
         else:
-            # Error if no recent warning is found
-            flood_warning = {'error': 'No recent flood warning data available.'}
+             flood_warning = {'error': 'No recent flood warning data available.'}
 
-    # ✅ Chart data (last 10 records)
-    with connection.cursor() as cursor:
+        # 6. Chart data (Logic retained from original)
         cursor.execute("""
-            SELECT DATE_FORMAT(date_time, '%a %b %d') AS label, temperature
-            FROM weather_reports
-            ORDER BY date_time DESC
-            LIMIT 10
-        """)
+             SELECT DATE_FORMAT(date_time, '%a %b %d') AS label, temperature
+             FROM weather_reports
+             ORDER BY date_time DESC
+             LIMIT 10
+         """)
         rows = cursor.fetchall()
-    labels = [row[0] for row in rows]
-    temps = [float(row[1]) for row in rows]
+        labels = [row[0] for row in rows]
+        temps = [float(row[1]) for row in rows]
 
     # ✅ Alerts (initial load — AJAX will refresh later)
     alerts = []
