@@ -35,6 +35,8 @@ import logging
 import sys
 import urllib.parse 
 
+utc_plus_8 = timezone(timedelta(hours=8))
+
 logger = logging.getLogger(__name__)
 
 def register_user(request):
