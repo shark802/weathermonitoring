@@ -18,7 +18,7 @@ import re
 import os
 from django.core.files.storage import FileSystemStorage
 from django.http import JsonResponse
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from datetime import time as time_class
 from calendar import month_name
 import pytz
@@ -654,20 +654,17 @@ def admin_dashboard(request):
             }
 
         # 4. Forecast Data (Logic retained from original)
-        PHILIPPINE_TZ = pytz.timezone('Asia/Manila')
+        # Get today's date in the UTC+8 timezone
+        today_utc8 = datetime.now(utc_plus_8).date() 
 
-        # 1. Get the start of today (midnight) in the local Philippine timezone.
-        # We get the naive date, combine it with midnight, and then localize it.
-        today_start_naive = datetime.combine(date.today(), time_class(0, 0, 0))
-        today_start_aware = PHILIPPINE_TZ.localize(today_start_naive)
+        # Combine today's date (in UTC+8) with midnight (00:00:00) 
+        # and explicitly set the timezone to UTC+8.
+        today_start = datetime.combine(today_utc8, time_class(0, 0, 0)).astimezone(utc_plus_8)
 
-        # 2. Convert the localized datetime object to a UTC string for the database.
-        # If your database stores times in UTC (which is best practice), converting 
-        # the aware PST time to UTC ensures the correct time range is selected.
-        # If your database stores times as PST, you can use the localized time directly. 
-        # We'll use the localized time string, assuming the DB time is also configured to PST.
-        # NOTE: If your DB stores UTC, use: today_start_str = today_start_aware.astimezone(pytz.utc).strftime('%Y-%m-%d %H:%M:%S')
-        today_start_str = today_start_aware.strftime('%Y-%m-%d %H:%M:%S')
+        # Convert to string in '%Y-%m-%d %H:%M:%S' format. 
+        # Note: The database query will now look for timestamps *after*
+        # the start of the day in UTC+8.
+        today_start_str = today_start.strftime('%Y-%m-%d %H:%M:%S')
 
         cursor.execute("""
             SELECT predicted_rain, duration, intensity, created_at
@@ -675,20 +672,15 @@ def admin_dashboard(request):
             WHERE created_at >= %s
             ORDER BY created_at DESC
             LIMIT 1
-        """, (today_start_str,)) 
+        """, (today_start_str,))
 
         row = cursor.fetchone()
         if row:
-            # 3. Localize the 'created_at' timestamp fetched from the database for display.
-            # The value `row[3]` is a naive datetime object from the DB. We make it PST-aware.
-            created_at_naive = row[3]
-            created_at_aware = PHILIPPINE_TZ.localize(created_at_naive)
-
+            # Assuming 'created_at' (row[3]) is a datetime object 
+            # that may or may not be timezone-aware.
             forecast = {
                 'prediction': float(row[0]), 'duration': float(row[1]), 
-                'intensity': row[2], 
-                # Format the localized time for display
-                'created_at': created_at_aware.strftime('%Y-%m-%d %H:%M:%S PST'), 
+                'intensity': row[2], 'created_at': row[3].strftime('%Y-%m-%d %H:%M:%S'), 
                 'error': None
             }
         else:
