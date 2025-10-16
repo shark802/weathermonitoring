@@ -4,7 +4,6 @@ import time
 import dht
 import ujson
 from machine import Pin, UART
-from umodbus.serial import Serial as ModbusRTUMaster
 from micropython import const
 
 # ----------------------------------------------------------------------
