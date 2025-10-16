@@ -23,11 +23,8 @@ SCALER_Y_FILE = os.path.join(BASE_DIR, "scaler_y.pkl")
 # Define the number of time steps (sequence length) the model requires.
 SEQUENCE_LENGTH = 6
 
-# =======================================================
-# Barangay Land Description Data (REMOVED - Data now in DB)
-# =======================================================
-# The hardcoded dictionaries are removed as requested.
-# The data is now fetched from the 'bago_city_barangay_risk' DB table.
+# Define the interval for the loop in seconds (10 minutes = 600 seconds)
+PREDICTION_INTERVAL_SECONDS = 600 
 
 # New global variable to store the data fetched from the DB
 BARANGAY_RISK_DATA = {}
@@ -99,13 +96,12 @@ def get_sequence_data_from_db():
                 print(f"Error: Found only {len(data)} records. {SEQUENCE_LENGTH} required for prediction.")
                 return None
             
-            # 💡 FIX HERE: Convert the fetched 'data' (which might be a tuple) to a list 
-            # so the reverse() method can be used.
+            # Convert the fetched 'data' to a list so the reverse() method can be used.
             data = list(data)
             
             # The data is fetched in reverse chronological order (newest first).
             # The sequence must be oldest to newest for the model.
-            data.reverse() # This will now work as 'data' is a mutable list
+            data.reverse() 
             
             sequence = []
             for temp, humid, wind, pressure, dt in data:
@@ -171,7 +167,7 @@ class DTypePolicy:
         
     @property
     def variable_dtype(self):
-        # ✨ NEW FIX: Fixes 'DTypePolicy' object has no attribute 'variable_dtype'
+        # NEW FIX: Fixes 'DTypePolicy' object has no attribute 'variable_dtype'
         return tf.float32 
 # --- FIX END ---
 
@@ -289,7 +285,6 @@ def assess_flood_risk_by_barangay(rain_rate, duration, intensity_label):
     warnings = []
     
     # Iterate over the globally loaded DB data (BARANGAY_RISK_DATA)
-    # This fulfills the request to use DB data without changing the function's core logic.
     for barangay, data in BARANGAY_RISK_DATA.items():
         land_type = data["land_type"]
         risk_multiplier = data["risk_multiplier"]
@@ -399,7 +394,8 @@ def get_users_by_barangay(barangay_name):
             return users
             
     except Exception as e:
-        print(f"Error getting users by barangay {barangay_name}: {e}")
+        # Avoid printing connection error during every loop if DB is down
+        # print(f"Error getting users by barangay {barangay_name}: {e}")
         return []
 
 def get_users_by_affected_barangays(flood_warnings):
@@ -435,131 +431,150 @@ def assess_flood_risk(rain_rate, duration, intensity_label):
 # =======================================================
 def main():
     """Main function to orchestrate data fetching and prediction."""
-    print("\n--- Live Rainfall Prediction Demo (Database Only) ---")
+    print("\n--- Live Rainfall Prediction Service Started ---")
     
     try:
-        # Django setup (copied from original)
+        # Initial Django setup
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         sys.path.append(project_root)
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'weatheralert.settings')
         django.setup()
         
-        # --- NEW STEP: Load the land and risk data from the DB first ---
+        # Load the land and risk data from the DB once at startup
         get_all_barangay_risk_data_from_db()
         if not BARANGAY_RISK_DATA:
             print("Prediction cannot proceed without barangay risk data. Exiting.")
             return
-            
-        # --- Step 1: Fetch 6 steps of data from your database ---
-        sequence_data_list = get_sequence_data_from_db()
-        
-        if sequence_data_list is None:
-            print("Prediction failed due to insufficient or missing data. Exiting.")
-            return
-
-        # Convert list of lists (6, 5) to NumPy array for ML processing
-        input_features_array = np.array(sequence_data_list, dtype=np.float32)
-
-        # Extract the latest data point for display
-        # Order: [temp, humid, wind, pressure, hour_of_day]
-        latest_temp, latest_humidity, wind_speed, barometric_pressure, current_hour = input_features_array[-1]
-        
-        print("\nData collected from the database (latest entry):")
-        print(f"Temperature: {latest_temp:.2f}°C, Humidity: {latest_humidity:.2f}%")
-        print(f"Wind Speed: {wind_speed:.2f} m/s, Barometric Pressure: {barometric_pressure:.2f} hPa")
-        print(f"Hour of Day: {int(current_hour)}")
-        
-        # --- Step 2: Make the prediction ---
-        # Pass the full (6, 5) feature array to the prediction function
-        predicted_rain_rate, predicted_duration, intensity_label = predict_rain(input_features_array)
-        
-        if predicted_rain_rate is None:
-            print("Prediction failed during ML model execution.")
-            return
-
-        print("\n--- Prediction Results ---")
-        print(f"Predicted Rainfall: {predicted_rain_rate:.2f} mm")
-        print(f"Estimated Duration: {predicted_duration:.2f} minutes")
-        print(f"Rainfall Intensity: {intensity_label}")
-
-        # --- Step 3: Insert Rain Prediction results into the database ---
-        try:
-            with connection.cursor() as cursor:
-                # Insert the prediction results
-                cursor.execute("""
-                    INSERT INTO ai_predictions (predicted_rain, duration, intensity, created_at)
-                    VALUES (%s, %s, %s, NOW())
-                """, [predicted_rain_rate, predicted_duration, intensity_label])
-            print("✅ Rain prediction results successfully inserted into the database.")
-        except Exception as e:
-            print(f"❌ Error inserting rain prediction results into the database: {e}")
-            
-        # ------------------------------------------------------------------
-        # --- Step 4: Assess Flood Risk by Barangay and Insert Warnings ---
-        # ------------------------------------------------------------------
-        flood_warnings = assess_flood_risk_by_barangay(predicted_rain_rate, predicted_duration, intensity_label)
-        
-        if flood_warnings:
-            print(f"\n--- FLOOD WARNINGS ISSUED FOR {len(flood_warnings)} BARANGAYS ---")
-            try:
-                with connection.cursor() as cursor:
-                    # Clear previous warnings to avoid duplicates (e.g., within the last hour)
-                    cursor.execute("DELETE FROM flood_warnings WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 1 HOUR)")
-                    
-                    for warning in flood_warnings:
-                        # Print to console
-                        print(f"🚨 {warning['risk_level']} Risk for {warning['barangay']} ({warning['land_type']}): {warning['message']}")
-                        
-                        # Insert the enhanced flood warning results with barangay information
-                        cursor.execute("""
-                            INSERT INTO flood_warnings (area, risk_level, message, prediction_date)
-                            VALUES (%s, %s, %s, NOW())
-                        """, [warning['area'], warning['message'], warning['risk_level']])
-                        
-                print(f"✅ {len(flood_warnings)} flood warnings successfully inserted into the database.")
-                
-                # Print summary by risk level
-                high_risk = [w for w in flood_warnings if w['risk_level'] == 'High']
-                moderate_risk = [w for w in flood_warnings if w['risk_level'] == 'Moderate']
-                low_risk = [w for w in flood_warnings if w['risk_level'] == 'Low']
-                
-                if high_risk:
-                    print(f"🔴 HIGH RISK: {len(high_risk)} barangays - {', '.join([w['barangay'] for w in high_risk])}")
-                if moderate_risk:
-                    print(f"🟡 MODERATE RISK: {len(moderate_risk)} barangays - {', '.join([w['barangay'] for w in moderate_risk])}")
-                if low_risk:
-                    print(f"🟢 LOW RISK: {len(low_risk)} barangays - {', '.join([w['barangay'] for w in low_risk])}")
-                
-                # ------------------------------------------------------------------
-                # --- Step 5: Send Targeted SMS Alerts to Affected Barangays ---
-                # ------------------------------------------------------------------
-                try:
-                    # NOTE: Assuming this path is correct for your project structure
-                    from weatherapp.sms_targeted_alerts import send_targeted_sms_alerts
-                    
-                    sms_result = send_targeted_sms_alerts(
-                        flood_warnings, 
-                        predicted_rain_rate, 
-                        predicted_duration, 
-                        intensity_label
-                    )
-                    
-                    if sms_result["success"]:
-                        print(f"✅ SMS Alerts: {sms_result['total_sent']} sent, {sms_result['total_failed']} failed")
-                    else:
-                        print(f"❌ SMS Alert Error: {sms_result.get('error', 'Unknown error')}")
-                        
-                except Exception as e:
-                    print(f"❌ Error sending targeted SMS alerts: {e}")
-                    
-            except Exception as e:
-                print(f"❌ Error inserting flood warnings into the database: {e}")
-        else:
-            print("\n✅ No flood warnings issued - all barangays are safe from flooding.")
-
 
     except Exception as e:
-        print(f"An unexpected error occurred in the main function: {e}")
+        print(f"Initial setup error: {e}")
+        return
+
+    # --- Start the Continuous Loop ---
+    while True:
+        try:
+            print("\n==================================================")
+            print(f"--- Running Prediction Cycle at {time.ctime()} ---")
+            print("==================================================")
+            
+            # --- Step 1: Fetch 6 steps of data from your database ---
+            sequence_data_list = get_sequence_data_from_db()
+            
+            if sequence_data_list is None:
+                print("Prediction cycle failed due to insufficient or missing weather data.")
+                # Skip to the sleep period
+            else:
+                # Convert list of lists (6, 5) to NumPy array for ML processing
+                input_features_array = np.array(sequence_data_list, dtype=np.float32)
+
+                # Extract the latest data point for display
+                # Order: [temp, humid, wind, pressure, hour_of_day]
+                latest_temp, latest_humidity, wind_speed, barometric_pressure, current_hour = input_features_array[-1]
+                
+                print("\nData collected from the database (latest entry):")
+                print(f"Temperature: {latest_temp:.2f}°C, Humidity: {latest_humidity:.2f}%")
+                print(f"Wind Speed: {wind_speed:.2f} m/s, Barometric Pressure: {barometric_pressure:.2f} hPa")
+                print(f"Hour of Day: {int(current_hour)}")
+                
+                # --- Step 2: Make the prediction ---
+                predicted_rain_rate, predicted_duration, intensity_label = predict_rain(input_features_array)
+                
+                if predicted_rain_rate is None:
+                    print("Prediction failed during ML model execution.")
+                    # Skip to the sleep period
+                else:
+                    print("\n--- Prediction Results ---")
+                    print(f"Predicted Rainfall: {predicted_rain_rate:.2f} mm")
+                    print(f"Estimated Duration: {predicted_duration:.2f} minutes")
+                    print(f"Rainfall Intensity: {intensity_label}")
+
+                    # --- Step 3: Insert Rain Prediction results into the database ---
+                    try:
+                        with connection.cursor() as cursor:
+                            # Insert the prediction results
+                            cursor.execute("""
+                                INSERT INTO ai_predictions (predicted_rain, duration, intensity, created_at)
+                                VALUES (%s, %s, %s, NOW())
+                            """, [predicted_rain_rate, predicted_duration, intensity_label])
+                        print("✅ Rain prediction results successfully inserted into the database.")
+                    except Exception as e:
+                        print(f"❌ Error inserting rain prediction results into the database: {e}")
+                        
+                    # ------------------------------------------------------------------
+                    # --- Step 4: Assess Flood Risk by Barangay and Insert Warnings ---
+                    # ------------------------------------------------------------------
+                    flood_warnings = assess_flood_risk_by_barangay(predicted_rain_rate, predicted_duration, intensity_label)
+                    
+                    if flood_warnings:
+                        print(f"\n--- FLOOD WARNINGS ISSUED FOR {len(flood_warnings)} BARANGAYS ---")
+                        try:
+                            with connection.cursor() as cursor:
+                                # Clear previous warnings to avoid duplicates (e.g., within the last hour)
+                                cursor.execute("DELETE FROM flood_warnings WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 1 HOUR)")
+                                
+                                for warning in flood_warnings:
+                                    # Print to console
+                                    print(f"🚨 {warning['risk_level']} Risk for {warning['barangay']} ({warning['land_type']}): {warning['message']}")
+                                    
+                                    # Insert the enhanced flood warning results with barangay information
+                                    cursor.execute("""
+                                        INSERT INTO flood_warnings (area, risk_level, message, prediction_date)
+                                        VALUES (%s, %s, %s, NOW())
+                                    """, [warning['area'], warning['risk_level'], warning['message']]) # Note: Order changed for insertion
+                                    
+                            print(f"✅ {len(flood_warnings)} flood warnings successfully inserted into the database.")
+                            
+                            # Print summary by risk level
+                            high_risk = [w for w in flood_warnings if w['risk_level'] == 'High']
+                            moderate_risk = [w for w in flood_warnings if w['risk_level'] == 'Moderate']
+                            low_risk = [w for w in flood_warnings if w['risk_level'] == 'Low']
+                            
+                            if high_risk:
+                                print(f"🔴 HIGH RISK: {len(high_risk)} barangays - {', '.join([w['barangay'] for w in high_risk])}")
+                            if moderate_risk:
+                                print(f"🟡 MODERATE RISK: {len(moderate_risk)} barangays - {', '.join([w['barangay'] for w in moderate_risk])}")
+                            if low_risk:
+                                print(f"🟢 LOW RISK: {len(low_risk)} barangays - {', '.join([w['barangay'] for w in low_risk])}")
+                            
+                            # ------------------------------------------------------------------
+                            # --- Step 5: Send Targeted SMS Alerts to Affected Barangays ---
+                            # ------------------------------------------------------------------
+                            try:
+                                # NOTE: Assuming this path is correct for your project structure
+                                from weatherapp.sms_targeted_alerts import send_targeted_sms_alerts
+                                
+                                sms_result = send_targeted_sms_alerts(
+                                    flood_warnings, 
+                                    predicted_rain_rate, 
+                                    predicted_duration, 
+                                    intensity_label
+                                )
+                                
+                                if sms_result["success"]:
+                                    print(f"✅ SMS Alerts: {sms_result['total_sent']} sent, {sms_result['total_failed']} failed")
+                                else:
+                                    print(f"❌ SMS Alert Error: {sms_result.get('error', 'Unknown error')}")
+                                    
+                            except ImportError:
+                                print("⚠️ Warning: Could not import 'send_targeted_sms_alerts'. Skipping SMS.")
+                            except Exception as e:
+                                print(f"❌ Error sending targeted SMS alerts: {e}")
+                                
+                        except Exception as e:
+                            print(f"❌ Error processing or inserting flood warnings: {e}")
+                    else:
+                        print("\n✅ No flood warnings issued - all barangays are safe from flooding.")
+
+            # --- PAUSE BEFORE THE NEXT RUN ---
+            print(f"\nCycle complete. Waiting for {PREDICTION_INTERVAL_SECONDS/60:.0f} minutes...")
+            time.sleep(PREDICTION_INTERVAL_SECONDS)
+
+        except KeyboardInterrupt:
+            print("\nPrediction loop stopped by user (Ctrl+C). Exiting.")
+            break
+        except Exception as e:
+            print(f"An unexpected error occurred in the loop: {e}. Retrying in 60 seconds.")
+            time.sleep(60)
 
 if __name__ == "__main__":
     main()

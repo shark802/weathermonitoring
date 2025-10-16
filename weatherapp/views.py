@@ -654,26 +654,45 @@ def admin_dashboard(request):
             }
 
         # 4. Forecast Data (Logic retained from original)
-        today_start = datetime.combine(date.today(), time_class(0, 0, 0))
-        today_start_str = today_start.strftime('%Y-%m-%d %H:%M:%S')
+        PHILIPPINE_TZ = pytz.timezone('Asia/Manila')
+
+        # 1. Get the start of today (midnight) in the local Philippine timezone.
+        # We get the naive date, combine it with midnight, and then localize it.
+        today_start_naive = datetime.combine(date.today(), time_class(0, 0, 0))
+        today_start_aware = PHILIPPINE_TZ.localize(today_start_naive)
+
+        # 2. Convert the localized datetime object to a UTC string for the database.
+        # If your database stores times in UTC (which is best practice), converting 
+        # the aware PST time to UTC ensures the correct time range is selected.
+        # If your database stores times as PST, you can use the localized time directly. 
+        # We'll use the localized time string, assuming the DB time is also configured to PST.
+        # NOTE: If your DB stores UTC, use: today_start_str = today_start_aware.astimezone(pytz.utc).strftime('%Y-%m-%d %H:%M:%S')
+        today_start_str = today_start_aware.strftime('%Y-%m-%d %H:%M:%S')
 
         cursor.execute("""
-             SELECT predicted_rain, duration, intensity, created_at
-             FROM ai_predictions
-             WHERE created_at >= %s
-             ORDER BY created_at DESC
-             LIMIT 1
-         """, (today_start_str,)) 
+            SELECT predicted_rain, duration, intensity, created_at
+            FROM ai_predictions
+            WHERE created_at >= %s
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (today_start_str,)) 
 
         row = cursor.fetchone()
         if row:
-             forecast = {
-                 'prediction': float(row[0]), 'duration': float(row[1]), 
-                 'intensity': row[2], 'created_at': row[3].strftime('%Y-%m-%d %H:%M:%S'), 
-                 'error': None
-             }
+            # 3. Localize the 'created_at' timestamp fetched from the database for display.
+            # The value `row[3]` is a naive datetime object from the DB. We make it PST-aware.
+            created_at_naive = row[3]
+            created_at_aware = PHILIPPINE_TZ.localize(created_at_naive)
+
+            forecast = {
+                'prediction': float(row[0]), 'duration': float(row[1]), 
+                'intensity': row[2], 
+                # Format the localized time for display
+                'created_at': created_at_aware.strftime('%Y-%m-%d %H:%M:%S PST'), 
+                'error': None
+            }
         else:
-             forecast = {'error': 'No AI prediction data available for today.'}
+            forecast = {'error': 'No AI prediction data available for today.'}
         
         # 5. Flood Warning (Logic retained from original)
         cursor.execute("""
