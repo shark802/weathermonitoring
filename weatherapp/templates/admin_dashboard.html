@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="{% static 'weatherapp/css/logout.css' %}">
   <link rel="stylesheet" href="{% static 'weatherapp/css/alert.css' %}">
+  <link rel="stylesheet" href="{% static 'weatherapp/css/alerts.css' %}">
   <style>
     .geofence-popup {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -94,6 +95,7 @@
                                     <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: {{ weather.wind_speed|default:"N/A" }} m/s</li>
                                     <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: {{ weather.rain_rate|default:"N/A" }} mm/h</li>
                                     <li><i class="fas fa-tachometer-alt text-orange-700 ml-2"></i> Barometric Pressure: {{ weather.barometric_pressure|default:"N/A" }} hPa</li>
+                                    <li><i class="fas fa-mountain text-purple-700 ml-2"></i> Altitude: {{ weather.altitude|default:"N/A" }} m</li>
                                 </ul>
                             {% endif %}
                         </div>
@@ -236,24 +238,65 @@
             </div>
 
             <div class="alert-container bg-white p-4 rounded shadow">
-                <h2 class="text-xl font-semibold mb-4">Alerts & Notifications</h2>
-                <div id="alerts-list">
+                <h2 class="text-xl font-semibold mb-4 flex items-center">
+                    <i class="fas fa-bell mr-2 text-blue-500"></i>
+                    Weather Alerts & Notifications
+                </h2>
+                <div id="alerts-list" class="dashboard-alerts">
                     {% if alerts %}
-                        <ul class="space-y-1">
                             {% for alert in alerts %}
-                            <li class="alert-item 
-                                {% if alert.type == 'rain' and alert.intensity == 'torrential' %}text-red-700 font-bold animate-pulse
-                                {% elif alert.type == 'rain' and alert.intensity == 'intense' %}text-orange-600 font-semibold
-                                {% elif alert.type == 'rain' and alert.intensity == 'heavy' %}text-yellow-600
-                                {% elif alert.type == 'wind' %}text-blue-500
-                                {% else %}text-gray-700{% endif %}"
-                                data-timestamp="{{ alert.timestamp }}">
-                                ⚠️ {{ alert.text }}
-                            </li>
+                        <div class="weather-alert 
+                            {% if alert.type == 'rain' and alert.intensity == 'torrential' %}critical
+                            {% elif alert.type == 'rain' and alert.intensity == 'intense' %}high
+                            {% elif alert.type == 'rain' and alert.intensity == 'heavy' %}moderate
+                            {% elif alert.type == 'wind' %}moderate
+                            {% else %}low{% endif %}">
+                            <div class="weather-alert-header">
+                                <div class="flex items-center">
+                                    <i class="weather-alert-icon fas 
+                                        {% if alert.type == 'rain' %}fa-cloud-rain
+                                        {% elif alert.type == 'wind' %}fa-wind
+                                        {% elif alert.type == 'flood' %}fa-water
+                                        {% else %}fa-exclamation-triangle{% endif %}"></i>
+                                    <span class="weather-alert-title">{{ alert.text }}</span>
+                                </div>
+                                <span class="weather-alert-severity bg-white bg-opacity-20 text-white">
+                                    {% if alert.type == 'rain' and alert.intensity == 'torrential' %}CRITICAL
+                                    {% elif alert.type == 'rain' and alert.intensity == 'intense' %}HIGH
+                                    {% elif alert.type == 'rain' and alert.intensity == 'heavy' %}MODERATE
+                                    {% elif alert.type == 'wind' %}MODERATE
+                                    {% else %}LOW{% endif %}
+                                </span>
+                            </div>
+                            <div class="weather-alert-body">
+                                {% if alert.type == 'rain' %}
+                                    Heavy rainfall detected in your area. Please take necessary precautions.
+                                {% elif alert.type == 'wind' %}
+                                    Strong winds detected. Secure outdoor objects and avoid unnecessary travel.
+                                {% elif alert.type == 'flood' %}
+                                    Flood risk detected. Move to higher ground if necessary.
+                                {% else %}
+                                    Weather alert in your area. Please stay informed.
+                                {% endif %}
+                            </div>
+                            <div class="weather-alert-timestamp">
+                                <i class="fas fa-clock mr-1"></i>{{ alert.timestamp }}
+                            </div>
+                        </div>
                             {% endfor %}
-                        </ul>
                     {% else %}
-                        <p class="text-green-600">✅ No active alerts at this time.</p>
+                        <div class="weather-alert low">
+                            <div class="weather-alert-header">
+                                <div class="flex items-center">
+                                    <i class="weather-alert-icon fas fa-check-circle"></i>
+                                    <span class="weather-alert-title">All Clear</span>
+                                </div>
+                                <span class="weather-alert-severity bg-white bg-opacity-20 text-white">SAFE</span>
+                            </div>
+                            <div class="weather-alert-body">
+                                No active weather alerts at this time. Conditions are normal.
+                            </div>
+                        </div>
                     {% endif %}
                 </div>
             </div>
@@ -554,6 +597,7 @@ let tempChart;
                                     <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: ${weather.dew_point}°C</li>
                                     <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: ${weather.wind_speed ?? "N/A"} km/h</li>
                                     <li><i class="fas fa-cloud text-indigo-700 ml-2"></i> Barometric Pressure: ${weather.barometric_pressure ?? "N/A"} hPa</li>
+                                    <li><i class="fas fa-mountain text-purple-700 ml-2"></i> Altitude: ${weather.altitude ?? "N/A"} m</li>
                                     <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: ${weather.rain_rate ?? "N/A"} mm/h</li>
                                 </ul>
                             `;
@@ -638,20 +682,66 @@ let tempChart;
                         // 4. Update Alerts section
                         const alerts = data.alerts;
                         const alertsHTML = alerts.length > 0 ?
-                            `<ul class="space-y-1">
-                                ${alerts.map(alert => {
-                                    let alertClass = 'text-gray-700';
+                            alerts.map(alert => {
+                                let severityClass = 'low';
+                                let iconClass = 'fa-exclamation-triangle';
+                                let severityText = 'LOW';
+                                
                                     if (alert.type === 'rain') {
-                                        if (alert.intensity === 'torrential') alertClass = 'text-red-700 font-bold animate-pulse';
-                                        else if (alert.intensity === 'intense') alertClass = 'text-orange-600 font-semibold';
-                                        else if (alert.intensity === 'heavy') alertClass = 'text-yellow-600';
-                                    } else if (alert.type === 'wind') {
-                                        alertClass = 'text-blue-500';
+                                    iconClass = 'fa-cloud-rain';
+                                    if (alert.intensity === 'torrential') {
+                                        severityClass = 'critical';
+                                        severityText = 'CRITICAL';
+                                    } else if (alert.intensity === 'intense') {
+                                        severityClass = 'high';
+                                        severityText = 'HIGH';
+                                    } else if (alert.intensity === 'heavy') {
+                                        severityClass = 'moderate';
+                                        severityText = 'MODERATE';
                                     }
-                                    return `<li class="alert-item ${alertClass}" data-timestamp="${alert.timestamp}">⚠️ ${alert.text}</li>`;
-                                }).join('')}
-                            </ul>` :
-                            `<p class="text-green-600">✅ No active alerts at this time.</p>`;
+                                    } else if (alert.type === 'wind') {
+                                    iconClass = 'fa-wind';
+                                    severityClass = 'moderate';
+                                    severityText = 'MODERATE';
+                                } else if (alert.type === 'flood') {
+                                    iconClass = 'fa-water';
+                                    severityClass = 'high';
+                                    severityText = 'HIGH';
+                                }
+                                
+                                return `
+                                    <div class="weather-alert ${severityClass}">
+                                        <div class="weather-alert-header">
+                                            <div class="flex items-center">
+                                                <i class="weather-alert-icon fas ${iconClass}"></i>
+                                                <span class="weather-alert-title">${alert.text}</span>
+                                            </div>
+                                            <span class="weather-alert-severity bg-white bg-opacity-20 text-white">${severityText}</span>
+                                        </div>
+                                        <div class="weather-alert-body">
+                                            ${alert.type === 'rain' ? 'Heavy rainfall detected in your area. Please take necessary precautions.' :
+                                              alert.type === 'wind' ? 'Strong winds detected. Secure outdoor objects and avoid unnecessary travel.' :
+                                              alert.type === 'flood' ? 'Flood risk detected. Move to higher ground if necessary.' :
+                                              'Weather alert in your area. Please stay informed.'}
+                                        </div>
+                                        <div class="weather-alert-timestamp">
+                                            <i class="fas fa-clock mr-1"></i>${alert.timestamp}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('') :
+                            `<div class="weather-alert low">
+                                <div class="weather-alert-header">
+                                    <div class="flex items-center">
+                                        <i class="weather-alert-icon fas fa-check-circle"></i>
+                                        <span class="weather-alert-title">All Clear</span>
+                                    </div>
+                                    <span class="weather-alert-severity bg-white bg-opacity-20 text-white">SAFE</span>
+                                </div>
+                                <div class="weather-alert-body">
+                                    No active weather alerts at this time. Conditions are normal.
+                                </div>
+                            </div>`;
                         alertsContainer.innerHTML = alertsHTML;
             }
 

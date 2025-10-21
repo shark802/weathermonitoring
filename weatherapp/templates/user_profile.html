@@ -6,18 +6,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://kit.fontawesome.com/a2e0f1f0c5.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="{% static 'weatherapp/css/alerts.css' %}">
 </head>
 <body class="min-h-screen bg-gradient-to-br from-blue-100 to-white flex items-center justify-center font-sans text-gray-800 p-4">
 
     {% if form_userSuccess %}
-    <div style="z-index: 999;" class="alert-message fixed top-20 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded shadow-lg text-center w-auto max-w-md">
-        {{ form_userSuccess }}
+    <div class="alert-message success">
+      <div class="alert-content">
+        <button class="alert-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
+        <i class="alert-icon fas fa-check-circle"></i>
+        <span class="alert-text">{{ form_userSuccess }}</span>
+      </div>
     </div>
     {% endif %}
 
     {% if form_userError %}
-    <div style="z-index: 999;" class="alert-message fixed top-20 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded shadow-lg text-center w-auto max-w-md">
-        {{ form_userError }}
+    <div class="alert-message error">
+      <div class="alert-content">
+        <button class="alert-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
+        <i class="alert-icon fas fa-exclamation-triangle"></i>
+        <span class="alert-text">{{ form_userError }}</span>
+      </div>
     </div>
     {% endif %}
 

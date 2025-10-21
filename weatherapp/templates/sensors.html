@@ -8,9 +8,11 @@
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
   <link rel="stylesheet" href="{% static 'weatherapp/css/logout.css' %}">
+  <link rel="stylesheet" href="{% static 'weatherapp/css/alerts.css' %}">
   <style>
     @media (max-width: 767px) {
       main {
@@ -40,16 +42,24 @@
         margin-left: auto;
       }
     }
+    /* Ensure header stays on top */
+    header.bg-blue-600.fixed, header.bg-blue-600.fixed.w-full { z-index: 1050 !important; }
+    /* Keep page elements below header */
+    .dataTables_wrapper { position: relative; z-index: 2; }
+    #sensors-map, #add-sensor-map, .leaflet-pane, .leaflet-top, .leaflet-bottom { z-index: 1 !important; }
+    /* Align DataTable actions row */
+    .table-actions { display: flex; justify-content: flex-end; align-items: center; margin-bottom: 0.5rem; gap: .5rem; }
   </style>
 </head>
 <body class="bg-gray-100 font-sans min-h-screen">
 
   {% if messages %}
     {% for message in messages %}
-      <div class="fixed top-4 left-1/2 transform -translate-x-1/2 max-w-md w-full z-50">
-        <div class="mb-4 px-6 py-4 text-white rounded-lg shadow-md text-center 
-                    {% if message.tags == 'error' %}bg-red-500{% else %}bg-green-500{% endif %}">
-          {{ message }}
+      <div class="alert-message {% if message.tags == 'error' %}error{% else %}success{% endif %}">
+        <div class="alert-content">
+          <button class="alert-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
+          <i class="alert-icon fas {% if message.tags == 'error' %}fa-exclamation-triangle{% else %}fa-check-circle{% endif %}"></i>
+          <span class="alert-text">{{ message }}</span>
         </div>
       </div>
     {% endfor %}
@@ -62,15 +72,21 @@
 
     <main class="w-full md:ml-64 p-4 md:p-6 space-y-6 transition-all duration-300">
       <div class="info-box w-full">
+        <div class="mb-4">
+          <h5 class="text-lg font-semibold mb-2">Geo-tag Sensors</h5>
+          <div id="sensors-map" style="height: 400px; border-radius: 8px;"></div>
+          <small class="text-muted">Click on the map to add a sensor at that location.</small>
+        </div>
         <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
           <h4 class="text-xl font-semibold">Manage Sensors</h4>
-          <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition w-full md:w-auto text-center add-sensor-btn-mobile" 
-                  data-bs-toggle="modal" data-bs-target="#addSensorModal">
-            <i class="bi bi-plus-lg"></i> Add Sensor
-          </button>            
         </div>
 
         <div class="overflow-x-auto">
+          <div class="table-actions">
+            <button id="addSensorBtn" class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition text-sm" data-bs-toggle="modal" data-bs-target="#addSensorModal">
+              <i class="bi bi-plus-lg"></i> Add Sensor
+            </button>
+          </div>
           <table id="sensorTable" class="min-w-full border border-gray-300 text-base">
             <thead class="bg-blue-600 text-white">
               <tr>
@@ -78,6 +94,7 @@
                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Name</th>
                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Latitude</th>
                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Longitude</th>
+                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Radius</th>
                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -88,6 +105,7 @@
                 <td class="px-4 py-2">{{ sensor.name }}</td>
                 <td class="px-4 py-2">{{ sensor.latitude }}</td>
                 <td class="px-4 py-2">{{ sensor.longitude }}</td>
+                <td class="px-4 py-2">{{ sensor.radius }}</td>
                 <td class="px-4 py-2">
                   <div class="action-buttons">
                     <button class="btn btn-sm btn-warning"
@@ -95,7 +113,8 @@
                             data-id="{{ sensor.id }}"
                             data-name="{{ sensor.name }}"
                             data-latitude="{{ sensor.latitude }}"
-                            data-longitude="{{ sensor.longitude }}">
+                            data-longitude="{{ sensor.longitude }}"
+                            data-radius="{{ sensor.radius }}">
                       <i class="bi bi-pencil-square" data-bs-toggle="tooltip" title="Edit Sensor"></i>
                     </button>
 
@@ -129,6 +148,10 @@
             </div>
             <div class="modal-body">
               <div class="mb-3">
+                <div id="add-sensor-map" style="height: 300px; border-radius: 8px;"></div>
+                <small class="text-muted">Click on the map to select latitude and longitude.</small>
+              </div>
+              <div class="mb-3">
                 <label for="name" class="form-label fw-semibold">Name <span class="text-red-500">*</span></label>
                 <input type="text" class="form-control {% if form_errors.name %}is-invalid{% endif %}" 
                       id="name" name="name" value="{{ form_data.name|default:'' }}" required>
@@ -155,6 +178,14 @@
                   {% endif %}
                   <small class="text-muted">Between -180 and 180</small>
                 </div>
+              </div>
+              <div class="mb-3">
+                <label for="radius" class="form-label fw-semibold">Radius (meters) <span class="text-red-500">*</span></label>
+                <input type="number" step="0.01" min="0" class="form-control {% if form_errors.radius %}is-invalid{% endif %}" 
+                      id="radius" name="radius" value="{{ form_data.radius|default:'' }}" required>
+                {% if form_errors.radius %}
+                  <div class="invalid-feedback">{{ form_errors.radius }}</div>
+                {% endif %}
               </div>
             </div>
             <div class="modal-footer flex flex-col sm:flex-row gap-2 bg-gray-200">
@@ -193,22 +224,30 @@
                 <div class="col-md-6">
                   <div class="mb-3">
                     <label for="update-latitude" class="form-label fw-semibold text-gray-700">Latitude <span class="text-danger">*</span></label>
-                    <input type="number" step="0.000001" 
-                          class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                    <input type="number" step="0.000001"
+                          class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500"
                           id="update-latitude" name="latitude" required>
                     <small class="text-muted text-sm">Between -90 and 90</small>
                   </div>
                 </div>
-                
+
                 <div class="col-md-6">
                   <div class="mb-3">
                     <label for="update-longitude" class="form-label fw-semibold text-gray-700">Longitude <span class="text-danger">*</span></label>
-                    <input type="number" step="0.000001" 
-                          class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500" 
+                    <input type="number" step="0.000001"
+                          class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500"
                           id="update-longitude" name="longitude" required>
                     <small class="text-muted text-sm">Between -180 and 180</small>
                   </div>
                 </div>
+              </div>
+
+              <div class="mb-4">
+                <label for="update-radius" class="form-label fw-semibold text-gray-700">Radius</label>
+                <input type="number" step="0.01" min="0"
+                      class="form-control py-2 px-3 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-blue-500"
+                      id="update-radius" name="radius">
+                <small class="text-muted text-sm">Optional radius in meters</small>
               </div>
             </div>
             
@@ -278,6 +317,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
     const alertTypeSelect = document.getElementById('alert_type');
@@ -343,10 +383,10 @@
 });
     // Auto-hide alerts after 5 seconds
     setTimeout(function() {
-      const alerts = document.querySelectorAll('.fixed.top-4');
+      const alerts = document.querySelectorAll('.alert-message');
       alerts.forEach(alert => {
-        alert.style.opacity = '0';
-        setTimeout(() => alert.style.display = 'none', 500);
+        alert.classList.add('auto-hide');
+        setTimeout(() => alert.remove(), 500);
       });
     }, 5000);
 
@@ -365,11 +405,12 @@
       $('#updateSensorModal').on('show.bs.modal', function(event) {
         const button = $(event.relatedTarget);
         const modal = $(this);
-        
+
         modal.find('#update-id').val(button.data('id'));
         modal.find('#update-name').val(button.data('name'));
         modal.find('#update-latitude').val(button.data('latitude'));
         modal.find('#update-longitude').val(button.data('longitude'));
+        modal.find('#update-radius').val(button.data('radius'));
       });
 
       // Form submission loading states
@@ -389,6 +430,94 @@
       var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
       tooltipTriggerList.forEach(function (tooltipTriggerEl) {
         new bootstrap.Tooltip(tooltipTriggerEl);
+      });
+
+      // Initialize main Sensors map with existing sensors
+      const sensorsMap = L.map('sensors-map').setView([10.508884, 122.957527], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(sensorsMap);
+
+      // Plot existing sensors with optional radius
+      const existingSensors = JSON.parse('{{ sensors_json|escapejs }}');
+      const markers = [];
+      existingSensors.forEach(item => {
+        if (item.latitude !== null && item.longitude !== null) {
+          const marker = L.marker([item.latitude, item.longitude]).addTo(sensorsMap).bindPopup(`<strong>${item.name}</strong>`);
+          markers.push(marker);
+          if (item.radius && Number(item.radius) > 0) {
+            L.circle([item.latitude, item.longitude], { radius: Number(item.radius), color: '#2563eb', fillColor: '#93c5fd', fillOpacity: 0.2 }).addTo(sensorsMap);
+          }
+        }
+      });
+      if (markers.length > 0) {
+        const group = new L.featureGroup(markers);
+        sensorsMap.fitBounds(group.getBounds().pad(0.2));
+      }
+
+      // Clicking map opens Add Sensor modal with lat/lng prefilled
+      sensorsMap.on('click', function(e) {
+        const lat = e.latlng.lat.toFixed(6);
+        const lng = e.latlng.lng.toFixed(6);
+        $('#latitude').val(lat);
+        $('#longitude').val(lng);
+        const modalEl = document.getElementById('addSensorModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      });
+
+      // Initialize Leaflet map in Add Sensor modal when shown
+      let addSensorMap;
+      let clickMarker;
+      $('#addSensorModal').on('shown.bs.modal', function() {
+        if (!addSensorMap) {
+          const defaultCenter = { lat: 10.508884, lng: 122.957527 };
+          addSensorMap = L.map('add-sensor-map').setView([defaultCenter.lat, defaultCenter.lng], 12);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+          }).addTo(addSensorMap);
+
+          // Live radius preview
+          let addCircle;
+          function updateAddCircle() {
+            const latVal = parseFloat($('#latitude').val());
+            const lngVal = parseFloat($('#longitude').val());
+            const radiusVal = parseFloat($('#radius').val());
+
+            if (!isNaN(latVal) && !isNaN(lngVal) && !isNaN(radiusVal) && radiusVal > 0) {
+              const center = [latVal, lngVal];
+              if (addCircle) {
+                addCircle.setLatLng(center);
+                addCircle.setRadius(radiusVal);
+              } else {
+                addCircle = L.circle(center, { radius: radiusVal, color: '#16a34a', fillColor: '#86efac', fillOpacity: 0.25 }).addTo(addSensorMap);
+              }
+            } else if (addCircle) {
+              addSensorMap.removeLayer(addCircle);
+              addCircle = null;
+            }
+          }
+
+          addSensorMap.on('click', function(e) {
+            const lat = e.latlng.lat.toFixed(6);
+            const lng = e.latlng.lng.toFixed(6);
+            $('#latitude').val(lat);
+            $('#longitude').val(lng);
+
+            if (clickMarker) {
+              clickMarker.setLatLng(e.latlng);
+            } else {
+              clickMarker = L.marker(e.latlng).addTo(addSensorMap);
+            }
+
+            // Update circle if radius present
+            updateAddCircle();
+          });
+
+          // Update circle while typing radius
+          $('#radius').on('input', updateAddCircle);
+
+        } else {
+          setTimeout(() => { addSensorMap.invalidateSize(); }, 200);
+        }
       });
     });
 

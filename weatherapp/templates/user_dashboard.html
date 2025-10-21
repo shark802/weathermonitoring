@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'weatherapp/css/logout.css' %}">
     <link rel="stylesheet" href="{% static 'weatherapp/css/alert.css' %}">
+    <link rel="stylesheet" href="{% static 'weatherapp/css/alerts.css' %}">
 </head>
 <body class="bg-gray-200 font-sans">
 
@@ -24,30 +25,31 @@
         <div class="flex items-center space-x-6">
             <div class="relative flex items-center">
                 <button id="notifBell" onclick="toggleAlerts()" 
-                        class="relative text-white focus:outline-none">
+                        class="notification-bell relative text-white focus:outline-none">
                     <i class="fas fa-bell fa-lg"></i>
                     <span id="notifCount" 
-                          class="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full hidden">
+                          class="notification-badge hidden">
                         0
                     </span>
                 </button>
 
                 <div id="alertDropdown" 
-                    class="hidden absolute top-full right-0 mt-2 w-72 bg-white border rounded-lg shadow-lg flex flex-col z-50">
-                    <div class="p-2 border-b text-sm font-semibold text-gray-700 text-center">Alerts</div>
+                    class="hidden absolute top-full right-0 mt-2 w-80 bg-white border rounded-lg shadow-lg flex flex-col z-50">
+                    <div class="p-3 border-b bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                        <div class="flex items-center justify-between">
+                            <span class="font-semibold">Weather Alerts</span>
+                            <button onclick="markAllRead()" class="text-xs hover:underline">
+                                Mark all read
+                            </button>
+                        </div>
+                    </div>
 
-                    <ul id="alertList" 
-                        class="divide-y divide-gray-200 max-h-60 overflow-y-auto flex-1 flex flex-col">
-                        <li class="px-3 py-2 text-sm text-gray-500 text-center flex-1 flex items-center justify-center">
-                            No new alerts
-                        </li>
-                    </ul>
-
-                    <div class="border-t p-2 text-center">
-                        <button onclick="markAllRead()" 
-                                class="text-xs text-blue-600 hover:underline w-full">
-                            Mark all as read
-                        </button>
+                    <div id="alertList" 
+                        class="dashboard-alerts max-h-80 overflow-y-auto flex-1 flex flex-col">
+                        <div class="p-4 text-center text-gray-500">
+                            <i class="fas fa-bell-slash text-2xl mb-2"></i>
+                            <p>No new alerts</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -132,6 +134,8 @@
                                     <li><i class="fas fa-tint text-blue-700 ml-2"></i> Humidity: {{ weather.humidity }}%</li>
                                     <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: {{ weather.dew_point }}°C</li>
                                     <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: {{ weather.wind_speed|default:"N/A" }} m/s</li>
+                                    <li><i class="fas fa-tachometer-alt text-orange-700 ml-2"></i> Barometric Pressure: {{ weather.barometric_pressure|default:"N/A" }} hPa</li>
+                                    <li><i class="fas fa-mountain text-purple-700 ml-2"></i> Altitude: {{ weather.altitude|default:"N/A" }} m</li>
                                     <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: {{ weather.rain_rate|default:"N/A" }} mm/h</li>
                                 </ul>
                             {% endif %}
@@ -336,6 +340,7 @@
                                     <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: ${weather.dew_point}°C</li>
                                     <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: ${weather.wind_speed ?? "N/A"} km/h</li>
                                     <li><i class="fas fa-cloud text-indigo-700 ml-2"></i> Barometric Pressure: ${weather.barometric_pressure ?? "N/A"} hPa</li>
+                                    <li><i class="fas fa-mountain text-purple-700 ml-2"></i> Altitude: ${weather.altitude ?? "N/A"} m</li>
                                     <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: ${weather.rain_rate ?? "N/A"} mm/h</li>
                                 </ul>
                             `;
@@ -491,40 +496,74 @@
                 alertList.innerHTML = "";
                 if (alerts.length > 0) {
                     alerts.forEach(alert => {
-                        let li = document.createElement("li");
+                        let alertDiv = document.createElement("div");
                         
                         // Check if this alert is read
                         let isRead = readAlerts.some(readAlert => 
                             readAlert.text === alert.text && readAlert.timestamp === alert.timestamp
                         );
                         
-                        // Set base classes
-                        li.className = `px-3 py-2 text-sm hover:bg-gray-100 w-full text-left ${isRead ? 'opacity-60' : ''}`;
-
-                        // Color code alerts
-                        let textColor = "text-gray-800";
-                        if (alert.type === "rain" || alert.type === "warning") textColor = "text-yellow-700";
-                        if (alert.type === "wind" || alert.type === "critical") textColor = "text-red-700";
-                        if (alert.type === "flood") {
-                            if (alert.severity === "high") textColor = "text-red-700";
-                            else if (alert.severity === "moderate") textColor = "text-orange-600";
-                            else textColor = "text-blue-700";
+                        // Determine alert severity and styling
+                        let severityClass = 'low';
+                        let iconClass = 'fa-exclamation-triangle';
+                        let severityText = 'LOW';
+                        
+                        if (alert.type === 'rain') {
+                            iconClass = 'fa-cloud-rain';
+                            if (alert.intensity === 'torrential') {
+                                severityClass = 'critical';
+                                severityText = 'CRITICAL';
+                            } else if (alert.intensity === 'intense') {
+                                severityClass = 'high';
+                                severityText = 'HIGH';
+                            } else if (alert.intensity === 'heavy') {
+                                severityClass = 'moderate';
+                                severityText = 'MODERATE';
+                            }
+                        } else if (alert.type === 'wind') {
+                            iconClass = 'fa-wind';
+                            severityClass = 'moderate';
+                            severityText = 'MODERATE';
+                        } else if (alert.type === 'flood') {
+                            iconClass = 'fa-water';
+                            severityClass = 'high';
+                            severityText = 'HIGH';
                         }
-                        if (alert.type === "info") textColor = "text-blue-700";
-
+                        
+                        // Set base classes
+                        alertDiv.className = `weather-alert ${severityClass} ${isRead ? 'opacity-60' : ''}`;
+                        
                         // Add read indicator
-                        let readIndicator = isRead ? '<span class="text-xs text-green-600 ml-2">✓ Read</span>' : '<span class="text-xs text-blue-600 ml-2">● New</span>';
-
-                        li.innerHTML = `
-                            <div class="flex items-center justify-between">
-                                <div class="truncate max-w-[200px] ${textColor}">${alert.text}</div>
-                                ${readIndicator}
+                        let readIndicator = isRead ? '<span class="text-xs text-green-400 ml-2">✓ Read</span>' : '<span class="text-xs text-yellow-300 ml-2">● New</span>';
+                        
+                        alertDiv.innerHTML = `
+                            <div class="weather-alert-header">
+                                <div class="flex items-center">
+                                    <i class="weather-alert-icon fas ${iconClass}"></i>
+                                    <span class="weather-alert-title">${alert.text}</span>
+                                    ${readIndicator}
+                                </div>
+                                <span class="weather-alert-severity bg-white bg-opacity-20 text-white">${severityText}</span>
                             </div>
-                            <div class="text-xs text-gray-500">${alert.timestamp}</div>`;
-                        alertList.appendChild(li);
+                            <div class="weather-alert-body">
+                                ${alert.type === 'rain' ? 'Heavy rainfall detected in your area. Please take necessary precautions.' :
+                                  alert.type === 'wind' ? 'Strong winds detected. Secure outdoor objects and avoid unnecessary travel.' :
+                                  alert.type === 'flood' ? 'Flood risk detected. Move to higher ground if necessary.' :
+                                  'Weather alert in your area. Please stay informed.'}
+                            </div>
+                            <div class="weather-alert-timestamp">
+                                <i class="fas fa-clock mr-1"></i>${alert.timestamp}
+                            </div>
+                        `;
+                        alertList.appendChild(alertDiv);
                     });
                 } else {
-                    alertList.innerHTML = '<li class="px-3 py-2 text-sm text-gray-500 text-center w-full">No alerts available</li>';
+                    alertList.innerHTML = `
+                        <div class="p-4 text-center text-gray-500">
+                            <i class="fas fa-bell-slash text-2xl mb-2"></i>
+                            <p>No alerts available</p>
+                        </div>
+                    `;
                 }
 
             } catch (err) {

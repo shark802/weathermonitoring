@@ -1,0 +1,337 @@
+/* Enhanced Alert System Styles */
+
+/* Base Alert Container */
+.alert-container {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Alert Message Styles */
+.alert-message {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2001;
+  max-width: 500px;
+  width: 90%;
+  animation: slideInDown 0.5s ease-out;
+}
+
+.alert-message.success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border-left: 4px solid #047857;
+  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+}
+
+.alert-message.error {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border-left: 4px solid #b91c1c;
+  box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3);
+}
+
+.alert-message.warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-left: 4px solid #b45309;
+  box-shadow: 0 10px 25px rgba(245, 158, 11, 0.3);
+}
+
+.alert-message.info {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  border-left: 4px solid #1d4ed8;
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+}
+
+/* Alert Content */
+.alert-content {
+  padding: 16px 20px;
+  color: white;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.alert-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: shimmer 2s infinite;
+}
+
+.alert-icon {
+  display: inline-block;
+  margin-right: 12px;
+  font-size: 20px;
+  animation: bounce 1s ease-in-out infinite;
+}
+
+.alert-text {
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.alert-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.alert-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+/* Weather Alert Styles */
+.weather-alert {
+  background: linear-gradient(135deg, #1e40af, #1e3a8a);
+  border: 2px solid #3b82f6;
+  border-radius: 16px;
+  padding: 20px;
+  margin: 12px 0;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(30, 64, 175, 0.2);
+  transition: all 0.3s ease;
+}
+
+.weather-alert:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(30, 64, 175, 0.3);
+}
+
+.weather-alert.critical {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  border-color: #ef4444;
+  animation: pulseCritical 2s infinite;
+}
+
+.weather-alert.high {
+  background: linear-gradient(135deg, #ea580c, #c2410c);
+  border-color: #f97316;
+  animation: pulseHigh 3s infinite;
+}
+
+.weather-alert.moderate {
+  background: linear-gradient(135deg, #d97706, #a16207);
+  border-color: #f59e0b;
+}
+
+.weather-alert.low {
+  background: linear-gradient(135deg, #059669, #047857);
+  border-color: #10b981;
+}
+
+.weather-alert-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.weather-alert-icon {
+  font-size: 24px;
+  margin-right: 12px;
+  animation: rotate 2s linear infinite;
+}
+
+.weather-alert-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.weather-alert-severity {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.weather-alert-body {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.weather-alert-timestamp {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+}
+
+/* Dashboard Alert List */
+.dashboard-alerts {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.dashboard-alerts::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dashboard-alerts::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.dashboard-alerts::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.dashboard-alerts::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Notification Bell Styles */
+.notification-bell {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.notification-bell:hover {
+  transform: scale(1.1);
+}
+
+.notification-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  animation: pulse 2s infinite;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
+/* Animations */
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes slideOutUp {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-100%);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes pulseCritical {
+  0%, 100% {
+    box-shadow: 0 8px 32px rgba(220, 38, 38, 0.2);
+  }
+  50% {
+    box-shadow: 0 8px 32px rgba(220, 38, 38, 0.4);
+  }
+}
+
+@keyframes pulseHigh {
+  0%, 100% {
+    box-shadow: 0 8px 32px rgba(234, 88, 12, 0.2);
+  }
+  50% {
+    box-shadow: 0 8px 32px rgba(234, 88, 12, 0.3);
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .alert-message {
+    width: 95%;
+    top: 10px;
+  }
+  
+  .alert-content {
+    padding: 12px 16px;
+  }
+  
+  .weather-alert {
+    padding: 16px;
+    margin: 8px 0;
+  }
+  
+  .weather-alert-title {
+    font-size: 16px;
+  }
+}
+
+/* Auto-hide animation */
+.alert-message.auto-hide {
+  animation: slideOutUp 0.5s ease-in forwards;
+}

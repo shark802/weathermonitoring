@@ -325,6 +325,7 @@
                 <th>Humidity (%)</th>
                 <th>Wind Speed (m/s)</th>
                 <th>Pressure (hPa)</th>
+                <th>Altitude (m)</th>
                 <th>Dew Point (°C)</th>
                 <th>Rain Rate (mm/h)</th>
                 <th>Rain (mm)</th>
@@ -340,6 +341,7 @@
                   <td>{{ report.avg_humidity|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_wind_speed|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_barometric_pressure|floatformat:1|default:"N/A" }}</td>
+                  <td>{{ report.avg_altitude|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_dew_point|floatformat:1|default:"N/A" }}</td>
                   <td>{{ report.avg_rain_rate|floatformat:2|default:"N/A" }}</td>
                   <td>{{ report.total_rain_accumulated|floatformat:2|default:"N/A" }}</td>
@@ -347,7 +349,7 @@
                 {% endfor %}
               {% else %}
                 <tr>
-                  <td colspan="10" class="text-center py-4 text-gray-500">No monthly reports available</td>
+                  <td colspan="11" class="text-center py-4 text-gray-500">No monthly reports available</td>
                 </tr>
               {% endif %}
             </tbody>

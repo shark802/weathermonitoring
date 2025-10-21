@@ -332,6 +332,7 @@
                 <th>Humidity (%)</th>
                 <th>Wind Speed (m/s)</th>
                 <th>Pressure (hPa)</th>
+                <th>Altitude (m)</th>
                 <th>Dew Point (°C)</th>
                 <th>Rain Rate (mm/h)</th>
                 <th>Intensity</th>
@@ -339,26 +340,7 @@
               </tr>
             </thead>
             <tbody>
-              {% if reports %}
-                {% for report in reports %}
-                <tr>
-                  <td>{{ report.name|default:"N/A" }}</td>
-                  <td>{{ report.date_time|date:"Y-m-d H:i"|default:"N/A" }}</td>
-                  <td>{{ report.temperature|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.humidity|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.wind_speed|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.barometric_pressure|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.dew_point|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.rain_rate|floatformat:2|default:"N/A" }}</td>
-                  <td>{{ report.intensity|default:"N/A" }}</td>
-                  <td>{{ report.rain_accumulated|floatformat:2|default:"N/A" }}</td>
-                </tr>
-                {% endfor %}
-              {% else %}
-                <tr>
-                  <td colspan="11" class="text-center py-4 text-gray-500">No weather reports available</td>
-                </tr>
-              {% endif %}
+              <!-- Data will be loaded dynamically -->
             </tbody>
           </table>
         </div>
@@ -635,6 +617,13 @@
                 }
             },
             { 
+                data: 'altitude', 
+                title: 'Altitude (m)',
+                render: function(data) {
+                    return data ? parseFloat(data).toFixed(1) : 'N/A';
+                }
+            },
+            { 
                 data: 'dew_point', 
                 title: 'Dew Point (°C)',
                 render: function(data) {
@@ -649,17 +638,17 @@
                 }
             },
             { 
-                data: 'rain_accumulated', 
-                title: 'Rain (mm/10min)',
-                render: function(data) {
-                    return data ? parseFloat(data).toFixed(2) : 'N/A';
-                }
-            },
-            { 
                 data: 'intensity', 
                 title: 'Intensity',
                 render: function(data) {
                     return data || 'N/A';
+                }
+            },
+            { 
+                data: 'rain_accumulated', 
+                title: 'Rain (mm/10min)',
+                render: function(data) {
+                    return data ? parseFloat(data).toFixed(2) : 'N/A';
                 }
             }
         ]
@@ -716,6 +705,7 @@
                         humidity: report.humidity,
                         wind_speed: report.wind_speed,
                         pressure: report.pressure,
+                        altitude: report.altitude,
                         dew_point: report.dew_point,
                         rain_rate: report.rain_rate,
                         rain_accumulated: report.rain_accumulated,

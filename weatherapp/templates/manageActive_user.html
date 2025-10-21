@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
   <link rel="stylesheet" href="{% static 'weatherapp/css/logout.css' %}">
+  <link rel="stylesheet" href="{% static 'weatherapp/css/alerts.css' %}">
   <style>
       .dataTables_wrapper {
             z-index: 20; 
@@ -44,10 +45,11 @@
 
   {% if messages %}
     {% for message in messages %}
-      <div class="fixed top-4 left-1/2 transform -translate-x-1/2 max-w-md w-full z-50">
-        <div class="mb-4 px-6 py-4 text-white rounded-lg shadow-md text-center 
-                    {% if message.tags == 'error' %}bg-red-500{% else %}bg-green-500{% endif %}">
-          {{ message }}
+      <div class="alert-message {% if message.tags == 'error' %}error{% else %}success{% endif %}">
+        <div class="alert-content">
+          <button class="alert-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
+          <i class="alert-icon fas {% if message.tags == 'error' %}fa-exclamation-triangle{% else %}fa-check-circle{% endif %}"></i>
+          <span class="alert-text">{{ message }}</span>
         </div>
       </div>
     {% endfor %}

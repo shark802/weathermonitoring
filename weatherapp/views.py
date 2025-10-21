@@ -716,7 +716,7 @@ def admin_dashboard(request):
 
         # 7. Fetch all sensor locations for the map, PROCESS ALERTS, and build locations data
         cursor.execute("""
-             SELECT s.sensor_id, s.name, s.latitude, s.longitude, 
+             SELECT s.sensor_id, s.name, s.latitude, s.longitude, s.radius,
                     wr.rain_rate, wr.wind_speed, wr.date_time
              FROM sensor s
              LEFT JOIN weather_reports wr ON s.sensor_id = wr.sensor_id
@@ -728,7 +728,7 @@ def admin_dashboard(request):
          """)
         
         for row in cursor.fetchall():
-            sensor_id, name, lat, lng, rain_rate, wind_speed, date_time = row
+            sensor_id, name, lat, lng, radius, rain_rate, wind_speed, date_time = row
             has_alert = False
             alert_text = ""
             date_time_str = date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else None
@@ -772,7 +772,7 @@ def admin_dashboard(request):
                 'date_time': date_time_str,
                 'has_alert': has_alert, # <--- 🔑 Crucial field for JS map logic
                 'alert_text': alert_text.strip('<br>'), # <--- 🔑 Crucial field for JS map logic popup/icon
-                'radius': 5000 # Geo-fence radius
+                'radius': radius # Geo-fence radius
             })
             
     # Prepare final context for the template
@@ -1717,12 +1717,13 @@ def sensors(request):
             admin_name = row[0] if row else 'Admin'
 
             # Get all sensors
-            cursor.execute("SELECT sensor_id, name, latitude, longitude FROM sensor ORDER BY name")
+            cursor.execute("SELECT sensor_id, name, latitude, longitude, radius FROM sensor ORDER BY name")
             sensors = [{
                 'id': row[0],
                 'name': row[1],
                 'latitude': row[2],
-                'longitude': row[3]
+                'longitude': row[3],
+                'radius': row[4]
             } for row in cursor.fetchall()]
 
         # Check for form errors from previous submission
@@ -1731,6 +1732,7 @@ def sensors(request):
 
         return render(request, 'sensors.html', {
             'sensors': sensors,
+            'sensors_json': json.dumps(sensors),
             'admin': {'name': admin_name},
             'form_errors': form_errors,
             'form_data': form_data,
@@ -1751,6 +1753,7 @@ def add_sensor(request):
     name = request.POST.get('name', '').strip()
     latitude = request.POST.get('latitude', '').strip()
     longitude = request.POST.get('longitude', '').strip()
+    radius = request.POST.get('radius', '').strip()
 
     # Validation
     errors = {}
@@ -1760,23 +1763,37 @@ def add_sensor(request):
         errors['latitude'] = 'Valid latitude is required (-90 to 90)'
     if not is_valid_coordinate(longitude, 'longitude'):
         errors['longitude'] = 'Valid longitude is required (-180 to 180)'
+    # radius is required and must be a positive number
+    try:
+        if radius == '':
+            errors['radius'] = 'Radius is required'
+        else:
+            r = float(radius)
+            if r < 0:
+                errors['radius'] = 'Radius must be non-negative'
+    except ValueError:
+        errors['radius'] = 'Radius must be a number'
 
     if errors:
         request.session['form_errors'] = errors
         request.session['form_data'] = {
             'name': name,
             'latitude': latitude,
-            'longitude': longitude
+            'longitude': longitude,
+            'radius': radius
         }
         request.session['show_add_modal'] = True
         return redirect('sensors')
 
     try:
         with connection.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO sensor (name, latitude, longitude)
-                VALUES (%s, %s, %s)
-            """, [name, latitude, longitude])
+            cursor.execute(
+                """
+                INSERT INTO sensor (name, latitude, longitude, radius)
+                VALUES (%s, %s, %s, %s)
+                """,
+                [name, latitude, longitude, radius]
+            )
         
         messages.success(request, 'Sensor added successfully')
         return redirect('sensors')
@@ -1788,7 +1805,7 @@ def add_sensor(request):
 def update_sensor(request):
     if 'admin_id' not in request.session:
         return HttpResponseForbidden("Not authorized")
-    
+
     if request.method != 'POST':
         return HttpResponseForbidden("Invalid request method")
 
@@ -1796,31 +1813,45 @@ def update_sensor(request):
     name = request.POST.get('name', '').strip()
     latitude = request.POST.get('latitude', '').strip()
     longitude = request.POST.get('longitude', '').strip()
+    radius = request.POST.get('radius', '').strip()
+
+    form_data = {
+        'id': sensor_id,
+        'name': name,
+        'latitude': latitude,
+        'longitude': longitude,
+        'radius': radius
+    }
 
     # Validation
     errors = {}
+    if not sensor_id:
+        errors['id'] = 'Sensor ID is required'
     if not name:
         errors['name'] = 'Name is required'
     if not is_valid_coordinate(latitude, 'latitude'):
         errors['latitude'] = 'Valid latitude is required (-90 to 90)'
     if not is_valid_coordinate(longitude, 'longitude'):
         errors['longitude'] = 'Valid longitude is required (-180 to 180)'
+    if not radius:
+        errors['radius'] = 'Radius is required'
 
     if errors:
-        messages.error(request, 'Invalid sensor data')
+        request.session['form_errors'] = errors
+        request.session['form_data'] = form_data
         return redirect('sensors')
 
     try:
         with connection.cursor() as cursor:
             cursor.execute("""
                 UPDATE sensor
-                SET name = %s, latitude = %s, longitude = %s
+                SET name = %s, latitude = %s, longitude = %s, radius = %s
                 WHERE sensor_id = %s
-            """, [name, latitude, longitude, sensor_id])
-        
+            """, [name, latitude, longitude, radius, sensor_id])
+
         messages.success(request, 'Sensor updated successfully')
         return redirect('sensors')
-        
+
     except Exception as e:
         messages.error(request, f'Failed to update sensor: {str(e)}')
         return redirect('sensors')
@@ -1881,6 +1912,7 @@ def weather_reports(request):
             wr.humidity,
             wr.wind_speed,
             wr.barometric_pressure,
+            wr.altitude,
             wr.dew_point, 
             wr.date_time, 
             wr.rain_rate, 
@@ -2073,6 +2105,7 @@ def daily_reports(request):
             AVG(wr.humidity) AS avg_humidity,
             AVG(wr.wind_speed) AS avg_wind_speed,
             AVG(wr.barometric_pressure) AS avg_barometric_pressure,
+            AVG(wr.altitude) AS avg_altitude,
             AVG(wr.dew_point) AS avg_dew_point,
             AVG(wr.rain_rate) AS avg_rain_rate,
             SUM(wr.rain_accumulated) AS total_rain_accumulated
@@ -2223,6 +2256,7 @@ def monthly_reports(request):
             AVG(wr.humidity) AS avg_humidity,
             AVG(wr.wind_speed) AS avg_wind_speed,
             AVG(wr.barometric_pressure) AS avg_barometric_pressure,
+            AVG(wr.altitude) AS avg_altitude,
             AVG(wr.dew_point) AS avg_dew_point,
             AVG(wr.rain_rate) AS avg_rain_rate,
             SUM(wr.rain_accumulated) AS total_rain_accumulated
@@ -2430,6 +2464,10 @@ def receive_sensor_data(request):
         except (ValueError, TypeError):
             pressure = 0
 
+        try:
+            altitude = float(data.get('altitude', 0))
+        except (ValueError, TypeError):
+            altitude = 0
 
         dew_point = temperature - ((100 - humidity) / 5)
 
@@ -2452,12 +2490,12 @@ def receive_sensor_data(request):
             cursor.execute("""
                 INSERT INTO weather_reports (
                     sensor_id, intensity_id, temperature, humidity,
-                    wind_speed, barometric_pressure,
+                    wind_speed, barometric_pressure, altitude,
                     dew_point, date_time, rain_rate, rain_accumulated
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, [
                 sensor_id, intensity_id, temperature, humidity,
-                wind_speed, pressure,
+                wind_speed, pressure, altitude,
                 dew_point, ph_time, rain_rate, rain_accumulated
             ])
 

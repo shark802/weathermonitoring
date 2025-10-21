@@ -276,31 +276,14 @@
                 <th>Humidity (%)</th>
                 <th>Wind Speed (m/s)</th>
                 <th>Pressure (hPa)</th>
+                <th>Altitude (m)</th>
                 <th>Dew Point (°C)</th>
                 <th>Rain Rate (mm/h)</th>
                 <th>Total Rain (mm)</th>
               </tr>
             </thead>
             <tbody>
-              {% if reports %}
-                {% for report in reports %}
-                <tr>
-                  <td>{{ report.name|default:"N/A" }}</td>
-                  <td>{{ report.date|date:"Y-m-d"|default:"N/A" }}</td>
-                  <td>{{ report.avg_temperature|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.avg_humidity|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.avg_wind_speed|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.avg_barometric_pressure|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.avg_dew_point|floatformat:1|default:"N/A" }}</td>
-                  <td>{{ report.avg_rain_rate|floatformat:2|default:"N/A" }}</td>
-                  <td>{{ report.total_rain_accumulated|floatformat:2|default:"N/A" }}</td>
-                </tr>
-                {% endfor %}
-              {% else %}
-                <tr>
-                  <td colspan="10" class="text-center py-4 text-gray-500">No daily reports available for the selected criteria</td>
-                </tr>
-              {% endif %}
+              <!-- Data will be loaded dynamically -->
             </tbody>
           </table>
         </div>
@@ -548,8 +531,8 @@
                 }
             },
             { 
-                data: 'max_wind_speed', 
-                title: 'Max Wind (m/s)',
+                data: 'avg_wind_speed', 
+                title: 'Wind Speed (m/s)',
                 render: function(data) {
                     return data ? parseFloat(data).toFixed(1) : 'N/A';
                 }
@@ -562,6 +545,13 @@
                 }
             },
             { 
+                data: 'avg_altitude', 
+                title: 'Altitude (m)',
+                render: function(data) {
+                    return data ? parseFloat(data).toFixed(1) : 'N/A';
+                }
+            },
+            { 
                 data: 'avg_dew_point', 
                 title: 'Dew Point (°C)',
                 render: function(data) {
@@ -569,14 +559,14 @@
                 }
             },
             { 
-                data: 'max_rain_rate', 
-                title: 'Max Rain (mm/h)',
+                data: 'avg_rain_rate', 
+                title: 'Rain Rate (mm/h)',
                 render: function(data) {
                     return data ? parseFloat(data).toFixed(2) : 'N/A';
                 }
             },
             { 
-                data: 'total_rain', 
+                data: 'total_rain_accumulated', 
                 title: 'Total Rain (mm)',
                 render: function(data) {
                     return data ? parseFloat(data).toFixed(2) : 'N/A';
@@ -597,6 +587,7 @@
                 "avg_humidity": "{{ report.avg_humidity|floatformat:1|default:'N/A' }}",
                 "max_wind_speed": "{{ report.avg_wind_speed|floatformat:1|default:'N/A' }}",
                 "avg_barometric_pressure": "{{ report.avg_barometric_pressure|floatformat:1|default:'N/A' }}",
+                "avg_altitude": "{{ report.avg_altitude|floatformat:1|default:'N/A' }}",
                 "avg_dew_point": "{{ report.avg_dew_point|floatformat:1|default:'N/A' }}",
                 "max_rain_rate": "{{ report.avg_rain_rate|floatformat:2|default:'N/A' }}",
                 "total_rain": "{{ report.total_rain_accumulated|floatformat:2|default:'N/A' }}"
@@ -658,11 +649,12 @@
                             date: report.date,
                             avg_temperature: report.avg_temperature,
                             avg_humidity: report.avg_humidity,
-                            max_wind_speed: report.avg_wind_speed,
+                            avg_wind_speed: report.avg_wind_speed,
                             avg_barometric_pressure: report.avg_barometric_pressure,
+                            avg_altitude: report.avg_altitude,
                             avg_dew_point: report.avg_dew_point,
-                            max_rain_rate: report.avg_rain_rate,
-                            total_rain: report.total_rain_accumulated
+                            avg_rain_rate: report.avg_rain_rate,
+                            total_rain_accumulated: report.total_rain_accumulated
                         };
                     });
                     

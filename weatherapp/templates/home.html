@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="{% static 'weatherapp/css/login.css' %}">
+  <link rel="stylesheet" href="{% static 'weatherapp/css/alerts.css' %}">
   <link rel="stylesheet" href="{% static 'weatherapp/css/form.css' %}">
   <script>
     tailwind.config = {
@@ -344,18 +345,13 @@
                     <form id="loginForm" method="POST" action="{% url 'login' %}" class="vstack gap-3">
                         {% csrf_token %}
                         {% if form_loginError %}
-                            <div id="formLoginErrorAlert" class="alert alert-danger text-center py-1 small" role="alert">
-                                {{ form_loginError }}
+                            <div class="alert-message error">
+                              <div class="alert-content">
+                                <button class="alert-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
+                                <i class="alert-icon fas fa-exclamation-triangle"></i>
+                                <span class="alert-text">{{ form_loginError }}</span>
+                              </div>
                             </div>
-                            <script>
-                                setTimeout(function() {
-                                    const alert = document.getElementById('formLoginErrorAlert');
-                                    if (alert) {
-                                        alert.style.opacity = '0';
-                                        setTimeout(() => alert.style.display = 'none', 500);
-                                    }
-                                }, 3000);
-                            </script>
                         {% endif %}
 
                         <div class="mb-2">
@@ -572,20 +568,13 @@
 {% endif %}
 
 {% if form_logoutSuccess %}
-  <div id="formLogoutSuccessAlert" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md">
-    <div class="mb-4 px-6 py-4 text-white rounded-lg shadow-md text-center bg-green-500">
-      {{ form_logoutSuccess }}
+  <div class="alert-message success">
+    <div class="alert-content">
+      <button class="alert-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
+      <i class="alert-icon fas fa-check-circle"></i>
+      <span class="alert-text">{{ form_logoutSuccess }}</span>
     </div>
   </div>
-  <script>
-    setTimeout(function() {
-      const alert = document.getElementById('formLogoutSuccessAlert');
-      if (alert) {
-        alert.style.opacity = '0';
-      setTimeout(() => alert.style.display = 'none', 500);
-        }
-    }, 3000);
-  </script>
 {% endif %}
 
   {% if show_register_modal %}
