@@ -432,29 +432,37 @@ def latest_dashboard_data(request):
     Returns all dashboard data (weather, charts, alerts, AI forecast)
     as a single JSON response for AJAX auto-refresh.
     """
-    selected_sensor_id = request.GET.get('sensor_id')
-
-    with connection.cursor() as cursor:
-        # 1. Fetch Latest Weather Data
+    try:
+        selected_sensor_id = request.GET.get('sensor_id')
+        
+        # Convert to int if provided
         if selected_sensor_id:
-            cursor.execute("""
-                SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name, s.sensor_id
-                FROM weather_reports wr
-                JOIN sensor s ON wr.sensor_id = s.sensor_id
-                WHERE wr.sensor_id = %s
-                ORDER BY wr.date_time DESC
-                LIMIT 1
-            """, [selected_sensor_id])
-        else:
-            cursor.execute("""
-                SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.date_time, s.name, s.sensor_id
-                FROM weather_reports wr
-                JOIN sensor s ON wr.sensor_id = s.sensor_id
-                ORDER BY wr.date_time DESC
-                LIMIT 1
-            """)
+            try:
+                selected_sensor_id = int(selected_sensor_id)
+            except ValueError:
+                selected_sensor_id = None
+
+        with connection.cursor() as cursor:
+            # 1. Fetch Latest Weather Data
+            if selected_sensor_id:
+                cursor.execute("""
+                    SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
+                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                    FROM weather_reports wr
+                    JOIN sensor s ON wr.sensor_id = s.sensor_id
+                    WHERE wr.sensor_id = %s
+                    ORDER BY wr.date_time DESC
+                    LIMIT 1
+                """, [selected_sensor_id])
+            else:
+                cursor.execute("""
+                    SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
+                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                    FROM weather_reports wr
+                    JOIN sensor s ON wr.sensor_id = s.sensor_id
+                    ORDER BY wr.date_time DESC
+                    LIMIT 1
+                """)
         
         row = cursor.fetchone()
         weather = {}
@@ -465,14 +473,31 @@ def latest_dashboard_data(request):
                 'rain_rate': row[2],
                 'dew_point': row[3],
                 'wind_speed': row[4],
-                'date_time': row[5].strftime('%Y-%m-%d %H:%M:%S'),
-                'location': row[6],
+                'barometric_pressure': row[5],
+                'altitude': row[6],
+                'date_time': row[7].strftime('%Y-%m-%d %H:%M:%S'),
+                'location': row[8],
+                'latitude': row[9],
+                'longitude': row[10],
                 'error': None
             }
             if not selected_sensor_id:
-                selected_sensor_id = row[7]
+                selected_sensor_id = row[11]
         else:
-            weather = {'error': 'No weather data available'}
+            weather = {
+                'error': 'No weather data available',
+                'temperature': 'N/A',
+                'humidity': 'N/A',
+                'rain_rate': 'N/A',
+                'dew_point': 'N/A',
+                'wind_speed': 'N/A',
+                'barometric_pressure': 'N/A',
+                'altitude': 'N/A',
+                'date_time': 'N/A',
+                'location': 'Unknown',
+                'latitude': None,
+                'longitude': None
+            }
 
         # 2. Prepare Chart Data (only for the selected sensor)
         chart_labels = []
@@ -572,16 +597,34 @@ def latest_dashboard_data(request):
                     'sensor_id': sensor_id
                 })
     
-    # Return all data as a single JSON response
-    return JsonResponse({
-        'weather': weather,
-        'alerts': alerts,
-        'forecast': [forecast] if forecast.get('error') is None else [],
-        'flood_warning': flood_warning,
-        'flood_warnings': flood_warnings,  # Include all barangay warnings
-        'chart_labels': chart_labels,
-        'chart_data': chart_data,
-    })
+        # Return all data as a single JSON response
+        return JsonResponse({
+            'weather': weather,
+            'alerts': alerts,
+            'forecast': [forecast] if forecast.get('error') is None else [],
+            'flood_warning': flood_warning,
+            'flood_warnings': flood_warnings,  # Include all barangay warnings
+            'chart_labels': chart_labels,
+            'chart_data': chart_data,
+        })
+    
+    except Exception as e:
+        # Log the error for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in latest_dashboard_data: {str(e)}")
+        
+        # Return error response
+        return JsonResponse({
+            'error': f'Server error: {str(e)}',
+            'weather': {'error': 'Failed to fetch weather data'},
+            'alerts': [],
+            'forecast': [],
+            'flood_warning': {'error': 'Failed to fetch flood warnings'},
+            'flood_warnings': [],
+            'chart_labels': [],
+            'chart_data': [],
+        }, status=500)
 
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
 def admin_dashboard(request):
