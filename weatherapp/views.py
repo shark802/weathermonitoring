@@ -614,7 +614,7 @@ def latest_dashboard_data(request):
                         })
                 
                 # Check for wind alert
-                if wind_speed is not None and wind_speed > 30:
+                if wind_speed is not None and wind_speed > 11:
                     # FIX 3: Safely format date_time within the alert message
                     dt_str = date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else 'N/A'
                     
@@ -820,9 +820,9 @@ def admin_dashboard(request):
                 alert_text += alert_msg + "<br>"
                 has_alert = True
                 
-            # 2. Strong Wind Alert (wind_speed > 30 km/h)
-            if wind_speed is not None and wind_speed > 30:
-                alert_msg = f"⚠️ Strong Wind Alert in {name} ({wind_speed} km/h)"
+            # 2. Strong Wind Alert (wind_speed > 11 m/s)
+            if wind_speed is not None and wind_speed > 11:
+                alert_msg = f"⚠️ Strong Wind Alert in {name} ({wind_speed} m/s)"
                 # Add to the UI Alerts List
                 alerts.append({
                     'text': alert_msg, 
