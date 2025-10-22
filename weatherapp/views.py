@@ -2508,9 +2508,9 @@ def receive_sensor_data(request):
             pressure = 0
 
         try:
-            altitude = float(data.get('altitude_m', 0))
+            altitude_m = float(data.get('altitude_m', 0))
         except (ValueError, TypeError):
-            altitude = 0
+            altitude_m = 0
 
         dew_point = temperature - ((100 - humidity) / 5)
 
@@ -2538,7 +2538,7 @@ def receive_sensor_data(request):
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, [
                 sensor_id, intensity_id, temperature, humidity,
-                wind_speed, pressure, altitude,
+                wind_speed, pressure, altitude_m,
                 dew_point, ph_time, rain_rate, rain_accumulated
             ])
 
