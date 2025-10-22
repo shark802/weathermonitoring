@@ -412,6 +412,15 @@ def reset_password(request):
 
     return render(request, 'reset_password.html')
 
+def fetch_as_dict(cursor):
+    """Returns all rows from a cursor as a list of dicts."""
+    columns = [col[0] for col in cursor.description]
+    return [
+        dict(zip(columns, row))
+        for row in cursor.fetchall()
+    ]
+
+# Assuming this function is defined above the main view
 def get_rain_intensity(amount):
     """Determines the rain intensity based on amount."""
     if amount is None or amount == 0:
@@ -444,10 +453,17 @@ def latest_dashboard_data(request):
 
         with connection.cursor() as cursor:
             # 1. Fetch Latest Weather Data
+            weather_fields = [
+                'temperature', 'humidity', 'rain_rate', 'dew_point', 
+                'wind_speed', 'barometric_pressure', 'altitude', 'date_time', 
+                'location', 'latitude', 'longitude', 'sensor_id' # 's.name' aliased to 'location'
+            ]
+
             if selected_sensor_id:
                 cursor.execute("""
                     SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, 
+                        s.name, s.latitude, s.longitude, s.sensor_id
                     FROM weather_reports wr
                     JOIN sensor s ON wr.sensor_id = s.sensor_id
                     WHERE wr.sensor_id = %s
@@ -457,162 +473,176 @@ def latest_dashboard_data(request):
             else:
                 cursor.execute("""
                     SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, 
+                        s.name, s.latitude, s.longitude, s.sensor_id
                     FROM weather_reports wr
                     JOIN sensor s ON wr.sensor_id = s.sensor_id
                     ORDER BY wr.date_time DESC
                     LIMIT 1
                 """)
-        
-        row = cursor.fetchone()
-        weather = {}
-        if row:
-            weather = {
-                'temperature': row[0],
-                'humidity': row[1],
-                'rain_rate': row[2],
-                'dew_point': row[3],
-                'wind_speed': row[4],
-                'barometric_pressure': row[5],
-                'altitude': row[6],
-                'date_time': row[7].strftime('%Y-%m-%d %H:%M:%S'),
-                'location': row[8],
-                'latitude': row[9],
-                'longitude': row[10],
-                'error': None
-            }
-            if not selected_sensor_id:
-                selected_sensor_id = row[11]
-        else:
-            weather = {
-                'error': 'No weather data available',
-                'temperature': 'N/A',
-                'humidity': 'N/A',
-                'rain_rate': 'N/A',
-                'dew_point': 'N/A',
-                'wind_speed': 'N/A',
-                'barometric_pressure': 'N/A',
-                'altitude': 'N/A',
-                'date_time': 'N/A',
-                'location': 'Unknown',
-                'latitude': None,
-                'longitude': None
-            }
-
-        # 2. Prepare Chart Data (only for the selected sensor)
-        chart_labels = []
-        chart_data = []
-        if selected_sensor_id:
-            cursor.execute("""
-                SELECT DATE_FORMAT(date_time, '%%a %%b %%d') AS label, temperature
-                FROM weather_reports
-                WHERE sensor_id = %s
-                ORDER BY date_time DESC
-                LIMIT 10
-            """, [selected_sensor_id])
-            rows = cursor.fetchall()
-            for row in reversed(rows):
-                chart_labels.append(row[0])
-                chart_data.append(float(row[1]))
-
-        # 3. Fetch AI Prediction
-        forecast = {}
-        cursor.execute("""
-            SELECT predicted_rain, duration, intensity
-            FROM ai_predictions
-            ORDER BY created_at DESC
-            LIMIT 1
-        """)
-        row = cursor.fetchone()
-        if row:
-            forecast = {
-                'prediction': float(row[0]),
-                'duration': float(row[1]),
-                'intensity': row[2],
-                'error': None
-            }
-        else:
-            forecast = {'error': 'No AI prediction data available.'}
             
-        # Fetch all recent flood warnings (last 24 hours) for barangay-specific display
-        flood_warnings = []
-        cursor.execute("""
-            SELECT area, risk_level, message, prediction_date
-            FROM flood_warnings
-            WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-            ORDER BY 
-                CASE risk_level 
-                    WHEN 'High' THEN 1 
-                    WHEN 'Moderate' THEN 2 
-                    WHEN 'Low' THEN 3 
-                    ELSE 4 
-                END,
-                prediction_date DESC
-        """)
-        rows = cursor.fetchall()
-        
-        if rows:
-            for row in rows:
-                flood_warnings.append({
-                    'area': row[0],
-                    'risk_level': row[1],
-                    'message': row[2],
-                    'prediction_date': row[3].strftime('%Y-%m-%d %H:%M:%S') if row[3] else None
-                })
-        
-        # For backward compatibility, keep the first warning as the main flood_warning
-        flood_warning = flood_warnings[0] if flood_warnings else {'error': 'No recent flood warning data available.'}
+            row = cursor.fetchone()
+            weather = {}
+            if row:
+                # Map the row to a dictionary using explicit column names
+                weather = dict(zip(weather_fields, row))
 
-        # 4. Fetch Alerts (the logic is copied directly from your original admin_dashboard view)
-        alerts = []
-        cursor.execute("""
-            SELECT s.sensor_id, s.name, wr.rain_rate, wr.wind_speed, wr.date_time
-            FROM sensor s
-            LEFT JOIN weather_reports wr ON s.sensor_id = wr.sensor_id
-            WHERE wr.date_time = (
-                SELECT MAX(date_time) 
-                FROM weather_reports 
-                WHERE sensor_id = s.sensor_id
-            ) OR wr.date_time IS NULL
-        """)
-        
-        for row in cursor.fetchall():
-            sensor_id, name, rain_rate, wind_speed, date_time = row
-            if rain_rate is not None:
-                intensity = get_rain_intensity(rain_rate)
-                if intensity in ["Heavy", "Intense", "Torrential"]:
+                # FIX 1: Safely format date_time to prevent 'NoneType' error
+                date_time_obj = weather.get('date_time')
+                if date_time_obj:
+                    weather['date_time'] = date_time_obj.strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    weather['date_time'] = 'N/A' # Default value if NULL
+
+                weather['error'] = None
+                
+                # Use the fetched sensor_id if none was provided in the request
+                if not selected_sensor_id:
+                    selected_sensor_id = weather.get('sensor_id')
+            else:
+                weather = {
+                    'error': 'No weather data available',
+                    'temperature': 'N/A', 'humidity': 'N/A', 'rain_rate': 'N/A', 
+                    'dew_point': 'N/A', 'wind_speed': 'N/A', 'barometric_pressure': 'N/A', 
+                    'altitude': 'N/A', 'date_time': 'N/A', 'location': 'Unknown', 
+                    'latitude': None, 'longitude': None
+                }
+
+            # 2. Prepare Chart Data (only for the selected sensor)
+            chart_labels = []
+            chart_data = []
+            if selected_sensor_id:
+                cursor.execute("""
+                    SELECT DATE_FORMAT(date_time, '%%a %%b %%d') AS label, temperature
+                    FROM weather_reports
+                    WHERE sensor_id = %s
+                    ORDER BY date_time DESC
+                    LIMIT 10
+                """, [selected_sensor_id])
+                rows = cursor.fetchall()
+                for row in reversed(rows):
+                    chart_labels.append(row[0])
+                    chart_data.append(float(row[1]))
+
+            # 3. Fetch AI Prediction
+            forecast = {}
+            cursor.execute("""
+                SELECT predicted_rain, duration, intensity
+                FROM ai_predictions
+                ORDER BY created_at DESC
+                LIMIT 1
+            """)
+            row = cursor.fetchone()
+            if row:
+                forecast = {
+                    'prediction': float(row[0]),
+                    'duration': float(row[1]),
+                    'intensity': row[2],
+                    'error': None
+                }
+            else:
+                forecast = {'error': 'No AI prediction data available.'}
+                
+            # Fetch all recent flood warnings (last 24 hours) for barangay-specific display
+            flood_warnings = []
+            cursor.execute("""
+                SELECT area, risk_level, message, prediction_date
+                FROM flood_warnings
+                WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                ORDER BY 
+                    CASE risk_level 
+                        WHEN 'High' THEN 1 
+                        WHEN 'Moderate' THEN 2 
+                        WHEN 'Low' THEN 3 
+                        ELSE 4 
+                    END,
+                    prediction_date DESC
+            """)
+            
+            # Using the helper to convert rows to dictionaries
+            rows = fetch_as_dict(cursor) 
+            
+            if rows:
+                for row in rows:
+                    # FIX 2: Safely format prediction_date to prevent 'NoneType' error
+                    prediction_date_obj = row.get('prediction_date')
+                    if prediction_date_obj:
+                        row['prediction_date'] = prediction_date_obj.strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        row['prediction_date'] = 'N/A' # Default value if NULL
+                        
+                    flood_warnings.append(row)
+            
+            # For backward compatibility, keep the first warning as the main flood_warning
+            flood_warning = flood_warnings[0] if flood_warnings else {'error': 'No recent flood warning data available.'}
+
+            # 4. Fetch Alerts
+            alerts = []
+            cursor.execute("""
+                SELECT s.sensor_id, s.name, wr.rain_rate, wr.wind_speed, wr.date_time
+                FROM sensor s
+                LEFT JOIN weather_reports wr ON s.sensor_id = wr.sensor_id
+                WHERE wr.date_time = (
+                    SELECT MAX(date_time) 
+                    FROM weather_reports 
+                    WHERE sensor_id = s.sensor_id
+                ) OR wr.date_time IS NULL
+            """)
+            
+            # Re-fetch as dicts to avoid index-based array access 
+            alert_rows = fetch_as_dict(cursor)
+            
+            for row in alert_rows:
+                sensor_id, name, rain_rate, wind_speed, date_time = (
+                    row.get('sensor_id'), row.get('name'), row.get('rain_rate'), 
+                    row.get('wind_speed'), row.get('date_time')
+                )
+                
+                # Check for rain alert
+                if rain_rate is not None:
+                    intensity = get_rain_intensity(rain_rate)
+                    if intensity in ["Heavy", "Intense", "Torrential"]:
+                        # FIX 3: Safely format date_time within the alert message
+                        dt_str = date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else 'N/A'
+                        
+                        alerts.append({
+                            'text': f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm) {dt_str}",
+                            'timestamp': datetime.now().isoformat(),
+                            'type': 'rain',
+                            'intensity': intensity.lower(),
+                            'sensor_id': sensor_id
+                        })
+                
+                # Check for wind alert
+                if wind_speed is not None and wind_speed > 30:
+                    # FIX 3: Safely format date_time within the alert message
+                    dt_str = date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else 'N/A'
+                    
                     alerts.append({
-                        'text': f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate} mm) {date_time.strftime('%Y-%m-%d %H:%M:%S')}",
+                        'text': f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {dt_str}",
                         'timestamp': datetime.now().isoformat(),
-                        'type': 'rain',
-                        'intensity': intensity.lower(),
+                        'type': 'wind',
+                        'intensity': 'high',
                         'sensor_id': sensor_id
                     })
-            if wind_speed and wind_speed > 30:
-                alerts.append({
-                    'text': f"⚠️ Wind Advisory for {name} ({wind_speed} m/s) {date_time.strftime('%Y-%m-%d %H:%M:%S')}",
-                    'timestamp': datetime.now().isoformat(),
-                    'type': 'wind',
-                    'intensity': 'high',
-                    'sensor_id': sensor_id
-                })
-    
-        # Return all data as a single JSON response
-        return JsonResponse({
-            'weather': weather,
-            'alerts': alerts,
-            'forecast': [forecast] if forecast.get('error') is None else [],
-            'flood_warning': flood_warning,
-            'flood_warnings': flood_warnings,  # Include all barangay warnings
-            'chart_labels': chart_labels,
-            'chart_data': chart_data,
-        })
+            
+            # Return all data as a single JSON response
+            return JsonResponse({
+                'weather': weather,
+                'alerts': alerts,
+                'forecast': [forecast] if forecast.get('error') is None else [],
+                'flood_warning': flood_warning,
+                'flood_warnings': flood_warnings,
+                'chart_labels': chart_labels,
+                'chart_data': chart_data,
+            })
     
     except Exception as e:
         # Log the error for debugging
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Error in latest_dashboard_data: {str(e)}")
+        # Log error with traceback info
+        logger.error(f"Error in latest_dashboard_data: {str(e)}", exc_info=True) 
         
         # Return error response
         return JsonResponse({
