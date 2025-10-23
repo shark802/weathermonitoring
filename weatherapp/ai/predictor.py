@@ -28,7 +28,7 @@ SCALER_Y_FILE = os.path.join(BASE_DIR, "scaler_y.pkl")
 
 # Define the number of time steps (sequence length) the model requires.
 SEQUENCE_LENGTH = 6
-PREDICTION_INTERVAL_SECONDS = 600 
+PREDICTION_INTERVAL_SECONDS = 3600 
 BARANGAY_RISK_DATA = {}
 
 # =======================================================
