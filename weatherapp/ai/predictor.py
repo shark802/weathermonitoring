@@ -17,8 +17,6 @@ import pytz
 load_dotenv()
 
 # --- Timezone Definitions ---
-# We still define these, but the conversion logic in Python is now simplified
-# because the DB will save the correct time.
 PHILIPPINE_TZ = pytz.timezone('Asia/Manila')
 # ----------------------------
 
@@ -35,11 +33,9 @@ BARANGAY_RISK_DATA = {}
 
 # =======================================================
 # Database Function to fetch ALL Barangay Risk Data
-# (Content omitted for brevity, assumed functional)
 # =======================================================
 def get_all_barangay_risk_data_from_db():
     global BARANGAY_RISK_DATA
-    # ... (implementation omitted) ...
     print("Fetching all barangay risk data from bago_city_barangay_risk table...")
     try:
         with connection.cursor() as cursor:
@@ -70,7 +66,6 @@ def get_all_barangay_risk_data_from_db():
 
 # =======================================================
 # 1. Database Function (Sequence Data)
-# (Content omitted for brevity, assumed functional)
 # =======================================================
 def get_sequence_data_from_db():
     print(f"Fetching last {SEQUENCE_LENGTH} time steps of data from database...")
@@ -108,7 +103,6 @@ def get_sequence_data_from_db():
 
 # =======================================================
 # 2. Model and Scalers Loading
-# (Content omitted for brevity, assumed functional)
 # =======================================================
 model = None
 scaler_X = None
@@ -150,49 +144,76 @@ except Exception as e:
 
 # =======================================================
 # 3. Helper and Prediction Functions
-# (Content omitted for brevity, assumed functional)
 # =======================================================
-def get_rain_intensity(amount):
-    if amount <= 0.01: return "None"
-    elif 0.01 < amount < 2.5: return "Light"
-    elif 2.5 <= amount < 7.6: return "Moderate"
-    elif 7.6 <= amount < 15: return "Heavy"
-    elif 15 <= amount < 30: return "Intense"
-    else: return "Torrential"
 
+# 🚨 UPDATED: This function now accepts the HOURLY RATE (mm/h) for classification.
+def get_rain_intensity(rate_mm_h):
+    """Classifies rainfall based on standard hourly rate (mm/h)."""
+    if rate_mm_h <= 0.01: 
+        return "None"
+    elif 0.01 < rate_mm_h < 2.5: 
+        return "Light"
+    elif 2.5 <= rate_mm_h < 7.6: 
+        return "Moderate"
+    elif 7.6 <= rate_mm_h < 15: 
+        return "Heavy"
+    elif 15 <= rate_mm_h < 30: 
+        return "Intense"
+    else: 
+        return "Torrential"
+
+# 🚨 UPDATED: Calculates mm/h rate and uses it to get the intensity label.
 def predict_rain(input_features):
-    # ... (function body omitted, assumed functional) ...
     latest_data = input_features[-1]
     latest_temp, latest_humidity, _, _, _ = latest_data
 
+    # --- Fallback Logic (same as before) ---
     if model is None or scaler_X is None or scaler_y is None:
+        # Fallback will return TOTAL AMOUNT and DURATION. We need to calculate the rate here.
         if latest_humidity > 80 and latest_temp < 30:
-            rain_rate, duration = 5.0, 30.0
+            predicted_amount_mm, duration_min = 5.0, 30.0
         elif latest_humidity > 70:
-            rain_rate, duration = 2.0, 15.0
+            predicted_amount_mm, duration_min = 2.0, 15.0
         else:
-            rain_rate, duration = 0.5, 5.0
+            predicted_amount_mm, duration_min = 0.5, 5.0
         
-        intensity = get_rain_intensity(rain_rate)
-        return rain_rate, duration, intensity
+        # Calculate rate for fallback intensity
+        rate_mm_h = (predicted_amount_mm / duration_min) * 60 if duration_min > 0 else 0.0
+        intensity = get_rain_intensity(rate_mm_h)
+        
+        # Return predicted amount, duration, and the rate-based intensity
+        return predicted_amount_mm, duration_min, intensity, rate_mm_h
     
+    # --- ML Model Prediction Logic ---
     try:
         input_scaled = scaler_X.transform(input_features)
     except ValueError as e:
         print(f"Error during scaling: {e}")
-        return None, None, "Error"
+        return None, None, "Error", None
 
     X_seq = input_scaled.reshape(1, SEQUENCE_LENGTH, -1)
     y_pred_scaled = model.predict(X_seq, verbose=0)
     y_pred = scaler_y.inverse_transform(y_pred_scaled)
     
-    rain_rate = max(0, float(y_pred[0][0]))
-    duration = max(0, float(y_pred[0][1]))
-    intensity = get_rain_intensity(rain_rate)
-    return rain_rate, duration, intensity
+    # 1. Get the two numerical predictions (Total Amount and Duration)
+    predicted_amount_mm = max(0, float(y_pred[0][0]))
+    predicted_duration_minutes = max(0, float(y_pred[0][1]))
+    
+    # 2. Calculate the Rainfall Rate (mm/h)
+    rainfall_rate_mm_h = 0.0
+    if predicted_duration_minutes > 0.01: # Check > 0.01 to avoid division by near-zero duration
+        # Rate (mm/minute) * 60 minutes/hour = Rate (mm/h)
+        rainfall_rate_mm_h = (predicted_amount_mm / predicted_duration_minutes) * 60
+    
+    # 3. Classify Intensity based on the calculated RATE (mm/h)
+    intensity_label = get_rain_intensity(rainfall_rate_mm_h)
+    
+    # Return all four values for use in the main loop
+    return predicted_amount_mm, predicted_duration_minutes, intensity_label, rainfall_rate_mm_h
 
-def assess_flood_risk_by_barangay(rain_rate, duration, intensity_label):
-    # ... (function body omitted, assumed functional) ...
+
+def assess_flood_risk_by_barangay(rain_rate_mm_h, duration, intensity_label):
+    # This function uses the RATE (rain_rate_mm_h) for accurate risk assessment
     warnings = []
     
     for barangay, data in BARANGAY_RISK_DATA.items():
@@ -200,32 +221,36 @@ def assess_flood_risk_by_barangay(rain_rate, duration, intensity_label):
         risk_multiplier = data["risk_multiplier"]
         land_description = data["description"]
         
-        adjusted_rain_threshold = 2.5 / risk_multiplier  
-        adjusted_duration_threshold = 60 / risk_multiplier  
+        # Risk assessment now correctly compares the rate_mm_h against adjusted rate thresholds
+        # Standard moderate rain starts at 2.5 mm/h
+        adjusted_rain_threshold = 2.5 / risk_multiplier 
+        adjusted_duration_threshold = 60 / risk_multiplier 
         
-        if rain_rate >= adjusted_rain_threshold or (rain_rate > 0.5 and duration > adjusted_duration_threshold):
-            if intensity_label in ["Heavy", "Intense", "Torrential"] or rain_rate >= 7.6:
+        # Check against rate and duration
+        if rain_rate_mm_h >= adjusted_rain_threshold or (rain_rate_mm_h > 1.0 and duration > adjusted_duration_threshold):
+            # Use the rate to check for severe intensity
+            if intensity_label in ["Heavy", "Intense", "Torrential"] or rain_rate_mm_h >= 7.6:
                 risk_level = "High"
-                message = f"High flood risk in {barangay} due to predicted {intensity_label} rain ({rain_rate:.1f}mm) over {duration:.0f} minutes. {land_description}."
+                message = f"High flood risk in {barangay} due to predicted {intensity_label} rain ({rain_rate_mm_h:.1f}mm/h) over {duration:.0f} minutes. {land_description}."
             else:
                 risk_level = "Moderate"
-                message = f"Moderate flood risk in {barangay} due to predicted {intensity_label} rain. {land_description}."
+                message = f"Moderate flood risk in {barangay} due to predicted {intensity_label} rain ({rain_rate_mm_h:.1f}mm/h). {land_description}."
                 
             warning = {
                 "barangay": barangay, "land_type": land_type,
                 "area": f"{barangay} ({land_type.replace('_', ' ').title()})",
                 "risk_level": risk_level, "message": message,
-                "rain_rate": rain_rate, "duration": duration, "intensity": intensity_label
+                "rain_rate": rain_rate_mm_h, "duration": duration, "intensity": intensity_label
             }
             warnings.append(warning)
             
-        elif rain_rate > 1.0 and risk_multiplier > 1.0: 
+        elif rain_rate_mm_h > 1.0 and risk_multiplier > 1.0: 
             warning = {
                 "barangay": barangay, "land_type": land_type,
                 "area": f"{barangay} ({land_type.replace('_', ' ').title()})",
                 "risk_level": "Low",
                 "message": f"Low flood risk in {barangay}. Monitor conditions as {land_description}.",
-                "rain_rate": rain_rate, "duration": duration, "intensity": intensity_label
+                "rain_rate": rain_rate_mm_h, "duration": duration, "intensity": intensity_label
             }
             warnings.append(warning)
     
@@ -277,14 +302,17 @@ def main():
                 print(f"Wind Speed: {wind_speed:.2f} m/s, Barometric Pressure: {barometric_pressure:.2f} hPa")
                 print(f"Hour of Day: {int(current_hour)}")
                 
-                predicted_rain_rate, predicted_duration, intensity_label = predict_rain(input_features_array)
+                # 🚨 UPDATED: predict_rain now returns 4 values
+                predicted_amount_mm, predicted_duration_minutes, intensity_label, rainfall_rate_mm_h = predict_rain(input_features_array)
                 
-                if predicted_rain_rate is None:
+                if predicted_amount_mm is None:
                     print("Prediction failed during ML model execution.")
                 else:
                     print("\n--- Prediction Results ---")
-                    print(f"Predicted Rainfall: {predicted_rain_rate:.2f} mm")
-                    print(f"Estimated Duration: {predicted_duration:.2f} minutes")
+                    # 🚨 UPDATED: Print both the predicted total accumulation and the calculated hourly rate
+                    print(f"Predicted Total Rainfall: {predicted_amount_mm:.2f} mm")
+                    print(f"Estimated Duration: {predicted_duration_minutes:.2f} minutes")
+                    print(f"Calculated Rainfall Rate: {rainfall_rate_mm_h:.2f} mm/h")
                     print(f"Rainfall Intensity: {intensity_label}")
 
                     # ------------------------------------------------------------------
@@ -292,20 +320,17 @@ def main():
                     # ------------------------------------------------------------------
                     try:
                         with connection.cursor() as cursor:
-                            # 🚨 FIX: Add 8 hours to CURRENT_TIMESTAMP() (UTC) to get PST (UTC+8)
+                            # Insert the calculated rate (mm/h) into the predicted_rain column
                             cursor.execute("""
                                 INSERT INTO ai_predictions (predicted_rain, duration, intensity, created_at)
                                 VALUES (%s, %s, %s, DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL 8 HOUR)) 
-                            """, [predicted_rain_rate, predicted_duration, intensity_label])
+                            """, [rainfall_rate_mm_h, predicted_duration_minutes, intensity_label])
                         print("✅ Rain prediction results successfully inserted into the database.")
                         
-                        # Fetch the timestamp. Since it's now stored in PST, we can fetch it directly.
                         with connection.cursor() as cursor:
                             cursor.execute("SELECT created_at FROM ai_predictions ORDER BY created_at DESC LIMIT 1")
-                            # The fetched time (db_timestamp_naive) should now be the correct local time (12:xx:xx)
                             db_timestamp_pst = cursor.fetchone()[0]
                             
-                            # We can simply display the fetched time, making it aware of PST for clarity
                             print(f"🕒 Prediction Timestamp (PST): {db_timestamp_pst.strftime('%Y-%m-%d %H:%M:%S PST')}")
                             
                     except Exception as e:
@@ -314,34 +339,33 @@ def main():
                     # ------------------------------------------------------------------
                     # --- Step 4 & 5: Assess Flood Risk, Insert Warnings, and Send SMS ---
                     # ------------------------------------------------------------------
-                    flood_warnings = assess_flood_risk_by_barangay(predicted_rain_rate, predicted_duration, intensity_label)
+                    # 🚨 UPDATED: Pass the calculated mm/h rate to the flood risk function
+                    flood_warnings = assess_flood_risk_by_barangay(rainfall_rate_mm_h, predicted_duration_minutes, intensity_label)
                     
                     if flood_warnings:
                         print(f"\n--- FLOOD WARNINGS ISSUED FOR {len(flood_warnings)} BARANGAYS ---")
                         try:
                             with connection.cursor() as cursor:
-                                # Use the same fixed time logic for clearing old warnings
                                 cursor.execute("DELETE FROM flood_warnings WHERE prediction_date >= DATE_SUB(DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL 8 HOUR), INTERVAL 1 HOUR)")
                                 
                                 for warning in flood_warnings:
                                     print(f"🚨 {warning['risk_level']} Risk for {warning['barangay']} ({warning['land_type']}): {warning['message']}")
                                     
-                                    # Use the same fixed time logic for inserting new warnings
                                     cursor.execute("""
                                         INSERT INTO flood_warnings (area, risk_level, message, prediction_date)
                                         VALUES (%s, %s, %s, DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL 8 HOUR))
                                     """, [warning['area'], warning['risk_level'], warning['message']])
                                     
-                            print(f"✅ {len(flood_warnings)} flood warnings successfully inserted into the database.")
-                            # ... (Summary and SMS logic follow) ...
-                            
+                                print(f"✅ {len(flood_warnings)} flood warnings successfully inserted into the database.")
+                                
                         except Exception as e:
                             print(f"❌ Error processing or inserting flood warnings: {e}")
                     else:
                         print("\n✅ No flood warnings issued - all barangays are safe from flooding.")
 
             # --- PAUSE BEFORE THE NEXT RUN ---
-            print(f"\nCycle complete. Waiting for {PREDICTION_INTERVAL_SECONDS/60:.0f} minutes...")
+            # 💡 FIX: Added 'flush=True' to prevent the repeating output issue you encountered.
+            print(f"\nCycle complete. Waiting for {PREDICTION_INTERVAL_SECONDS/60:.0f} minutes...", flush=True) 
             time.sleep(PREDICTION_INTERVAL_SECONDS)
 
         except KeyboardInterrupt:
