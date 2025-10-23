@@ -412,15 +412,25 @@ def reset_password(request):
 
     return render(request, 'reset_password.html')
 
+# Assuming all necessary imports (JsonResponse, connection, datetime, logging) are available.
+
+def fetch_as_dict(cursor):
+    """Returns all rows from a cursor as a list of dicts."""
+    columns = [col[0] for col in cursor.description]
+    return [
+        dict(zip(columns, row))
+        for row in cursor.fetchall()
+    ]
+
 def get_rain_intensity(amount_mm_hr):
     """
     Determines the rain intensity based on amount in mm/hr, 
     using the standard PAGASA/Philippine Weather Service scale.
     """
     # Standard PAGASA 1-hour Intensity Thresholds (mm/hr)
-    LIGHT_TO_MODERATE = 2.5    # 2.5 mm/hr
-    MODERATE_TO_HEAVY = 7.5    # 7.5 mm/hr (or 7.6 depending on source)
-    HEAVY_TO_INTENSE  = 15     # 15 mm/hr
+    LIGHT_TO_MODERATE = 2.5  # 2.5 mm/hr
+    MODERATE_TO_HEAVY = 7.5  # 7.5 mm/hr (or 7.6 depending on source)
+    HEAVY_TO_INTENSE = 15   # 15 mm/hr
     INTENSE_TO_TORRENTIAL = 30 # 30 mm/hr
 
     if amount_mm_hr is None or amount_mm_hr <= 0:
@@ -435,7 +445,7 @@ def get_rain_intensity(amount_mm_hr):
         return "Intense"
     else:
         return "Torrential"
-    
+
 def get_wind_signal(wind_speed_mps):
     """
     Determines the Tropical Cyclone Wind Signal (TCWS) based on 
@@ -447,8 +457,8 @@ def get_wind_signal(wind_speed_mps):
     # Convert PAGASA km/h thresholds to m/s by dividing by 3.6
     
     # Sig. 1: 30-60 km/h (8.33 to 16.67 m/s)
-    SIG1_MIN = 30 / 3.6  # 8.33... m/s
-    SIG2_MIN = 61 / 3.6  # 16.94... m/s
+    SIG1_MIN = 30 / 3.6 # 8.33... m/s
+    SIG2_MIN = 61 / 3.6 # 16.94... m/s
     SIG3_MIN = 101 / 3.6 # 28.05... m/s
     SIG4_MIN = 151 / 3.6 # 41.94... m/s
     SIG5_MIN = 201 / 3.6 # 55.83... m/s (200 km/h is the max for Sig 4)
@@ -489,189 +499,202 @@ def latest_dashboard_data(request):
 
         with connection.cursor() as cursor:
             # 1. Fetch Latest Weather Data
+            weather_fields = [
+                'temperature', 'humidity', 'rain_rate', 'dew_point', 
+                'wind_speed', 'barometric_pressure', 'altitude', 'date_time', 
+                'location', 'latitude', 'longitude', 'sensor_id' # 's.name' aliased to 'location'
+            ]
+
             if selected_sensor_id:
-                cursor.execute("""
+                sql_query = """
                     SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, 
+                        s.name, s.latitude, s.longitude, s.sensor_id
                     FROM weather_reports wr
                     JOIN sensor s ON wr.sensor_id = s.sensor_id
                     WHERE wr.sensor_id = %s
                     ORDER BY wr.date_time DESC
                     LIMIT 1
-                """, [selected_sensor_id])
+                """
+                params = [selected_sensor_id]
             else:
-                cursor.execute("""
+                sql_query = """
                     SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, 
+                        s.name, s.latitude, s.longitude, s.sensor_id
                     FROM weather_reports wr
                     JOIN sensor s ON wr.sensor_id = s.sensor_id
                     ORDER BY wr.date_time DESC
                     LIMIT 1
-                """)
-        
-        row = cursor.fetchone()
-        weather = {}
-        if row:
-            weather = {
-                'temperature': row[0],
-                'humidity': row[1],
-                'rain_rate': row[2],
-                'dew_point': row[3],
-                'wind_speed': row[4],
-                'barometric_pressure': row[5],
-                'altitude': row[6],
-                'date_time': row[7].strftime('%Y-%m-%d %H:%M:%S'),
-                'location': row[8],
-                'latitude': row[9],
-                'longitude': row[10],
-                'error': None
-            }
-            if not selected_sensor_id:
-                selected_sensor_id = row[11]
-        else:
-            weather = {
-                'error': 'No weather data available',
-                'temperature': 'N/A',
-                'humidity': 'N/A',
-                'rain_rate': 'N/A',
-                'dew_point': 'N/A',
-                'wind_speed': 'N/A',
-                'barometric_pressure': 'N/A',
-                'altitude': 'N/A',
-                'date_time': 'N/A',
-                'location': 'Unknown',
-                'latitude': None,
-                'longitude': None
-            }
-
-        # 2. Prepare Chart Data (only for the selected sensor)
-        chart_labels = []
-        chart_data = []
-        if selected_sensor_id:
-            cursor.execute("""
-                SELECT DATE_FORMAT(date_time, '%%a %%b %%d') AS label, temperature
-                FROM weather_reports
-                WHERE sensor_id = %s
-                ORDER BY date_time DESC
-                LIMIT 10
-            """, [selected_sensor_id])
-            rows = cursor.fetchall()
-            for row in reversed(rows):
-                chart_labels.append(row[0])
-                chart_data.append(float(row[1]))
-
-        # 3. Fetch AI Prediction
-        forecast = {}
-        cursor.execute("""
-            SELECT predicted_rain, duration, intensity
-            FROM ai_predictions
-            ORDER BY created_at DESC
-            LIMIT 1
-        """)
-        row = cursor.fetchone()
-        if row:
-            forecast = {
-                'prediction': float(row[0]),
-                'duration': float(row[1]),
-                'intensity': row[2],
-                'error': None
-            }
-        else:
-            forecast = {'error': 'No AI prediction data available.'}
+                """
+                params = []
             
-        # Fetch all recent flood warnings (last 24 hours) for barangay-specific display
-        flood_warnings = []
-        cursor.execute("""
-            SELECT area, risk_level, message, prediction_date
-            FROM flood_warnings
-            WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-            ORDER BY 
-                CASE risk_level 
-                    WHEN 'High' THEN 1 
-                    WHEN 'Moderate' THEN 2 
-                    WHEN 'Low' THEN 3 
-                    ELSE 4 
-                END,
-                prediction_date DESC
-        """)
-        rows = cursor.fetchall()
-        
-        if rows:
-            for row in rows:
-                flood_warnings.append({
-                    'area': row[0],
-                    'risk_level': row[1],
-                    'message': row[2],
-                    'prediction_date': row[3].strftime('%Y-%m-%d %H:%M:%S') if row[3] else None
-                })
-        
-        # For backward compatibility, keep the first warning as the main flood_warning
-        flood_warning = flood_warnings[0] if flood_warnings else {'error': 'No recent flood warning data available.'}
+            cursor.execute(sql_query, params)
+            
+            row = cursor.fetchone()
+            weather = {}
+            if row:
+                # Map the row to a dictionary using explicit column names
+                weather = dict(zip(weather_fields, row))
 
-        # 4. Fetch Alerts (the logic is copied directly from your original admin_dashboard view)
-        alerts = []
-        cursor.execute("""
-            SELECT s.sensor_id, s.name, wr.rain_rate, wr.wind_speed, wr.date_time
-            FROM sensor s
-            LEFT JOIN weather_reports wr ON s.sensor_id = wr.sensor_id
-            WHERE wr.date_time = (
-                SELECT MAX(date_time) 
-                FROM weather_reports 
-                WHERE sensor_id = s.sensor_id
-            ) OR wr.date_time IS NULL
-        """)
-        
-        for row in cursor.fetchall():
-            sensor_id, name, rain_rate, wind_speed, date_time = row
+                # FIX 1: Safely format date_time
+                date_time_obj = weather.get('date_time')
+                if date_time_obj:
+                    weather['date_time'] = date_time_obj.strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    weather['date_time'] = 'N/A' # Default value if NULL
 
-            # --- RAIN ALERT FIXES ---
-            if rain_rate is not None:
-                intensity = get_rain_intensity(rain_rate)
+                weather['error'] = None
                 
-                # FIX: Use the rain_rate directly for display, as it's already in mm/hr
-                rain_rate_mm_hr = rain_rate  
-                
-                # Check for PAGASA's 'Heavy', 'Intense', or 'Torrential' rainfall
-                if intensity in ["Heavy", "Intense", "Torrential"]:
-                    alerts.append({
-                        'text': f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate_mm_hr:.1f} mm/hr) {date_time.strftime('%Y-%m-%d %H:%M:%S')}",
-                        'timestamp': datetime.now().isoformat(),
-                        'type': 'rain',
-                        'intensity': intensity.lower(),
-                        'sensor_id': sensor_id
-                    })
+                # Use the fetched sensor_id if none was provided in the request
+                if not selected_sensor_id:
+                    selected_sensor_id = weather.get('sensor_id')
+            else:
+                weather = {
+                    'error': 'No weather data available',
+                    'temperature': 'N/A', 'humidity': 'N/A', 'rain_rate': 'N/A', 
+                    'dew_point': 'N/A', 'wind_speed': 'N/A', 'barometric_pressure': 'N/A', 
+                    'altitude': 'N/A', 'date_time': 'N/A', 'location': 'Unknown', 
+                    'latitude': None, 'longitude': None
+                }
 
-            if wind_speed is not None:
-                wind_signal = get_wind_signal(wind_speed)
+            # 2. Prepare Chart Data (only for the selected sensor)
+            chart_labels = []
+            chart_data = []
+            if selected_sensor_id:
+                cursor.execute("""
+                    SELECT DATE_FORMAT(date_time, '%%a %%b %%d') AS label, temperature
+                    FROM weather_reports
+                    WHERE sensor_id = %s
+                    ORDER BY date_time DESC
+                    LIMIT 10
+                """, [selected_sensor_id])
+                rows = cursor.fetchall()
+                for row in reversed(rows):
+                    chart_labels.append(row[0])
+                    chart_data.append(float(row[1]))
+
+            # 3. Fetch AI Prediction
+            forecast = {}
+            cursor.execute("""
+                SELECT predicted_rain, duration, intensity
+                FROM ai_predictions
+                ORDER BY created_at DESC
+                LIMIT 1
+            """)
+            row = cursor.fetchone()
+            if row:
+                forecast = {
+                    'prediction': float(row[0]),
+                    'duration': float(row[1]),
+                    'intensity': row[2],
+                    'error': None
+                }
+            else:
+                forecast = {'error': 'No AI prediction data available.'}
                 
-                if wind_signal != "No Signal":
-                    # Convert m/s to km/h for more contextual alert text
-                    wind_speed_kmh = wind_speed * 3.6
+            # Fetch all recent flood warnings (last 24 hours) for barangay-specific display
+            cursor.execute("""
+                SELECT area, risk_level, message, prediction_date
+                FROM flood_warnings
+                WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                ORDER BY 
+                    CASE risk_level 
+                        WHEN 'High' THEN 1 
+                        WHEN 'Moderate' THEN 2 
+                        WHEN 'Low' THEN 3 
+                        ELSE 4 
+                    END,
+                    prediction_date DESC
+            """)
+            
+            # Using the helper to convert rows to dictionaries
+            rows = fetch_as_dict(cursor) 
+            flood_warnings = []
+            
+            if rows:
+                for row in rows:
+                    # FIX 2: Safely format prediction_date to prevent 'NoneType' error
+                    prediction_date_obj = row.get('prediction_date')
+                    if prediction_date_obj:
+                        row['prediction_date'] = prediction_date_obj.strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        row['prediction_date'] = 'N/A' # Default value if NULL
+                        
+                    flood_warnings.append(row)
+            
+            # For backward compatibility, keep the first warning as the main flood_warning
+            flood_warning = flood_warnings[0] if flood_warnings else {'error': 'No recent flood warning data available.'}
+
+            # 4. Fetch Alerts (UPDATED LOGIC with SAFETY CHECK)
+            alerts = []
+            cursor.execute("""
+                SELECT s.sensor_id, s.name, wr.rain_rate, wr.wind_speed, wr.date_time
+                FROM sensor s
+                LEFT JOIN weather_reports wr ON s.sensor_id = wr.sensor_id
+                WHERE wr.date_time = (
+                    SELECT MAX(date_time) 
+                    FROM weather_reports 
+                    WHERE sensor_id = s.sensor_id
+                ) OR wr.date_time IS NULL
+            """)
+            
+            for row in cursor.fetchall():
+                sensor_id, name, rain_rate, wind_speed, date_time = row
+
+                # CRITICAL FIX 3: Check for None on date_time before calling strftime()
+                dt_str = date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else 'N/A'
+
+                # --- RAIN ALERT LOGIC ---
+                if rain_rate is not None:
+                    intensity = get_rain_intensity(rain_rate)
                     
-                    alerts.append({
-                        'text': f"🚨 {wind_signal} (PAGASA) Wind Alert for {name} ({wind_speed:.1f} m/s or {wind_speed_kmh:.0f} km/h) {date_time.strftime('%Y-%m-%d %H:%M:%S')}",
-                        'timestamp': datetime.now().isoformat(),
-                        'type': 'wind',
-                        'intensity': wind_signal.replace(" ", "_").lower(), 
-                        'sensor_id': sensor_id
-                    })
-    
-        # Return all data as a single JSON response
-        return JsonResponse({
-            'weather': weather,
-            'alerts': alerts,
-            'forecast': [forecast] if forecast.get('error') is None else [],
-            'flood_warning': flood_warning,
-            'flood_warnings': flood_warnings,  # Include all barangay warnings
-            'chart_labels': chart_labels,
-            'chart_data': chart_data,
-        })
+                    rain_rate_mm_hr = rain_rate 
+                    
+                    if intensity in ["Heavy", "Intense", "Torrential"]:
+                        alerts.append({
+                            # Use the safe dt_str variable here
+                            'text': f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate_mm_hr:.1f} mm/hr) {dt_str}", 
+                            'timestamp': datetime.now().isoformat(),
+                            'type': 'rain',
+                            'intensity': intensity.lower(),
+                            'sensor_id': sensor_id
+                        })
+
+                # --- WIND ALERT LOGIC ---
+                if wind_speed is not None:
+                    wind_signal = get_wind_signal(wind_speed)
+                    
+                    if wind_signal != "No Signal":
+                        # Convert m/s to km/h for more contextual alert text
+                        wind_speed_kmh = wind_speed * 3.6
+                        
+                        alerts.append({
+                            # Use the safe dt_str variable here
+                            'text': f"🚨 {wind_signal} (PAGASA) Wind Alert for {name} ({wind_speed:.1f} m/s or {wind_speed_kmh:.0f} km/h) {dt_str}",
+                            'timestamp': datetime.now().isoformat(),
+                            'type': 'wind',
+                            'intensity': wind_signal.replace(" ", "_").lower(), 
+                            'sensor_id': sensor_id
+                        })
+            
+            # Return all data as a single JSON response
+            return JsonResponse({
+                'weather': weather,
+                'alerts': alerts,
+                'forecast': [forecast] if forecast.get('error') is None else [],
+                'flood_warning': flood_warning,
+                'flood_warnings': flood_warnings, # Include all barangay warnings
+                'chart_labels': chart_labels,
+                'chart_data': chart_data,
+            })
     
     except Exception as e:
         # Log the error for debugging
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Error in latest_dashboard_data: {str(e)}")
+        # Log error with traceback info
+        logger.error(f"Error in latest_dashboard_data: {str(e)}", exc_info=True) 
         
         # Return error response
         return JsonResponse({
@@ -743,7 +766,7 @@ def admin_dashboard(request):
         if row:
             weather = {
                 'temperature': row[0], 'humidity': row[1], 'rain_rate': row[2], 
-                'dew_point': row[3], 'wind_speed': row[4], 'barometric_pressure': row[5], 'altitude': row[6], 
+                'dew_point': row[3], 'wind_speed': row[4], 'barometric_pressure': row[5], 'altitude': row[6],
                 'date_time': row[7].strftime('%Y-%m-%d %H:%M:%S'), 'location': row[8], 
                 'latitude': row[9], 'longitude': row[10], 'error': None
             }
@@ -752,7 +775,7 @@ def admin_dashboard(request):
              weather = {
                 'error': 'No weather data available', 'temperature': 'N/A', 
                 'humidity': 'N/A', 'rain_rate': 'N/A', 'dew_point': 'N/A', 
-                'wind_speed': 'N/A', 'barometric_pressure': 'N/A', 'altitude': 'N/A', 
+                'wind_speed': 'N/A', 'barometric_pressure': 'N/A', 'altitude': 'N/A',
                 'date_time': 'N/A', 'location': 'Unknown', 
                 'latitude': None, 'longitude': None
             }
@@ -830,69 +853,38 @@ def admin_dashboard(request):
          """)
         
         for row in cursor.fetchall():
-            # FIX 1: Corrected comment to reflect database unit
-            # Note: rain_rate is in mm/hr, wind_speed is in m/s 
             sensor_id, name, lat, lng, radius, rain_rate, wind_speed, date_time = row
-            
             has_alert = False
             alert_text = ""
-            # Ensure date_time_str is generated safely
-            date_time_str = date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else ""
+            date_time_str = date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else None
 
-            # --- 1. RAINFALL ALERT (PAGASA Scale) ---
-            rain_intensity_label = "None"
-            if rain_rate is not None and rain_rate > 0:
+            # --- ⚠️ ALERT GENERATION LOGIC: UI List + Map Data Enrichment ⚠️ ---
+            
+            # 1. Heavy Rainfall Alert (rain_rate >= 7.6 mm)
+            if rain_rate is not None and rain_rate >= 7.6:
+                alert_msg = f"⚠️ Heavy Rainfall Alert in {name} ({rain_rate} mm/hr)"
+                # Add to the UI Alerts List
+                alerts.append({
+                    'text': alert_msg, 
+                    'timestamp': date_time_str,
+                    'location_name': name
+                })
+                alert_text += alert_msg + "<br>"
+                has_alert = True
                 
-                # FIX 2: The fetched rain_rate (mm/hr) is passed directly to the classification function.
-                # Ensure you are using the mm/hr version of get_rain_intensity (without division by 60 in its definition).
-                rain_intensity_label = get_rain_intensity(rain_rate)
-
-                # FIX 3: rain_rate_mm_hr is the fetched value itself (no multiplication needed).
-                rain_rate_mm_hr = rain_rate 
-
-                # Check for PAGASA's highest alert levels (Heavy, Intense, Torrential)
-                if rain_intensity_label in ["Heavy", "Intense", "Torrential"]:
-                    
-                    alert_msg = f"⚠️ {rain_intensity_label} Rainfall Alert in {name} ({rain_rate_mm_hr:.1f} mm/hr)"
-                    
-                    # Add to the UI Alerts List
-                    alerts.append({
-                        'text': alert_msg, 
-                        'timestamp': date_time_str,
-                        'location_name': name,
-                        'type': 'rain', # Added
-                        'severity': rain_intensity_label.lower(), # Added
-                        'sensor_id': sensor_id # Added
-                    })
-                    alert_text += alert_msg + "<br>"
-                    has_alert = True
-                    
-            # --- 2. WIND SIGNAL ALERT (PAGASA TCWS) ---
-            wind_signal = "No Signal"
-            if wind_speed is not None and wind_speed > 0:
-                
-                # Use the m/s data to get the PAGASA Wind Signal
-                wind_signal = get_wind_signal(wind_speed)
-                
-                # Check if a TCWS is issued (Signal No. 1 or higher)
-                if wind_signal != "No Signal":
-                    
-                    # Convert m/s to km/h for contextual display (m/s * 3.6)
-                    wind_speed_kmh = wind_speed * 3.6
-                    
-                    alert_msg = f"🚨 {wind_signal} (PAGASA) Wind Alert in {name} ({wind_speed_kmh:.0f} km/h)"
-                    
-                    # Add to the UI Alerts List
-                    alerts.append({
-                        'text': alert_msg, 
-                        'timestamp': date_time_str,
-                        'location_name': name,
-                        'type': 'wind', # Added
-                        'severity': wind_signal.replace(" ", "_").lower(), # Added
-                        'sensor_id': sensor_id # Added
-                    })
-                    alert_text += alert_msg + "<br>"
-                    has_alert = True
+            # 2. Strong Wind Alert (wind_speed > 30 km/h)
+            if wind_speed is not None and wind_speed > 30:
+                alert_msg = f"⚠️ Strong Wind Alert in {name} ({wind_speed} km/h)"
+                # Add to the UI Alerts List
+                alerts.append({
+                    'text': alert_msg, 
+                    'timestamp': date_time_str,
+                    'location_name': name
+                })
+                alert_text += alert_msg + "<br>"
+                has_alert = True
+            
+            # --- END ALERT GENERATION ---
 
             # Prepare enriched data for the map (JavaScript 'locations' array)
             locations.append({
@@ -1228,7 +1220,6 @@ def get_alerts(request):
             'alerts': [],
             'error': str(e)
         }, status=500)
-
 @csrf_exempt
 def mark_alerts_read(request):
     if request.method == "POST":
@@ -2673,8 +2664,8 @@ def receive_sensor_data(request):
 
         dew_point = temperature - ((100 - humidity) / 5)
 
-        # Since the interval is fixed at 1 minutes:
-        rain_rate = rainfall_mm * 60
+        # Since the interval is fixed at 10 minutes:
+        rain_rate = rainfall_mm * 6
         rain_accumulated = rainfall_mm
 
         intensity_label = get_rain_intensity(rain_rate)
