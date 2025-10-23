@@ -2667,7 +2667,7 @@ def receive_sensor_data(request):
             pressure = 0
 
         try:
-            altitude = float(data.get('altitude', 0))
+            altitude = float(data.get('altitude_m', 0))
         except (ValueError, TypeError):
             altitude = 0
 
