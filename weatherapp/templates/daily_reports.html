@@ -546,7 +546,7 @@
             },
             { 
                 data: 'avg_altitude', 
-                title: 'Altitude (m)',
+                title: 'Altitude (cm)',
                 render: function(data) {
                     return data ? parseFloat(data).toFixed(1) : 'N/A';
                 }
@@ -560,7 +560,7 @@
             },
             { 
                 data: 'avg_rain_rate', 
-                title: 'Rain Rate (mm/h)',
+                title: 'Rain Rate (mm/min)',
                 render: function(data) {
                     return data ? parseFloat(data).toFixed(2) : 'N/A';
                 }
@@ -585,12 +585,12 @@
                 "date": "{{ report.date|date:'Y-m-d'|default:'N/A' }}",
                 "avg_temperature": "{{ report.avg_temperature|floatformat:1|default:'N/A' }}",
                 "avg_humidity": "{{ report.avg_humidity|floatformat:1|default:'N/A' }}",
-                "max_wind_speed": "{{ report.avg_wind_speed|floatformat:1|default:'N/A' }}",
+                "avg_wind_speed": "{{ report.avg_wind_speed|floatformat:1|default:'N/A' }}",
                 "avg_barometric_pressure": "{{ report.avg_barometric_pressure|floatformat:1|default:'N/A' }}",
                 "avg_altitude": "{{ report.avg_altitude|floatformat:1|default:'N/A' }}",
                 "avg_dew_point": "{{ report.avg_dew_point|floatformat:1|default:'N/A' }}",
-                "max_rain_rate": "{{ report.avg_rain_rate|floatformat:2|default:'N/A' }}",
-                "total_rain": "{{ report.total_rain_accumulated|floatformat:2|default:'N/A' }}"
+                "avg_rain_rate": "{{ report.avg_rain_rate|floatformat:2|default:'N/A' }}",
+                "total_rain_accumulated": "{{ report.total_rain_accumulated|floatformat:2|default:'N/A' }}"
             }{% if not forloop.last %},{% endif %}
             {% endfor %}
         ];

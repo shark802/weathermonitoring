@@ -332,11 +332,11 @@
                 <th>Humidity (%)</th>
                 <th>Wind Speed (m/s)</th>
                 <th>Pressure (hPa)</th>
-                <th>Altitude (m)</th>
+                <th>Altitude (cm)</th>
                 <th>Dew Point (°C)</th>
                 <th>Rain Rate (mm/h)</th>
                 <th>Intensity</th>
-                <th>Rain (mm/10min)</th>
+                <th>Rain (mm/min)</th>
               </tr>
             </thead>
             <tbody>
@@ -618,7 +618,7 @@
             },
             { 
                 data: 'altitude', 
-                title: 'Altitude (m)',
+                title: 'Altitude (cm)',
                 render: function(data) {
                     return data ? parseFloat(data).toFixed(1) : 'N/A';
                 }
@@ -632,7 +632,7 @@
             },
             { 
                 data: 'rain_rate', 
-                title: 'Rain Rate (mm/h)',
+                title: 'Rain Rate (mm/min)',
                 render: function(data) {
                     return data ? parseFloat(data).toFixed(2) : 'N/A';
                 }
@@ -646,7 +646,7 @@
             },
             { 
                 data: 'rain_accumulated', 
-                title: 'Rain (mm/10min)',
+                title: 'Rain (mm/min)',
                 render: function(data) {
                     return data ? parseFloat(data).toFixed(2) : 'N/A';
                 }
@@ -704,7 +704,7 @@
                         temperature: report.temperature,
                         humidity: report.humidity,
                         wind_speed: report.wind_speed,
-                        pressure: report.pressure,
+                        pressure: report.barometric_pressure,
                         altitude: report.altitude,
                         dew_point: report.dew_point,
                         rain_rate: report.rain_rate,
