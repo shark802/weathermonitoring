@@ -344,68 +344,6 @@
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
 
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
-    const alertTypeSelect = document.getElementById('alert_type');
-    const severitySelect = document.getElementById('severity');
-    
-    // --- 1. Robustly Group Options ---
-    const allOptions = Array.from(severitySelect.options);
-
-    // FIX: Define the complete list of all potential severity options.
-    // Since the original HTML only had Rain options, we add the Wind options here.
-    // If your HTML contained all options (Rain first, then Wind), this logic would be simpler.
-    
-    // 1. Group the currently visible options (Rain options)
-    const rainOptions = allOptions; 
-
-    // 2. Define the missing Wind options (assuming these are the desired levels)
-    const windOptionsData = [
-        { value: 'Gale', text: 'Gale' },
-        { value: 'Storm', text: 'Storm' },
-        { value: 'Typhoon', text: 'Typhoon' }
-    ];
-    // Create actual Option elements for Wind
-    const windOptions = windOptionsData.map(data => {
-        const opt = document.createElement('option');
-        opt.value = data.value;
-        opt.textContent = data.text;
-        return opt;
-    });
-
-    // Create a map to store options grouped by their type (Rain/Wind)
-    const severityMap = {
-        // FIX: The HTML value is lowercase ('rain'), so we use 'rain' as the key
-        // We will keep the capitalization logic for robustness, but use lowercase keys.
-        'rain': rainOptions, 
-        'wind': windOptions
-    };
-
-    // Function to dynamically update the Severity dropdown
-    function updateSeverityOptions() {
-        severitySelect.innerHTML = '';
-        
-        // Use the actual lowercase value from the HTML ('rain' or 'wind')
-        const selectedType = alertTypeSelect.value;
-        
-        // Get the relevant array of options (either rainOptions or windOptions)
-        const optionsToShow = severityMap[selectedType] || []; 
-
-        optionsToShow.forEach(option => {
-            severitySelect.appendChild(option.cloneNode(true));
-        });
-        
-        if (severitySelect.options.length > 0) {
-            severitySelect.selectedIndex = 0;
-        }
-    }
-
-    // --- 2. Add Event Listener & Initial Call ---
-    
-    alertTypeSelect.addEventListener('change', updateSeverityOptions);
-    
-    // This runs on load and will correctly show the Rain options
-    updateSeverityOptions(); 
-});
 
   function showLogoutModal() {
     document.getElementById('logoutModal').classList.remove('hidden');
@@ -560,7 +498,7 @@
             },
             { 
                 data: 'avg_rain_rate', 
-                title: 'Rain Rate (mm/min)',
+                title: 'Rain Rate (mm/h)',
                 render: function(data) {
                     return data ? parseFloat(data).toFixed(2) : 'N/A';
                 }
