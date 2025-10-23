@@ -240,7 +240,7 @@
                                             <i class="fas fa-mountain text-purple-500 text-lg mr-3"></i>
                                             <span class="font-medium text-gray-700">Altitude</span>
                                         </div>
-                                        <span class="text-xl font-bold text-purple-600">{{ weather.altitude|default:"N/A" }} m</span>
+                                        <span class="text-xl font-bold text-purple-600">{{ weather.altitude|default:"N/A" }} cm</span>
                                     </div>
                                 </div>
                             {% endif %}
@@ -813,7 +813,7 @@ let tempChart;
                                             <i class="fas fa-mountain text-purple-500 text-lg mr-3"></i>
                                             <span class="font-medium text-gray-700">Altitude</span>
                                         </div>
-                                        <span class="text-xl font-bold text-purple-600">${weather.altitude ?? "N/A"} m</span>
+                                        <span class="text-xl font-bold text-purple-600">${weather.altitude ?? "N/A"} cardm</span>
                                     </div>
                                 </div>
                             `;
@@ -937,36 +937,71 @@ let tempChart;
                         const alerts = data.alerts;
                         const alertsHTML = alerts.length > 0 ?
                             alerts.map(alert => {
-                                let severityClass = 'low';
+                                let severityClass = 'low'; // Default to low
                                 let iconClass = 'fa-exclamation-triangle';
                                 let severityText = 'LOW';
                                 let gradientClass = 'from-gray-50 to-slate-50 border-gray-200';
-                                
-                                    if (alert.type === 'rain') {
+                                let alertMessage = 'Weather alert in your area. Please stay informed.';
+
+                                if (alert.type === 'rain') {
                                     iconClass = 'fa-cloud-rain';
+                                    
+                                    // --- RAIN LOGIC ---
                                     if (alert.intensity === 'torrential') {
                                         severityClass = 'critical';
                                         severityText = 'CRITICAL';
                                         gradientClass = 'from-red-50 to-pink-50 border-red-200';
+                                        alertMessage = '⚠️ **Torrential Rainfall detected.** Extreme flood danger. Immediate evacuation is necessary.';
                                     } else if (alert.intensity === 'intense') {
                                         severityClass = 'high';
                                         severityText = 'HIGH';
                                         gradientClass = 'from-orange-50 to-red-50 border-orange-200';
+                                        alertMessage = '🚨 **Intense Rainfall detected.** High flood risk. Prepare for evacuation.';
                                     } else if (alert.intensity === 'heavy') {
                                         severityClass = 'moderate';
                                         severityText = 'MODERATE';
                                         gradientClass = 'from-yellow-50 to-orange-50 border-yellow-200';
+                                        alertMessage = '⚠️ **Heavy Rainfall detected.** Moderate flood risk. Monitor water levels closely.';
                                     }
-                                    } else if (alert.type === 'wind') {
+                                } else if (alert.type === 'wind') {
                                     iconClass = 'fa-wind';
-                                    severityClass = 'moderate';
-                                    severityText = 'MODERATE';
-                                    gradientClass = 'from-blue-50 to-cyan-50 border-blue-200';
+                                    
+                                    // --- WIND LOGIC (PAGASA-style Signals) ---
+                                    if (alert.intensity.includes('signal_5') || alert.intensity.includes('signal_4')) {
+                                        severityClass = 'critical';
+                                        severityText = 'CRITICAL';
+                                        gradientClass = 'from-red-50 to-pink-50 border-red-200';
+                                        alertMessage = '🛑 **Extreme Wind Signal.** Catastrophic winds expected. Stay indoors in a safe structure.';
+                                    } else if (alert.intensity.includes('signal_3')) {
+                                        severityClass = 'high';
+                                        severityText = 'HIGH';
+                                        gradientClass = 'from-orange-50 to-red-50 border-orange-200';
+                                        alertMessage = '🚨 **Signal #3 Winds.** Severe threat to life and property. Avoid all outdoor activities.';
+                                    } else if (alert.intensity.includes('signal_2')) {
+                                        severityClass = 'moderate';
+                                        severityText = 'MODERATE';
+                                        gradientClass = 'from-yellow-50 to-orange-50 border-yellow-200';
+                                        alertMessage = '⚠️ **Signal #2 Winds.** Moderate threat to life and property. Secure all loose objects.';
+                                    } else if (alert.intensity.includes('signal_1')) {
+                                        severityClass = 'low'; // Even low alerts are worth showing
+                                        severityText = 'LOW';
+                                        gradientClass = 'from-blue-50 to-cyan-50 border-blue-200';
+                                        alertMessage = '🌬️ **Signal #1 Winds.** Minimal threat, but minor damage is possible. Be cautious.';
+                                    }
                                 } else if (alert.type === 'flood') {
                                     iconClass = 'fa-water';
-                                    severityClass = 'high';
-                                    severityText = 'HIGH';
-                                    gradientClass = 'from-red-50 to-pink-50 border-red-200';
+                                    // Assuming flood warnings also pass a risk_level intensity (High, Moderate, Low)
+                                    if (alert.intensity === 'High' || alert.intensity === 'Moderate') {
+                                        severityClass = 'high';
+                                        severityText = 'HIGH';
+                                        gradientClass = 'from-red-50 to-pink-50 border-red-200';
+                                        alertMessage = '🌊 **Flood Warning.** High risk in affected areas. Move to higher ground immediately.';
+                                    } else {
+                                        severityClass = 'low';
+                                        severityText = 'LOW';
+                                        gradientClass = 'from-blue-50 to-cyan-50 border-blue-200';
+                                        alertMessage = '💧 **Flood Watch.** Monitor conditions as flooding is possible.';
+                                    }
                                 }
                                 
                                 return `
@@ -978,17 +1013,14 @@ let tempChart;
                                             </div>
                                             <span class="weather-alert-severity px-3 py-1 rounded-full text-white text-sm font-bold
                                                 ${severityText === 'CRITICAL' ? 'bg-red-600' : 
-                                                  severityText === 'HIGH' ? 'bg-orange-500' : 
-                                                  severityText === 'MODERATE' ? 'bg-yellow-500' : 
-                                                  'bg-gray-500'}">
+                                                severityText === 'HIGH' ? 'bg-orange-500' : 
+                                                severityText === 'MODERATE' ? 'bg-yellow-500' : 
+                                                'bg-blue-500'}">
                                                 ${severityText}
                                             </span>
                                         </div>
                                         <div class="weather-alert-body text-gray-700 mb-2">
-                                            ${alert.type === 'rain' ? 'Heavy rainfall detected in your area. Please take necessary precautions.' :
-                                              alert.type === 'wind' ? 'Strong winds detected. Secure outdoor objects and avoid unnecessary travel.' :
-                                              alert.type === 'flood' ? 'Flood risk detected. Move to higher ground if necessary.' :
-                                              'Weather alert in your area. Please stay informed.'}
+                                            ${alertMessage}
                                         </div>
                                         <div class="weather-alert-timestamp flex items-center text-sm text-gray-500">
                                             <i class="fas fa-clock mr-2"></i>
@@ -997,6 +1029,7 @@ let tempChart;
                                     </div>
                                 `;
                             }).join('') :
+                            // ... (rest of 'All Clear' logic remains the same)
                             `<div class="weather-alert low bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 shadow-sm">
                                 <div class="weather-alert-header flex justify-between items-center mb-3">
                                     <div class="flex items-center">
