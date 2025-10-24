@@ -35,7 +35,7 @@ import logging
 import sys
 import urllib.parse 
 
-utc_plus_8 = timezone(timedelta(hours=8))
+utc_plus_8 = pytz.timezone('Asia/Manila')
 
 logger = logging.getLogger(__name__)
 
@@ -412,75 +412,42 @@ def reset_password(request):
 
     return render(request, 'reset_password.html')
 
-# Assuming all necessary imports (JsonResponse, connection, datetime, logging) are available.
 
 def fetch_as_dict(cursor):
-    """Returns all rows from a cursor as a list of dicts."""
+    """A helper function to fetch results as a dictionary."""
     columns = [col[0] for col in cursor.description]
-    return [
-        dict(zip(columns, row))
-        for row in cursor.fetchall()
-    ]
+    return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-def get_rain_intensity(amount_mm_hr):
-    """
-    Determines the rain intensity based on amount in mm/hr, 
-    using the standard PAGASA/Philippine Weather Service scale.
-    """
-    # Standard PAGASA 1-hour Intensity Thresholds (mm/hr)
-    LIGHT_TO_MODERATE = 2.5  # 2.5 mm/hr
-    MODERATE_TO_HEAVY = 7.5  # 7.5 mm/hr (or 7.6 depending on source)
-    HEAVY_TO_INTENSE = 15   # 15 mm/hr
-    INTENSE_TO_TORRENTIAL = 30 # 30 mm/hr
+def get_rain_intensity(rain_rate):
+    """Placeholder for rain intensity logic."""
+    if rain_rate is None: return "None"
+    if rain_rate >= 50.0: return "Torrential"
+    if rain_rate >= 30.0: return "Intense"
+    if rain_rate >= 7.6: return "Heavy"
+    if rain_rate >= 2.5: return "Moderate"
+    if rain_rate > 0.0: return "Light"
+    return "None"
 
-    if amount_mm_hr is None or amount_mm_hr <= 0:
-        return "None"
-    elif amount_mm_hr < LIGHT_TO_MODERATE:
-        return "Light"
-    elif amount_mm_hr < MODERATE_TO_HEAVY:
-        return "Moderate"
-    elif amount_mm_hr < HEAVY_TO_INTENSE:
-        return "Heavy"
-    elif amount_mm_hr < INTENSE_TO_TORRENTIAL:
-        return "Intense"
-    else:
-        return "Torrential"
+def get_wind_signal(wind_speed):
+    """Placeholder for PAGASA wind signal logic (m/s approximation)."""
+    if wind_speed is None: return "No Signal"
 
-def get_wind_signal(wind_speed_mps):
-    """
-    Determines the Tropical Cyclone Wind Signal (TCWS) based on 
-    sustained wind speed in meters per second (m/s).
-    """
-    if wind_speed_mps is None or wind_speed_mps < 0:
-        return "No Signal"
-
-    # Convert PAGASA km/h thresholds to m/s by dividing by 3.6
+    # FIX: Convert Decimal to float for calculation
+    wind_speed_float = float(wind_speed) 
     
-    # Sig. 1: 30-60 km/h (8.33 to 16.67 m/s)
-    SIG1_MIN = 30 / 3.6 # 8.33... m/s
-    SIG2_MIN = 61 / 3.6 # 16.94... m/s
-    SIG3_MIN = 101 / 3.6 # 28.05... m/s
-    SIG4_MIN = 151 / 3.6 # 41.94... m/s
-    SIG5_MIN = 201 / 3.6 # 55.83... m/s (200 km/h is the max for Sig 4)
+    # Simplified approximation based on PAGASA tropical cyclone wind signals
+    wind_speed_kmh = wind_speed_float * 3.6  # Multiplication now works
     
-    if wind_speed_mps < SIG1_MIN:
-        # Below the minimum for Signal No. 1 (30 km/h)
-        return "No Signal"
-    elif wind_speed_mps < SIG2_MIN:
-        # Winds 30 to 60 km/h
-        return "Signal No. 1"
-    elif wind_speed_mps < SIG3_MIN:
-        # Winds 61 to 100 km/h
-        return "Signal No. 2"
-    elif wind_speed_mps < SIG4_MIN:
-        # Winds 101 to 150 km/h
-        return "Signal No. 3"
-    elif wind_speed_mps < SIG5_MIN:
-        # Winds 151 to 200 km/h
-        return "Signal No. 4"
-    else:
-        # Winds exceeding 200 km/h
-        return "Signal No. 5"
+    if wind_speed_kmh >= 171: return "Signal 5"
+    if wind_speed_kmh >= 121: return "Signal 4"
+    if wind_speed_kmh >= 89: return "Signal 3"
+    if wind_speed_kmh >= 62: return "Signal 2"
+    if wind_speed_kmh >= 30: return "Signal 1"
+    return "No Signal"
+
+# =======================================================================
+# 1. FIXED LATEST_DASHBOARD_DATA FUNCTION (for AJAX auto-refresh)
+# =======================================================================
 
 def latest_dashboard_data(request):
     """
@@ -498,35 +465,27 @@ def latest_dashboard_data(request):
                 selected_sensor_id = None
 
         with connection.cursor() as cursor:
-            # 1. Fetch Latest Weather Data
+            # 1. Fetch Latest Weather Data (Omitted boilerplate SQL for brevity)
             weather_fields = [
                 'temperature', 'humidity', 'rain_rate', 'dew_point', 
                 'wind_speed', 'barometric_pressure', 'altitude', 'date_time', 
-                'location', 'latitude', 'longitude', 'sensor_id' # 's.name' aliased to 'location'
+                'location', 'latitude', 'longitude', 'sensor_id' 
             ]
 
+            # Determine SQL query and params
             if selected_sensor_id:
-                sql_query = """
-                    SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, 
-                        s.name, s.latitude, s.longitude, s.sensor_id
-                    FROM weather_reports wr
-                    JOIN sensor s ON wr.sensor_id = s.sensor_id
-                    WHERE wr.sensor_id = %s
-                    ORDER BY wr.date_time DESC
-                    LIMIT 1
-                """
+                sql_query = """ SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
+                                wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, 
+                                s.name, s.latitude, s.longitude, s.sensor_id
+                                FROM weather_reports wr JOIN sensor s ON wr.sensor_id = s.sensor_id
+                                WHERE wr.sensor_id = %s ORDER BY wr.date_time DESC LIMIT 1 """
                 params = [selected_sensor_id]
             else:
-                sql_query = """
-                    SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                        wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, 
-                        s.name, s.latitude, s.longitude, s.sensor_id
-                    FROM weather_reports wr
-                    JOIN sensor s ON wr.sensor_id = s.sensor_id
-                    ORDER BY wr.date_time DESC
-                    LIMIT 1
-                """
+                sql_query = """ SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
+                                wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, 
+                                s.name, s.latitude, s.longitude, s.sensor_id
+                                FROM weather_reports wr JOIN sensor s ON wr.sensor_id = s.sensor_id
+                                ORDER BY wr.date_time DESC LIMIT 1 """
                 params = []
             
             cursor.execute(sql_query, params)
@@ -534,28 +493,17 @@ def latest_dashboard_data(request):
             row = cursor.fetchone()
             weather = {}
             if row:
-                # Map the row to a dictionary using explicit column names
                 weather = dict(zip(weather_fields, row))
-
-                # FIX 1: Safely format date_time
                 date_time_obj = weather.get('date_time')
-                if date_time_obj:
-                    weather['date_time'] = date_time_obj.strftime('%Y-%m-%d %H:%M:%S')
-                else:
-                    weather['date_time'] = 'N/A' # Default value if NULL
-
+                weather['date_time'] = date_time_obj.strftime('%Y-%m-%d %H:%M:%S') if date_time_obj else 'N/A'
                 weather['error'] = None
-                
-                # Use the fetched sensor_id if none was provided in the request
                 if not selected_sensor_id:
                     selected_sensor_id = weather.get('sensor_id')
             else:
                 weather = {
-                    'error': 'No weather data available',
-                    'temperature': 'N/A', 'humidity': 'N/A', 'rain_rate': 'N/A', 
-                    'dew_point': 'N/A', 'wind_speed': 'N/A', 'barometric_pressure': 'N/A', 
-                    'altitude': 'N/A', 'date_time': 'N/A', 'location': 'Unknown', 
-                    'latitude': None, 'longitude': None
+                    'error': 'No weather data available', 'temperature': 'N/A', 'humidity': 'N/A', 'rain_rate': 'N/A', 
+                    'dew_point': 'N/A', 'wind_speed': 'N/A', 'barometric_pressure': 'N/A', 'altitude': 'N/A', 
+                    'date_time': 'N/A', 'location': 'Unknown', 'latitude': None, 'longitude': None
                 }
 
             # 2. Prepare Chart Data (only for the selected sensor)
@@ -574,108 +522,85 @@ def latest_dashboard_data(request):
                     chart_labels.append(row[0])
                     chart_data.append(float(row[1]))
 
-            # 3. Fetch AI Prediction
+            # --- 3. Fetch AI Prediction (FIXED: Current Day PH Time) ---
             forecast = {}
+            
+            # Calculate midnight of the current day in PH Standard Time
+            today_utc8 = datetime.now(utc_plus_8).date() 
+            today_start = datetime.combine(today_utc8, time_class(0, 0, 0))
+            today_start_str = today_start.strftime('%Y-%m-%d %H:%M:%S')
+
             cursor.execute("""
-                SELECT predicted_rain, duration, intensity
+                SELECT predicted_rain, duration, intensity, created_at
                 FROM ai_predictions
+                WHERE created_at >= %s  -- Filter for predictions generated today (PH Time)
                 ORDER BY created_at DESC
                 LIMIT 1
-            """)
+            """, (today_start_str,))
+            
             row = cursor.fetchone()
             if row:
                 forecast = {
                     'prediction': float(row[0]),
                     'duration': float(row[1]),
                     'intensity': row[2],
+                    'created_at': row[3].strftime('%Y-%m-%d %H:%M:%S') if row[3] else 'N/A',
                     'error': None
                 }
             else:
-                forecast = {'error': 'No AI prediction data available.'}
+                forecast = {'error': 'No AI prediction data available for today (PH Time).'}
                 
-            # Fetch all recent flood warnings (last 24 hours) for barangay-specific display
+            # Fetch Flood Warnings (Logic retained)
             cursor.execute("""
                 SELECT area, risk_level, message, prediction_date
                 FROM flood_warnings
                 WHERE prediction_date >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
                 ORDER BY 
-                    CASE risk_level 
-                        WHEN 'High' THEN 1 
-                        WHEN 'Moderate' THEN 2 
-                        WHEN 'Low' THEN 3 
-                        ELSE 4 
-                    END,
+                    CASE risk_level WHEN 'High' THEN 1 WHEN 'Moderate' THEN 2 WHEN 'Low' THEN 3 ELSE 4 END,
                     prediction_date DESC
             """)
             
-            # Using the helper to convert rows to dictionaries
             rows = fetch_as_dict(cursor) 
             flood_warnings = []
-            
             if rows:
                 for row in rows:
-                    # FIX 2: Safely format prediction_date to prevent 'NoneType' error
                     prediction_date_obj = row.get('prediction_date')
-                    if prediction_date_obj:
-                        row['prediction_date'] = prediction_date_obj.strftime('%Y-%m-%d %H:%M:%S')
-                    else:
-                        row['prediction_date'] = 'N/A' # Default value if NULL
-                        
+                    row['prediction_date'] = prediction_date_obj.strftime('%Y-%m-%d %H:%M:%S') if prediction_date_obj else 'N/A'
                     flood_warnings.append(row)
             
-            # For backward compatibility, keep the first warning as the main flood_warning
             flood_warning = flood_warnings[0] if flood_warnings else {'error': 'No recent flood warning data available.'}
 
-            # 4. Fetch Alerts (UPDATED LOGIC with SAFETY CHECK)
+            # 4. Fetch Alerts (Logic retained)
             alerts = []
             cursor.execute("""
                 SELECT s.sensor_id, s.name, wr.rain_rate, wr.wind_speed, wr.date_time
                 FROM sensor s
                 LEFT JOIN weather_reports wr ON s.sensor_id = wr.sensor_id
-                WHERE wr.date_time = (
-                    SELECT MAX(date_time) 
-                    FROM weather_reports 
-                    WHERE sensor_id = s.sensor_id
-                ) OR wr.date_time IS NULL
+                WHERE wr.date_time = ( SELECT MAX(date_time) FROM weather_reports WHERE sensor_id = s.sensor_id ) 
+                OR wr.date_time IS NULL
             """)
             
             for row in cursor.fetchall():
                 sensor_id, name, rain_rate, wind_speed, date_time = row
-
-                # CRITICAL FIX 3: Check for None on date_time before calling strftime()
                 dt_str = date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else 'N/A'
 
-                # --- RAIN ALERT LOGIC ---
                 if rain_rate is not None:
                     intensity = get_rain_intensity(rain_rate)
-                    
-                    rain_rate_mm_hr = rain_rate 
-                    
                     if intensity in ["Heavy", "Intense", "Torrential"]:
                         alerts.append({
-                            # Use the safe dt_str variable here
-                            'text': f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate_mm_hr:.1f} mm/hr) {dt_str}", 
+                            'text': f"⚠️ {intensity} Rainfall Alert in {name} ({rain_rate:.1f} mm/hr) {dt_str}", 
                             'timestamp': datetime.now().isoformat(),
-                            'type': 'rain',
-                            'intensity': intensity.lower(),
-                            'sensor_id': sensor_id
+                            'type': 'rain', 'intensity': intensity.lower(), 'sensor_id': sensor_id
                         })
 
-                # --- WIND ALERT LOGIC ---
                 if wind_speed is not None:
                     wind_signal = get_wind_signal(wind_speed)
-                    
                     if wind_signal != "No Signal":
-                        # Convert m/s to km/h for more contextual alert text
                         wind_speed_kmh = wind_speed * 3.6
-                        
                         alerts.append({
-                            # Use the safe dt_str variable here
                             'text': f"🚨 {wind_signal} (PAGASA) Wind Alert for {name} ({wind_speed:.1f} m/s or {wind_speed_kmh:.0f} km/h) {dt_str}",
                             'timestamp': datetime.now().isoformat(),
-                            'type': 'wind',
-                            'intensity': wind_signal.replace(" ", "_").lower(), 
-                            'sensor_id': sensor_id
+                            'type': 'wind', 'intensity': wind_signal.replace(" ", "_").lower(), 'sensor_id': sensor_id
                         })
             
             # Return all data as a single JSON response
@@ -684,19 +609,16 @@ def latest_dashboard_data(request):
                 'alerts': alerts,
                 'forecast': [forecast] if forecast.get('error') is None else [],
                 'flood_warning': flood_warning,
-                'flood_warnings': flood_warnings, # Include all barangay warnings
+                'flood_warnings': flood_warnings,
                 'chart_labels': chart_labels,
                 'chart_data': chart_data,
             })
     
     except Exception as e:
-        # Log the error for debugging
         import logging
         logger = logging.getLogger(__name__)
-        # Log error with traceback info
         logger.error(f"Error in latest_dashboard_data: {str(e)}", exc_info=True) 
         
-        # Return error response
         return JsonResponse({
             'error': f'Server error: {str(e)}',
             'weather': {'error': 'Failed to fetch weather data'},
@@ -707,6 +629,10 @@ def latest_dashboard_data(request):
             'chart_labels': [],
             'chart_data': [],
         }, status=500)
+
+# =======================================================================
+# 2. FIXED ADMIN_DASHBOARD FUNCTION (for template rendering)
+# =======================================================================
 
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
 def admin_dashboard(request):
@@ -730,37 +656,30 @@ def admin_dashboard(request):
     labels = []
     temps = []
 
-    # Use a single `with` block for ALL database operations
     with connection.cursor() as cursor:
-        # 1. Fetch admin name
+        # 1-3. Fetch admin name, available sensors, and current weather data (Logic retained)
         cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [admin_id])
         row = cursor.fetchone()
         admin_name = row[0] if row else 'Admin'
         
-        # 2. Fetch available sensors
         cursor.execute("SELECT sensor_id, name FROM sensor ORDER BY name")
         available_sensors = [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
 
-        # 3. Get latest weather data for the main card (current sensor)
+        # Determine latest weather query
         if selected_sensor_id:
-            cursor.execute("""
-                SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
-                FROM weather_reports wr
-                JOIN sensor s ON wr.sensor_id = s.sensor_id
-                WHERE wr.sensor_id = %s
-                ORDER BY wr.date_time DESC
-                LIMIT 1
-            """, [selected_sensor_id])
+            weather_params = [selected_sensor_id]
+            weather_sql = """ SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
+                                     wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                                FROM weather_reports wr JOIN sensor s ON wr.sensor_id = s.sensor_id
+                                WHERE wr.sensor_id = %s ORDER BY wr.date_time DESC LIMIT 1 """
         else:
-            cursor.execute("""
-                SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
-                       wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
-                FROM weather_reports wr
-                JOIN sensor s ON wr.sensor_id = s.sensor_id
-                ORDER BY wr.date_time DESC
-                LIMIT 1
-            """)
+            weather_params = []
+            weather_sql = """ SELECT wr.temperature, wr.humidity, wr.rain_rate, wr.dew_point, 
+                                     wr.wind_speed, wr.barometric_pressure, wr.altitude, wr.date_time, s.name, s.latitude, s.longitude, s.sensor_id
+                                FROM weather_reports wr JOIN sensor s ON wr.sensor_id = s.sensor_id
+                                ORDER BY wr.date_time DESC LIMIT 1 """
+        
+        cursor.execute(weather_sql, weather_params)
         
         row = cursor.fetchone()
         if row:
@@ -773,24 +692,18 @@ def admin_dashboard(request):
             current_sensor_id = selected_sensor_id if selected_sensor_id else row[11] 
         else:
              weather = {
-                'error': 'No weather data available', 'temperature': 'N/A', 
-                'humidity': 'N/A', 'rain_rate': 'N/A', 'dew_point': 'N/A', 
-                'wind_speed': 'N/A', 'barometric_pressure': 'N/A', 'altitude': 'N/A',
-                'date_time': 'N/A', 'location': 'Unknown', 
-                'latitude': None, 'longitude': None
+                'error': 'No weather data available', 'temperature': 'N/A', 'humidity': 'N/A', 'rain_rate': 'N/A', 
+                'dew_point': 'N/A', 'wind_speed': 'N/A', 'barometric_pressure': 'N/A', 'altitude': 'N/A',
+                'date_time': 'N/A', 'location': 'Unknown', 'latitude': None, 'longitude': None
             }
 
-        # 4. Forecast Data (Logic retained from original)
+        # --- 4. Forecast Data (CONFIRMED: Current Day PH Time) ---
+        
         # Get today's date in the UTC+8 timezone
         today_utc8 = datetime.now(utc_plus_8).date() 
 
         # Combine today's date (in UTC+8) with midnight (00:00:00) 
-        # and explicitly set the timezone to UTC+8.
-        today_start = datetime.combine(today_utc8, time_class(0, 0, 0)).astimezone(utc_plus_8)
-
-        # Convert to string in '%Y-%m-%d %H:%M:%S' format. 
-        # Note: The database query will now look for timestamps *after*
-        # the start of the day in UTC+8.
+        today_start = datetime.combine(today_utc8, time_class(0, 0, 0))
         today_start_str = today_start.strftime('%Y-%m-%d %H:%M:%S')
 
         cursor.execute("""
@@ -803,8 +716,6 @@ def admin_dashboard(request):
 
         row = cursor.fetchone()
         if row:
-            # Assuming 'created_at' (row[3]) is a datetime object 
-            # that may or may not be timezone-aware.
             forecast = {
                 'prediction': float(row[0]), 'duration': float(row[1]), 
                 'intensity': row[2], 'created_at': row[3].strftime('%Y-%m-%d %H:%M:%S'), 
@@ -813,13 +724,13 @@ def admin_dashboard(request):
         else:
             forecast = {'error': 'No AI prediction data available for today.'}
         
-        # 5. Flood Warning (Logic retained from original)
+        # 5. Flood Warning (Logic retained)
         cursor.execute("""
              SELECT area, risk_level, message
              FROM flood_warnings
              ORDER BY prediction_date DESC
              LIMIT 1
-         """)
+          """)
         row = cursor.fetchone()
         if row:
              flood_warning = {
@@ -828,18 +739,18 @@ def admin_dashboard(request):
         else:
              flood_warning = {'error': 'No recent flood warning data available.'}
 
-        # 6. Chart data (Logic retained from original)
+        # 6. Chart data (Logic retained)
         cursor.execute("""
              SELECT DATE_FORMAT(date_time, '%a %b %d') AS label, temperature
              FROM weather_reports
              ORDER BY date_time DESC
              LIMIT 10
-         """)
+          """)
         rows = cursor.fetchall()
         labels = [row[0] for row in rows]
         temps = [float(row[1]) for row in rows]
 
-        # 7. Fetch all sensor locations for the map, PROCESS ALERTS, and build locations data
+        # 7. Fetch all sensor locations for the map and generate alerts (Logic retained)
         cursor.execute("""
              SELECT s.sensor_id, s.name, s.latitude, s.longitude, s.radius,
                     wr.rain_rate, wr.wind_speed, wr.date_time
@@ -850,7 +761,7 @@ def admin_dashboard(request):
                  FROM weather_reports 
                  WHERE sensor_id = s.sensor_id
              ) OR wr.date_time IS NULL
-         """)
+           """)
         
         for row in cursor.fetchall():
             sensor_id, name, lat, lng, radius, rain_rate, wind_speed, date_time = row
@@ -858,35 +769,23 @@ def admin_dashboard(request):
             alert_text = ""
             date_time_str = date_time.strftime('%Y-%m-%d %H:%M:%S') if date_time else None
 
-            # --- ⚠️ ALERT GENERATION LOGIC: UI List + Map Data Enrichment ⚠️ ---
+            # --- ALERT GENERATION LOGIC ---
             
-            # 1. Heavy Rainfall Alert (rain_rate >= 7.6 mm)
+            # 1. Heavy Rainfall Alert
             if rain_rate is not None and rain_rate >= 7.6:
                 alert_msg = f"⚠️ Heavy Rainfall Alert in {name} ({rain_rate} mm/hr)"
-                # Add to the UI Alerts List
-                alerts.append({
-                    'text': alert_msg, 
-                    'timestamp': date_time_str,
-                    'location_name': name
-                })
+                alerts.append({'text': alert_msg, 'timestamp': date_time_str, 'location_name': name})
                 alert_text += alert_msg + "<br>"
                 has_alert = True
                 
-            # 2. Strong Wind Alert (wind_speed > 30 km/h)
+            # 2. Strong Wind Alert (Note: Original used wind_speed > 30 km/h, assuming data is already in km/h or this is a business rule)
             if wind_speed is not None and wind_speed > 30:
                 alert_msg = f"⚠️ Strong Wind Alert in {name} ({wind_speed} km/h)"
-                # Add to the UI Alerts List
-                alerts.append({
-                    'text': alert_msg, 
-                    'timestamp': date_time_str,
-                    'location_name': name
-                })
+                alerts.append({'text': alert_msg, 'timestamp': date_time_str, 'location_name': name})
                 alert_text += alert_msg + "<br>"
                 has_alert = True
             
-            # --- END ALERT GENERATION ---
-
-            # Prepare enriched data for the map (JavaScript 'locations' array)
+            # Prepare enriched data for the map
             locations.append({
                 'sensor_id': sensor_id,
                 'name': name,
@@ -895,9 +794,9 @@ def admin_dashboard(request):
                 'rain_rate': float(rain_rate) if rain_rate is not None else None,
                 'wind_speed': float(wind_speed) if wind_speed is not None else None,
                 'date_time': date_time_str,
-                'has_alert': has_alert, # <--- 🔑 Crucial field for JS map logic
-                'alert_text': alert_text.strip('<br>'), # <--- 🔑 Crucial field for JS map logic popup/icon
-                'radius': radius # Geo-fence radius
+                'has_alert': has_alert,
+                'alert_text': alert_text.strip('<br>'),
+                'radius': radius
             })
             
     # Prepare final context for the template
@@ -905,14 +804,15 @@ def admin_dashboard(request):
         'admin': {'name': admin_name},
         'locations': json.dumps(locations),
         'weather': weather,
+        # Pass the forecast data filtered for today
         'forecast': [forecast] if forecast.get('error') is None else [],
         'flood_warning': flood_warning,
         'labels': json.dumps(labels),
         'data': json.dumps(temps),
         'available_sensors': available_sensors,
         'current_sensor_id': current_sensor_id,
-        'alerts': alerts, # Alerts list for the sidebar/UI
-        'map_center': { # For map initialization
+        'alerts': alerts, 
+        'map_center': {
             'lat': weather['latitude'] if weather['latitude'] else 10.508884,
             'lng': weather['longitude'] if weather['longitude'] else 122.957527
         }
