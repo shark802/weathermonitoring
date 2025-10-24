@@ -514,76 +514,90 @@
   <script src="{% static 'weatherapp/js/alert.js' %}"></script>
   <script src="{% static 'weatherapp/js/alertbox.js' %}"></script>
     <script>
-    // =======================================================
-    // Global Variable Declarations
-    // These must be declared in the global scope so all functions can access them.
-    // =======================================================
     let intervalId; 
-    let tempChart;
+let tempChart;
     
-    // =======================================================
-    // Primary Data Refresh Function (GLOBAL SCOPE)
-    // This function must be defined globally to be called from the sensorSelect 'change' event.
-    // =======================================================
-    function refreshAllData() {
-        const currentSensorId = document.getElementById('sensorSelect').value;
-        const weatherContainer = document.getElementById("weatherDataContainer");
-        const lastUpdatedText = document.getElementById("lastUpdatedSection");
-        const rainForecastContent = document.getElementById("rainForecastContent");
-        const floodWarningContent = document.getElementById("floodWarningContent");
-        const alertsContainer = document.getElementById("alerts-list");
-        const refreshBtn = document.getElementById('refreshBtn');
+// =======================================================
+// Primary Data Refresh Function (GLOBAL SCOPE)
+// =======================================================
+function refreshAllData() {
+    const currentSensorId = document.getElementById('sensorSelect').value;
+    const weatherContainer = document.getElementById("weatherDataContainer");
+    const lastUpdatedText = document.getElementById("lastUpdatedSection");
+    const rainForecastContent = document.getElementById("rainForecastContent");
+    const floodWarningContent = document.getElementById("floodWarningContent");
+    const alertsContainer = document.getElementById("alerts-list");
+    const refreshBtn = document.getElementById('refreshBtn');
 
-        // Display loading animations before fetch
-        if (weatherContainer && !weatherContainer.querySelector('.animate-spin')) {
-            // Updated loading animation for smaller UI
-            weatherContainer.innerHTML = `
-                <div class="flex items-center justify-center py-6">
-                    <div class="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mr-2"></div>
-                    <span class="text-sm text-gray-600 font-medium">Loading weather data...</span>
-                </div>
-            `;
-        }
+    // Display loading animations before fetch
+    if (weatherContainer && !weatherContainer.querySelector('.animate-spin')) {
+        // Updated loading animation for smaller UI
+        weatherContainer.innerHTML = `
+            <div class="flex items-center justify-center py-6">
+                <div class="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+                <span class="text-sm text-gray-600 font-medium">Loading weather data...</span>
+            </div>
+        `;
+    }
 
-        if (refreshBtn && !refreshBtn.classList.contains('animate-pulse')) {
-             refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-sm"></i>'; // Reduced icon size
-             refreshBtn.classList.add('animate-pulse');
-        }
+    if (lastUpdatedText) {
+        // Display loading animation for last updated/location section
+        lastUpdatedText.innerHTML = `
+            <div class="flex flex-col items-center justify-center">
+                <div class="animate-pulse h-3 w-20 bg-gray-200 rounded mb-1"></div>
+                <div class="animate-pulse h-3 w-24 bg-gray-200 rounded"></div>
+            </div>
+        `;
+    }
 
-        // Assuming you have a Django URL named 'latest_dashboard_data' for AJAX data
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
-             controller.abort();
-             // Manually display a timeout error if abort is called
-             console.error("Data refresh timeout: The request took too long (10s) and was aborted.");
-        }, 10000); // 10 second timeout
-        
-        fetch(`{% url 'latest_dashboard_data' %}?sensor_id=${currentSensorId}`, {
-            signal: controller.signal
-        })
-            .then(res => {
-                if (!res.ok) {
-                    // Check if the error is due to an abort/timeout
-                    if (res.statusText === 'abort' || res.status === 0) {
-                        throw new Error("Request timed out or aborted.");
-                    }
-                    throw new Error(`HTTP error! status: ${res.status}`);
+    if (refreshBtn && !refreshBtn.classList.contains('animate-pulse')) {
+         refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-sm"></i>'; // Reduced icon size
+         refreshBtn.classList.add('animate-pulse');
+    }
+
+    // Assuming you have a Django URL named 'latest_dashboard_data' for AJAX data
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+         controller.abort();
+         // Manually display a timeout error if abort is called
+         console.error("Data refresh timeout: The request took too long (10s) and was aborted.");
+    }, 10000); // 10 second timeout
+    
+    fetch(`{% url 'latest_dashboard_data' %}?sensor_id=${currentSensorId}`, {
+        signal: controller.signal
+    })
+        .then(res => {
+            if (!res.ok) {
+                // Check if the error is due to an abort/timeout
+                if (res.statusText === 'abort' || res.status === 0) {
+                    throw new Error("Request timed out or aborted.");
                 }
-                return res.json();
-            })
-            .then(data => {
-                // 1. Update Live Weather Data
-                const weather = data.weather;
-                if (weather && weather.error) {
-                    // Updated Error UI
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            return res.json();
+        })
+        .then(data => {
+            // 1. Update Live Weather Data
+            const weather = data.weather;
+            if (weather && weather.error) {
+                // Updated Error UI for main container
+                if (weatherContainer) {
                     weatherContainer.innerHTML = `
                         <div class="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg p-3 text-center">
                             <i class="fas fa-exclamation-triangle text-xl text-red-500 mb-1"></i>
                             <p class="text-red-700 font-medium text-sm">Error: ${weather.error}</p>
                         </div>
                     `;
-                } else if (weather) {
-                    // Updated Data Grid UI
+                }
+                // Updated Error UI for last updated section
+                if (lastUpdatedText) {
+                    lastUpdatedText.innerHTML = `
+                        <p class="text-red-700 text-center font-medium text-xs">Data Error</p>
+                    `;
+                }
+            } else if (weather) {
+                // Updated Data Grid UI
+                if (weatherContainer) {
                     weatherContainer.innerHTML = `
                         <div class="grid grid-cols-1 gap-2">
                             <div class="weather-data-card bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-lg p-2 flex items-center justify-between">
@@ -643,7 +657,10 @@
                             </div>
                         </div>
                     `;
-                    // Updated Last Updated UI
+                }
+                
+                // Updated Last Updated UI (This is the critical part that should now update correctly)
+                if (lastUpdatedText) {
                     lastUpdatedText.innerHTML = `
                         <div class="flex items-center justify-center mb-0.5">
                             <i class="fas fa-clock text-blue-500 mr-1 text-xs"></i>
@@ -656,324 +673,346 @@
                         </div>
                     `;
                 }
+            }
 
-                // 2. Update AI Rain Prediction
-                const forecast = data.forecast || [];
-                const forecastHTML = forecast.length > 0 ?
-                    `${forecast.map(item => item.error ?
-                        `<div class="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg p-4 text-center">
-                            <i class="fas fa-exclamation-triangle text-red-500 text-2xl mb-2"></i>
-                            <p class="text-red-700 font-medium">Prediction Error: ${item.error}</p>
-                        </div>` :
-                        item.prediction < 0.1 ?
-                        `<div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 text-center">
-                            <i class="fas fa-check-circle text-green-500 text-2xl mb-2"></i>
-                            <p class="text-green-700 font-medium">No significant rain expected in the forecast period.</p>
-                        </div>` :
-                        `<div class="space-y-3">
-                            <div class="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
-                                <div class="flex items-center">
-                                    <i class="fas fa-cloud-rain text-blue-500 mr-3"></i>
-                                    <span class="font-medium text-gray-700">Predicted Rainfall</span>
-                                </div>
-                                <span class="text-xl font-bold text-blue-600">${item.prediction} mm</span>
+            // 2. Update AI Rain Prediction
+            const forecast = data.forecast || [];
+            const forecastHTML = forecast.length > 0 ?
+                `${forecast.map(item => item.error ?
+                    `<div class="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg p-4 text-center">
+                        <i class="fas fa-exclamation-triangle text-red-500 text-2xl mb-2"></i>
+                        <p class="text-red-700 font-medium">Prediction Error: ${item.error}</p>
+                    </div>` :
+                    item.prediction < 0.1 ?
+                    `<div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 text-center">
+                        <i class="fas fa-check-circle text-green-500 text-2xl mb-2"></i>
+                        <p class="text-green-700 font-medium">No significant rain expected in the forecast period.</p>
+                    </div>` :
+                    `<div class="space-y-3">
+                        <div class="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i class="fas fa-cloud-rain text-blue-500 mr-3"></i>
+                                <span class="font-medium text-gray-700">Predicted Rainfall</span>
                             </div>
-                            <div class="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between">
-                                <div class="flex items-center">
-                                    <i class="fas fa-clock text-gray-500 mr-3"></i>
-                                    <span class="font-medium text-gray-700">Estimated Duration</span>
-                                </div>
-                                <span class="text-xl font-bold text-gray-600">${item.duration} minutes</span>
+                            <span class="text-xl font-bold text-blue-600">${item.prediction} mm</span>
+                        </div>
+                        <div class="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i class="fas fa-clock text-gray-500 mr-3"></i>
+                                <span class="font-medium text-gray-700">Estimated Duration</span>
                             </div>
-                            <div class="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-3 flex items-center justify-between">
-                                <div class="flex items-center">
-                                    <i class="fas fa-bolt text-yellow-500 mr-3"></i>
-                                    <span class="font-medium text-gray-700">Rain Intensity</span>
-                                </div>
-                                <span class="px-3 py-1 rounded-full text-white font-bold text-sm
-                                    ${item.intensity === 'Light' ? 'bg-green-500' : 
-                                      item.intensity === 'Moderate' ? 'bg-yellow-500' : 
-                                      item.intensity === 'Heavy' ? 'bg-orange-500' : 
-                                      item.intensity === 'Intense' ? 'bg-red-600' : 
-                                      item.intensity === 'Torrential' ? 'bg-purple-700' : 'bg-gray-400'}">
-                                    ${item.intensity}
-                                </span>
+                            <span class="text-xl font-bold text-gray-600">${item.duration} minutes</span>
+                        </div>
+                        <div class="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-3 flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i class="fas fa-bolt text-yellow-500 mr-3"></i>
+                                <span class="font-medium text-gray-700">Rain Intensity</span>
                             </div>
-                        </div>`).join('')}` :
-                    `<div class="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-lg p-4 text-center">
-                        <i class="fas fa-info-circle text-gray-500 text-2xl mb-2"></i>
-                        <p class="text-gray-600 font-medium">No AI prediction available.</p>
-                    </div>`;
-                rainForecastContent.innerHTML = forecastHTML;
+                            <span class="px-3 py-1 rounded-full text-white font-bold text-sm
+                                ${item.intensity === 'Light' ? 'bg-green-500' : 
+                                  item.intensity === 'Moderate' ? 'bg-yellow-500' : 
+                                  item.intensity === 'Heavy' ? 'bg-orange-500' : 
+                                  item.intensity === 'Intense' ? 'bg-red-600' : 
+                                  item.intensity === 'Torrential' ? 'bg-purple-700' : 'bg-gray-400'}">
+                                ${item.intensity}
+                            </span>
+                        </div>
+                    </div>`).join('')}` :
+                `<div class="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-lg p-4 text-center">
+                    <i class="fas fa-info-circle text-gray-500 text-2xl mb-2"></i>
+                    <p class="text-gray-600 font-medium">No AI prediction available.</p>
+                </div>`;
+            if (rainForecastContent) rainForecastContent.innerHTML = forecastHTML;
 
-                // 3. Update Flood Warnings by Barangay
-                const warnings = data.flood_warnings || [];
-                if (warnings.length === 0) {
+            // 3. Update Flood Warnings by Barangay
+            const warnings = data.flood_warnings || [];
+            if (warnings.length === 0) {
+                if (floodWarningContent) {
                     floodWarningContent.innerHTML = `
                         <div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 text-center">
                             <i class="fas fa-check-circle text-green-500 text-2xl mb-2"></i>
                             <p class="text-green-700 font-medium">No active flood warnings for any barangay at this time.</p>
                         </div>
                     `;
-                } else {
-                    const warningsHTML = warnings.map(warning => {
-                        const gradientClass = warning.risk_level === 'High' ? 'from-red-50 to-pink-50 border-red-200' : 
-                                            warning.risk_level === 'Moderate' ? 'from-orange-50 to-yellow-50 border-orange-200' : 
-                                            'from-yellow-50 to-amber-50 border-yellow-200';
-                        const riskClass = warning.risk_level === 'High' ? 'bg-red-600' : 
-                                            warning.risk_level === 'Moderate' ? 'bg-orange-500' : 
-                                            'bg-yellow-500';
-                        const iconClass = warning.risk_level === 'High' ? 'text-red-500' : 
-                                            warning.risk_level === 'Moderate' ? 'text-orange-500' : 
-                                            'text-yellow-500';
-                        
-                        return `
-                            <div class="bg-gradient-to-r ${gradientClass} border rounded-lg p-4 shadow-sm">
-                                <div class="flex justify-between items-center mb-3">
-                                    <div class="flex items-center">
-                                        <i class="fas fa-map-marker-alt ${iconClass} mr-2"></i>
-                                        <span class="font-bold text-gray-800">${warning.area}</span>
-                                    </div>
-                                    <span class="px-3 py-1 rounded-full text-white text-sm font-bold ${riskClass}">
-                                        ${warning.risk_level}
-                                    </span>
-                                </div>
-                                <p class="text-gray-700 mb-2">${warning.message}</p>
-                                ${warning.prediction_date ? `
-                                    <div class="flex items-center text-sm text-gray-500">
-                                        <i class="fas fa-clock mr-2"></i>
-                                        <span>${warning.prediction_date}</span>
-                                    </div>
-                                ` : ''}
-                            </div>
-                        `;
-                    }).join('');
+                }
+            } else {
+                const warningsHTML = warnings.map(warning => {
+                    const gradientClass = warning.risk_level === 'High' ? 'from-red-50 to-pink-50 border-red-200' : 
+                                         warning.risk_level === 'Moderate' ? 'from-orange-50 to-yellow-50 border-orange-200' : 
+                                         'from-yellow-50 to-amber-50 border-yellow-200';
+                    const riskClass = warning.risk_level === 'High' ? 'bg-red-600' : 
+                                         warning.risk_level === 'Moderate' ? 'bg-orange-500' : 
+                                         'bg-yellow-500';
+                    const iconClass = warning.risk_level === 'High' ? 'text-red-500' : 
+                                         warning.risk_level === 'Moderate' ? 'text-orange-500' : 
+                                         'text-yellow-500';
                     
-                    floodWarningContent.innerHTML = warningsHTML;
-                }
-
-                // 4. Update Temperature Chart
-                if (data.chart_labels && data.chart_data) {
-                    if (tempChart) {
-                        tempChart.data.labels = data.chart_labels;
-                        tempChart.data.datasets[0].data = data.chart_data;
-                        tempChart.update();
-                    }
-                }
-
-                // 5. Update Alerts section (sidebar)
-                const alerts = data.alerts;
-                const alertsHTML = alerts.length > 0 ?
-                    alerts.map(alert => {
-                        let severityClass = 'low'; // Default to low
-                        let iconClass = 'fa-exclamation-triangle';
-                        let severityText = 'LOW';
-                        let gradientClass = 'from-gray-50 to-slate-50 border-gray-200';
-                        let alertMessage = 'Weather alert in your area. Please stay informed.';
-
-                        if (alert.type === 'rain') {
-                            iconClass = 'fa-cloud-rain';
-                            
-                            // --- RAIN LOGIC ---
-                            if (alert.intensity === 'torrential') {
-                                severityClass = 'critical';
-                                severityText = 'CRITICAL';
-                                gradientClass = 'from-red-50 to-pink-50 border-red-200';
-                                alertMessage = '⚠️ **Torrential Rainfall detected.** Extreme flood danger. Immediate evacuation is necessary.';
-                            } else if (alert.intensity === 'intense') {
-                                severityClass = 'high';
-                                severityText = 'HIGH';
-                                gradientClass = 'from-orange-50 to-red-50 border-orange-200';
-                                alertMessage = '🚨 **Intense Rainfall detected.** High flood risk. Prepare for evacuation.';
-                            } else if (alert.intensity === 'heavy') {
-                                severityClass = 'moderate';
-                                severityText = 'MODERATE';
-                                gradientClass = 'from-yellow-50 to-orange-50 border-yellow-200';
-                                alertMessage = '⚠️ **Heavy Rainfall detected.** Moderate flood risk. Monitor water levels closely.';
-                            }
-                        } else if (alert.type === 'wind') {
-                            iconClass = 'fa-wind';
-                            
-                            // --- WIND LOGIC (PAGASA-style Signals) ---
-                            if (alert.intensity.includes('signal_5') || alert.intensity.includes('signal_4')) {
-                                severityClass = 'critical';
-                                severityText = 'CRITICAL';
-                                gradientClass = 'from-red-50 to-pink-50 border-red-200';
-                                alertMessage = '🛑 **Extreme Wind Signal.** Catastrophic winds expected. Stay indoors in a safe structure.';
-                            } else if (alert.intensity.includes('signal_3')) {
-                                severityClass = 'high';
-                                severityText = 'HIGH';
-                                gradientClass = 'from-orange-50 to-red-50 border-orange-200';
-                                alertMessage = '🚨 **Signal #3 Winds.** Severe threat to life and property. Avoid all outdoor activities.';
-                            } else if (alert.intensity.includes('signal_2')) {
-                                severityClass = 'moderate';
-                                severityText = 'MODERATE';
-                                gradientClass = 'from-yellow-50 to-orange-50 border-yellow-200';
-                                alertMessage = '⚠️ **Signal #2 Winds.** Moderate threat to life and property. Secure all loose objects.';
-                            } else if (alert.intensity.includes('signal_1')) {
-                                severityClass = 'low'; // Even low alerts are worth showing
-                                severityText = 'LOW';
-                                gradientClass = 'from-blue-50 to-cyan-50 border-blue-200';
-                                alertMessage = '🌬️ **Signal #1 Winds.** Minimal threat, but minor damage is possible. Be cautious.';
-                            }
-                        } else if (alert.type === 'flood') {
-                            iconClass = 'fa-water';
-                            // Assuming flood warnings also pass a risk_level intensity (High, Moderate, Low)
-                            if (alert.intensity === 'High' || alert.intensity === 'Moderate') {
-                                severityClass = 'high';
-                                severityText = 'HIGH';
-                                gradientClass = 'from-red-50 to-pink-50 border-red-200';
-                                alertMessage = '🌊 **Flood Warning.** High risk in affected areas. Move to higher ground immediately.';
-                            } else {
-                                severityClass = 'low';
-                                severityText = 'LOW';
-                                gradientClass = 'from-blue-50 to-cyan-50 border-blue-200';
-                                alertMessage = '💧 **Flood Watch.** Monitor conditions as flooding is possible.';
-                            }
-                        }
-                        
-                        return `
-                            <div class="weather-alert ${severityClass} bg-gradient-to-r ${gradientClass} border rounded-lg p-4 shadow-sm">
-                                <div class="weather-alert-header flex justify-between items-center mb-3">
-                                    <div class="flex items-center">
-                                        <i class="weather-alert-icon fas ${iconClass} mr-3 text-lg"></i>
-                                        <span class="weather-alert-title font-bold text-gray-800">${alert.text}</span>
-                                    </div>
-                                    <span class="weather-alert-severity px-3 py-1 rounded-full text-white text-sm font-bold
-                                        ${severityText === 'CRITICAL' ? 'bg-red-600' : 
-                                        severityText === 'HIGH' ? 'bg-orange-500' : 
-                                        severityText === 'MODERATE' ? 'bg-yellow-500' : 
-                                        'bg-blue-500'}">
-                                        ${severityText}
-                                    </span>
+                    return `
+                        <div class="bg-gradient-to-r ${gradientClass} border rounded-lg p-4 shadow-sm">
+                            <div class="flex justify-between items-center mb-3">
+                                <div class="flex items-center">
+                                    <i class="fas fa-map-marker-alt ${iconClass} mr-2"></i>
+                                    <span class="font-bold text-gray-800">${warning.area}</span>
                                 </div>
-                                <div class="weather-alert-body text-gray-700 mb-2">
-                                    ${alertMessage}
-                                </div>
-                                <div class="weather-alert-timestamp flex items-center text-sm text-gray-500">
+                                <span class="px-3 py-1 rounded-full text-white text-sm font-bold ${riskClass}">
+                                    ${warning.risk_level}
+                                </span>
+                            </div>
+                            <p class="text-gray-700 mb-2">${warning.message}</p>
+                            ${warning.prediction_date ? `
+                                <div class="flex items-center text-sm text-gray-500">
                                     <i class="fas fa-clock mr-2"></i>
-                                    <span>${alert.timestamp}</span>
+                                    <span>${warning.prediction_date}</span>
                                 </div>
-                            </div>
-                        `;
-                    }).join('') :
-                    `<div class="weather-alert low bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 shadow-sm">
-                        <div class="weather-alert-header flex justify-between items-center mb-3">
-                            <div class="flex items-center">
-                                <i class="weather-alert-icon fas fa-check-circle mr-3 text-lg text-green-500"></i>
-                                <span class="weather-alert-title font-bold text-gray-800">All Clear</span>
-                            </div>
-                            <span class="weather-alert-severity px-3 py-1 rounded-full text-white text-sm font-bold bg-green-500">SAFE</span>
+                            ` : ''}
                         </div>
-                        <div class="weather-alert-body text-gray-700">
-                            No active weather alerts at this time. Conditions are normal.
-                        </div>
-                    </div>`;
-                alertsContainer.innerHTML = alertsHTML;
-            })
-            .catch(err => {
-                console.error("Data refresh error:", err);
-                // Display error message
-                const msg = err.message.includes('aborted') || err.message.includes('timed out') ? 
-                    "Error: Data request timed out (10 seconds)." : 
-                    `Error loading data: ${err.message}`;
+                    `;
+                }).join('');
                 
-                if (weatherContainer) {
-                    weatherContainer.innerHTML = `
-                        <div class="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg p-4 text-center">
-                            <i class="fas fa-exclamation-triangle text-red-500 text-2xl mb-2"></i>
-                            <p class="text-red-700 font-medium">${msg}</p>
+                if (floodWarningContent) floodWarningContent.innerHTML = warningsHTML;
+            }
+
+            // 4. Update Temperature Chart
+            if (data.chart_labels && data.chart_data) {
+                if (tempChart) {
+                    tempChart.data.labels = data.chart_labels;
+                    tempChart.data.datasets[0].data = data.chart_data;
+                    tempChart.update();
+                }
+            }
+
+            // 5. Update Alerts section (sidebar)
+            const alerts = data.alerts;
+            const alertsHTML = alerts.length > 0 ?
+                alerts.map(alert => {
+                    let severityClass = 'low'; // Default to low
+                    let iconClass = 'fa-exclamation-triangle';
+                    let severityText = 'LOW';
+                    let gradientClass = 'from-gray-50 to-slate-50 border-gray-200';
+                    let alertMessage = 'Weather alert in your area. Please stay informed.';
+
+                    if (alert.type === 'rain') {
+                        iconClass = 'fa-cloud-rain';
+                        
+                        // --- RAIN LOGIC ---
+                        if (alert.intensity === 'torrential') {
+                            severityClass = 'critical';
+                            severityText = 'CRITICAL';
+                            gradientClass = 'from-red-50 to-pink-50 border-red-200';
+                            alertMessage = '⚠️ **Torrential Rainfall detected.** Extreme flood danger. Immediate evacuation is necessary.';
+                        } else if (alert.intensity === 'intense') {
+                            severityClass = 'high';
+                            severityText = 'HIGH';
+                            gradientClass = 'from-orange-50 to-red-50 border-orange-200';
+                            alertMessage = '🚨 **Intense Rainfall detected.** High flood risk. Prepare for evacuation.';
+                        } else if (alert.intensity === 'heavy') {
+                            severityClass = 'moderate';
+                            severityText = 'MODERATE';
+                            gradientClass = 'from-yellow-50 to-orange-50 border-yellow-200';
+                            alertMessage = '⚠️ **Heavy Rainfall detected.** Moderate flood risk. Monitor water levels closely.';
+                        }
+                    } else if (alert.type === 'wind') {
+                        iconClass = 'fa-wind';
+                        
+                        // --- WIND LOGIC (PAGASA-style Signals) ---
+                        if (alert.intensity.includes('signal_5') || alert.intensity.includes('signal_4')) {
+                            severityClass = 'critical';
+                            severityText = 'CRITICAL';
+                            gradientClass = 'from-red-50 to-pink-50 border-red-200';
+                            alertMessage = '🛑 **Extreme Wind Signal.** Catastrophic winds expected. Stay indoors in a safe structure.';
+                        } else if (alert.intensity.includes('signal_3')) {
+                            severityClass = 'high';
+                            severityText = 'HIGH';
+                            gradientClass = 'from-orange-50 to-red-50 border-orange-200';
+                            alertMessage = '🚨 **Signal #3 Winds.** Severe threat to life and property. Avoid all outdoor activities.';
+                        } else if (alert.intensity.includes('signal_2')) {
+                            severityClass = 'moderate';
+                            severityText = 'MODERATE';
+                            gradientClass = 'from-yellow-50 to-orange-50 border-yellow-200';
+                            alertMessage = '⚠️ **Signal #2 Winds.** Moderate threat to life and property. Secure all loose objects.';
+                        } else if (alert.intensity.includes('signal_1')) {
+                            severityClass = 'low'; // Even low alerts are worth showing
+                            severityText = 'LOW';
+                            gradientClass = 'from-blue-50 to-cyan-50 border-blue-200';
+                            alertMessage = '🌬️ **Signal #1 Winds.** Minimal threat, but minor damage is possible. Be cautious.';
+                        }
+                    } else if (alert.type === 'flood') {
+                        iconClass = 'fa-water';
+                        // Assuming flood warnings also pass a risk_level intensity (High, Moderate, Low)
+                        if (alert.intensity === 'High' || alert.intensity === 'Moderate') {
+                            severityClass = 'high';
+                            severityText = 'HIGH';
+                            gradientClass = 'from-red-50 to-pink-50 border-red-200';
+                            alertMessage = '🌊 **Flood Warning.** High risk in affected areas. Move to higher ground immediately.';
+                        } else {
+                            severityClass = 'low';
+                            severityText = 'LOW';
+                            gradientClass = 'from-blue-50 to-cyan-50 border-blue-200';
+                            alertMessage = '💧 **Flood Watch.** Monitor conditions as flooding is possible.';
+                        }
+                    }
+                    
+                    return `
+                        <div class="weather-alert ${severityClass} bg-gradient-to-r ${gradientClass} border rounded-lg p-4 shadow-sm">
+                            <div class="weather-alert-header flex justify-between items-center mb-3">
+                                <div class="flex items-center">
+                                    <i class="weather-alert-icon fas ${iconClass} mr-3 text-lg"></i>
+                                    <span class="weather-alert-title font-bold text-gray-800">${alert.text}</span>
+                                </div>
+                                <span class="weather-alert-severity px-3 py-1 rounded-full text-white text-sm font-bold
+                                    ${severityText === 'CRITICAL' ? 'bg-red-600' : 
+                                    severityText === 'HIGH' ? 'bg-orange-500' : 
+                                    severityText === 'MODERATE' ? 'bg-yellow-500' : 
+                                    'bg-blue-500'}">
+                                    ${severityText}
+                                </span>
+                            </div>
+                            <div class="weather-alert-body text-gray-700 mb-2">
+                                ${alertMessage}
+                            </div>
+                            <div class="weather-alert-timestamp flex items-center text-sm text-gray-500">
+                                <i class="fas fa-clock mr-2"></i>
+                                <span>${alert.timestamp}</span>
+                            </div>
                         </div>
                     `;
-                }
-            })
-            .finally(() => {
-                clearTimeout(timeoutId); // Clear the timeout
-
-                // Reset refresh button appearance
-                if (refreshBtn) {
-                    refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
-                    refreshBtn.classList.remove('animate-pulse');
-                }
-
-                // Restart auto-refresh only if it was stopped (e.g., after sensor change or on error)
-                if (!intervalId) {
-                    intervalId = setInterval(refreshAllData, 10000);
-                }
-            });
-    }
-
-    // =======================================================
-    // DOMContentLoaded for Initialization (Chart, Auto-refresh)
-    // =======================================================
-    document.addEventListener("DOMContentLoaded", () => {
-        const tempChartCtx = document.getElementById("tempChart")?.getContext("2d");
-        
-        // Initialize Chart with the initial data from Django context
-        if (tempChartCtx) {
-            // Note: You must ensure 'labels' and 'data' are available in the Django context
-            const initialLabels = JSON.parse('{{ labels|safe }}');
-            const initialData = JSON.parse('{{ data|safe }}');
+                }).join('') :
+                `<div class="weather-alert low bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 shadow-sm">
+                    <div class="weather-alert-header flex justify-between items-center mb-3">
+                        <div class="flex items-center">
+                            <i class="weather-alert-icon fas fa-check-circle mr-3 text-lg text-green-500"></i>
+                            <span class="weather-alert-title font-bold text-gray-800">All Clear</span>
+                        </div>
+                        <span class="weather-alert-severity px-3 py-1 rounded-full text-white text-sm font-bold bg-green-500">SAFE</span>
+                    </div>
+                    <div class="weather-alert-body text-gray-700">
+                        No active weather alerts at this time. Conditions are normal.
+                    </div>
+                </div>`;
+            if (alertsContainer) alertsContainer.innerHTML = alertsHTML;
+        })
+        .catch(err => {
+            console.error("Data refresh error:", err);
+            // Display error message
+            const msg = err.message.includes('aborted') || err.message.includes('timed out') ? 
+                "Error: Data request timed out (20 seconds)." : 
+                `Error loading data: ${err.message}`;
             
-            tempChart = new Chart(tempChartCtx, {
-                type: "line",
-                data: {
-                    labels: initialLabels,
-                    datasets: [{
-                        label: "Temperature (°C)",
-                        data: initialData,
-                        borderColor: "rgb(59, 130, 246)",
-                        backgroundColor: "rgba(59, 130, 246, 0.2)",
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: false } }
-                }
-            });
-        }
+            if (weatherContainer) {
+                weatherContainer.innerHTML = `
+                    <div class="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg p-4 text-center">
+                        <i class="fas fa-exclamation-triangle text-red-500 text-2xl mb-2"></i>
+                        <p class="text-red-700 font-medium">${msg}</p>
+                    </div>
+                `;
+            }
+            if (lastUpdatedText) {
+                lastUpdatedText.innerHTML = `
+                    <p class="text-red-700 text-center font-medium text-xs">Error</p>
+                `;
+            }
+        })
+        .finally(() => {
+            clearTimeout(timeoutId); // Clear the timeout
+
+            // Reset refresh button appearance
+            if (refreshBtn) {
+                refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+                refreshBtn.classList.remove('animate-pulse');
+            }
+
+            // Restart auto-refresh only if it was stopped (e.g., after sensor change or on error)
+            if (!intervalId) {
+                intervalId = setInterval(refreshAllData, 20000);
+            }
+        });
+}
+
+// =======================================================
+// DOMContentLoaded for Initialization (Chart, Auto-refresh)
+// =======================================================
+document.addEventListener("DOMContentLoaded", () => {
+    const tempChartCtx = document.getElementById("tempChart")?.getContext("2d");
+    
+    // Initialize Chart with the initial data from Django context
+    if (tempChartCtx) {
+        // Note: You must ensure 'labels' and 'data' are available in the Django context
+        const initialLabels = JSON.parse('{{ labels|safe }}');
+        const initialData = JSON.parse('{{ data|safe }}');
         
-        // Start auto-refresh the entire dashboard every 10 seconds
-        intervalId = setInterval(refreshAllData, 10000);
-    });
+        tempChart = new Chart(tempChartCtx, {
+            type: "line",
+            data: {
+                labels: initialLabels,
+                datasets: [{
+                    label: "Temperature (°C)",
+                    data: initialData,
+                    borderColor: "rgb(59, 130, 246)",
+                    backgroundColor: "rgba(59, 130, 246, 0.2)",
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: false } }
+            }
+        });
+    }
+    
+    // **FIX 1: Load initial data immediately on page load**
+    refreshAllData();
 
-    // =======================================================
-    // DOMContentLoaded for Event Listeners (Sensor Select)
-    // =======================================================
-    document.addEventListener('DOMContentLoaded', function() {
-        const sensorSelect = document.getElementById('sensorSelect');
+    // Start auto-refresh the entire dashboard every 20 seconds
+    intervalId = setInterval(refreshAllData, 20000);
+});
 
-        // Handle sensor dropdown change with AJAX
-        if (sensorSelect) {
-            sensorSelect.addEventListener('change', function() {
-                // Stop auto-refresh when sensor is changed
-                clearInterval(intervalId);
-                intervalId = null; // Clear the variable so .finally() restarts it
+// =======================================================
+// DOMContentLoaded for Event Listeners (Sensor Select)
+// =======================================================
+document.addEventListener('DOMContentLoaded', function() {
+    const sensorSelect = document.getElementById('sensorSelect');
 
-                // Add loading animation (This logic is redundant here but kept for immediate visual feedback)
-                const weatherContainer = document.getElementById('weatherDataContainer');
-                if (weatherContainer) {
-                    weatherContainer.innerHTML = `
-                        <div class="flex items-center justify-center py-8">
-                            <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mr-3"></div>
-                            <span class="text-gray-600 font-medium">Loading weather data...</span>
-                        </div>
-                    `;
-                }
+    // Handle sensor dropdown change with AJAX
+    if (sensorSelect) {
+        sensorSelect.addEventListener('change', function() {
+            // Stop auto-refresh when sensor is changed
+            clearInterval(intervalId);
+            intervalId = null; // Clear the variable so .finally() restarts it
 
-                const refreshBtn = document.getElementById('refreshBtn');
-                if (refreshBtn) {
-                    refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-                    refreshBtn.classList.add('animate-pulse');
-                }
+            // Add loading animation for main weather data container
+            const weatherContainer = document.getElementById('weatherDataContainer');
+            if (weatherContainer) {
+                weatherContainer.innerHTML = `
+                    <div class="flex items-center justify-center py-8">
+                        <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mr-3"></div>
+                        <span class="text-gray-600 font-medium">Loading weather data...</span>
+                    </div>
+                `;
+            }
+            
+            // Add loading animation for last updated section
+            const lastUpdatedText = document.getElementById("lastUpdatedSection");
+            if (lastUpdatedText) {
+                lastUpdatedText.innerHTML = `
+                    <div class="flex flex-col items-center justify-center">
+                        <div class="animate-pulse h-3 w-20 bg-gray-200 rounded mb-1"></div>
+                        <div class="animate-pulse h-3 w-24 bg-gray-200 rounded"></div>
+                    </div>
+                `;
+            }
 
-                // Trigger AJAX refresh immediately
-                refreshAllData();
-            });
-        }
-    });
+            const refreshBtn = document.getElementById('refreshBtn');
+            if (refreshBtn) {
+                refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                refreshBtn.classList.add('animate-pulse');
+            }
+
+            // Trigger AJAX refresh immediately
+            refreshAllData();
+        });
+    }
+});
 
     // =======================================================
     // Modal and Sidebar Functions (Utility Functions)

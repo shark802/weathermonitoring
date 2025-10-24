@@ -46,7 +46,7 @@
 
                     <div id="alertList" 
                         class="dashboard-alerts max-h-80 overflow-y-auto flex-1 flex flex-col">
-                        <div class="p-4 text-center text-gray-500">
+                        <div id="noAlertsMessage" class="p-4 text-center text-gray-500">
                             <i class="fas fa-bell-slash text-2xl mb-2"></i>
                             <p>No new alerts</p>
                         </div>
@@ -69,7 +69,7 @@
                     class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50 hidden">
                     <li>
                         <a href="{% url 'user_profile' %}" 
-                          class="block px-4 py-2 text-sm text-gray-700 no-underline hover:bg-gray-100">
+                            class="block px-4 py-2 text-sm text-gray-700 no-underline hover:bg-gray-100">
                             <i class="fas fa-user mr-2"></i> Profile
                         </a>
                     </li>
@@ -77,7 +77,7 @@
                         <form id="logout-form" action="{% url 'logout' %}" method="POST">
                             {% csrf_token %}
                             <button type="button" onclick="showLogoutModal()" 
-                                    class="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                        class="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                 <i class="fas fa-sign-out-alt mr-2"></i> Logout
                             </button>
                         </form>
@@ -88,76 +88,150 @@
     </header>
 
     <div class="flex pt-16">
-        <main class="flex-1 p-6 space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+        <main class="transition-margin duration-300 ml-0 flex-1 p-6 space-y-6">
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                <div class="bg-white p-4 rounded shadow flex flex-col justify-between h-full">
+                <div class="bg-gradient-to-br from-white to-blue-50 p-4 rounded-xl shadow-lg border border-blue-100 flex flex-col justify-between h-full transform transition-all duration-300">
                     <div>
-                        <h2 class="text-xl font-semibold mb-2 flex items-center justify-between">
-                            <div class="flex items-center font-bold text-lg mb-2 text-gray-700 border-b pb-1">
-                                Live Data – 
-                                <form method="get" class="ml-2" id="sensorForm">
-                                    <select name="sensor_id" id="sensorSelect" 
-                                            class="border rounded px-2 py-1 text-sm"
-                                            onchange="this.form.submit()">
-                                        {% for sensor in available_sensors %}
-                                            <option value="{{ sensor.sensor_id }}" 
-                                                    {% if sensor.sensor_id == current_sensor_id %}selected{% endif %}>
-                                                {{ sensor.name }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
-                                    <noscript>
-                                        <button type="submit" class="ml-2 bg-blue-500 text-white px-2 py-1 rounded text-sm">
-                                            Apply
-                                        </button>
-                                    </noscript>
-                                </form>
-                            </div>
-                            <a href="?sensor_id={{ current_sensor_id }}" class="text-blue-600 hover:underline text-sm">
-                                <i class="fas fa-sync-alt"></i>
+                        <div class="flex items-center justify-between mb-3">
+                            <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                                <div class="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse mr-2"></div>
+                                Live Weather Data
+                            </h2>
+                            <a href="#" id="refreshBtn" 
+                                class="bg-blue-500 text-white p-1.5 rounded-full transition-all duration-200 shadow-md"
+                                onclick="refreshAllData(); return false;">
+                                <i class="fas fa-sync-alt text-sm"></i>
                             </a>
-                        </h2>
+                        </div>
+                        
+                        {# Enhanced Sensor Dropdown #}
+                        <div class="mb-3">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                <i class="fas fa-broadcast-tower mr-1 text-blue-500"></i>Select Weather Station
+                            </label>
+                            <div class="relative">
+                                <select name="sensor_id" id="sensorSelect" 
+                                        onchange="refreshAllData()"
+                                        class="w-full bg-white border-2 border-blue-200 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 shadow-sm">
+                                    {% for sensor in available_sensors %}
+                                        <option value="{{ sensor.sensor_id }}" 
+                                                {% if sensor.sensor_id == current_sensor_id %}selected{% endif %}>
+                                            📡 {{ sensor.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
 
-                        <div id="weatherDataContainer" class="mt-4">
+                        <div id="weatherDataContainer" class="mt-3">
                             {% if weather.error %}
                                 {% if weather.error == 'No weather data available' %}
-                                    <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
-                                        <p>No weather data available.</p>
+                                    <div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-3 text-center">
+                                        <i class="fas fa-check-circle text-xl text-green-500 mb-1"></i>
+                                        <p class="text-green-700 font-medium">No weather data available</p>
                                     </div>
                                 {% else %}
-                                    <p class="text-red-600">Error: {{ weather.error }}</p>
+                                    <div class="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg p-3 text-center">
+                                        <i class="fas fa-exclamation-triangle text-xl text-red-500 mb-1"></i>
+                                        <p class="text-red-700 font-medium">Error: {{ weather.error }}</p>
+                                    </div>
                                 {% endif %}
                             {% else %}
-                                <ul class="space-y-2 mr-2 list-none text-left">
-                                    <li><i class="fas fa-thermometer-half text-red-700 ml-2"></i> Temperature: {{ weather.temperature }}°C</li>
-                                    <li><i class="fas fa-tint text-blue-700 ml-2"></i> Humidity: {{ weather.humidity }}%</li>
-                                    <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: {{ weather.dew_point }}°C</li>
-                                    <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: {{ weather.wind_speed|default:"N/A" }} m/s</li>
-                                    <li><i class="fas fa-tachometer-alt text-orange-700 ml-2"></i> Barometric Pressure: {{ weather.barometric_pressure|default:"N/A" }} hPa</li>
-                                    <li><i class="fas fa-mountain text-purple-700 ml-2"></i> Altitude: {{ weather.altitude|default:"N/A" }} m</li>
-                                    <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: {{ weather.rain_rate|default:"N/A" }} mm/h</li>
-                                </ul>
+                                <div id="weatherDataGrid" class="grid grid-cols-1 gap-2">
+                                    <div id="data-temperature" class="weather-data-card bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-thermometer-half text-red-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Temperature</span>
+                                        </div>
+                                        <span class="text-base font-bold text-red-600">{{ weather.temperature }}°C</span>
+                                    </div>
+                                    
+                                    <div id="data-humidity" class="weather-data-card bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-tint text-blue-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Humidity</span>
+                                        </div>
+                                        <span class="text-base font-bold text-blue-600">{{ weather.humidity }}%</span>
+                                    </div>
+                                    
+                                    <div id="data-dew_point" class="weather-data-card bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-eye text-gray-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Dew Point</span>
+                                        </div>
+                                        <span class="text-base font-bold text-gray-600">{{ weather.dew_point }}°C</span>
+                                    </div>
+                                    
+                                    <div id="data-wind_speed" class="weather-data-card bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-wind text-green-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Wind Speed</span>
+                                        </div>
+                                        <span class="text-base font-bold text-green-600">{{ weather.wind_speed|default:"N/A" }} m/s</span>
+                                    </div>
+                                    
+                                    <div id="data-rain_rate" class="weather-data-card bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-cloud-rain text-indigo-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Rain Rate</span>
+                                        </div>
+                                        <span class="text-base font-bold text-indigo-600">{{ weather.rain_rate|default:"N/A" }} mm/h</span>
+                                    </div>
+                                    
+                                    <div id="data-barometric_pressure" class="weather-data-card bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-tachometer-alt text-orange-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Pressure</span>
+                                        </div>
+                                        <span class="text-base font-bold text-orange-600">{{ weather.barometric_pressure|default:"N/A" }} hPa</span>
+                                    </div>
+                                    
+                                    <div id="data-altitude" class="weather-data-card bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-mountain text-purple-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Altitude</span>
+                                        </div>
+                                        <span class="text-base font-bold text-purple-600">{{ weather.altitude|default:"N/A" }} m</span>
+                                    </div>
+                                </div>
                             {% endif %}
                         </div>
+                        <div id="lastUpdatedSection" class="mt-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-2">
+                            <div class="flex items-center justify-center mb-0.5">
+                                <i class="fas fa-clock text-blue-500 mr-1 text-xs"></i>
+                                <span class="text-xs font-semibold text-blue-700">Last Updated</span>
+                            </div>
+                            <p id="lastUpdatedTime" class="text-gray-700 text-center font-medium text-xs">{{ weather.date_time|default:"N/A" }}</p>
+                            <div class="flex items-center justify-center mt-0.5">
+                                <i class="fas fa-map-marker-alt text-gray-500 mr-1 text-xs"></i>
+                                <span id="lastUpdatedLocation" class="text-xs text-gray-600">{{ weather.location|default:"N/A" }}</span>
+                            </div>
+                        </div>
                     </div>
-                    <p class="text-gray-600 text-center mt-4">
-                        Last Updated: {{ weather.date_time|default:"N/A" }}<br>
-                        <span class="text-sm text-gray-500">Location: {{ weather.location|default:"N/A" }}</span>
-                    </p>
                 </div>
 
 
-                <div class="bg-white p-4 rounded shadow">
-                    <h2 class="text-xl font-semibold mb-4 flex items-center">
-                        <i class="fas fa-robot mr-2 text-blue-500"></i> AI Predictions & Warnings
-                    </h2>
+                <div class="bg-gradient-to-br from-white to-purple-50 p-6 rounded-xl shadow-lg border border-purple-100 md:col-span-2 transform transition-all duration-300">
+                    <div class="flex items-center mb-6">
+                        <div class="bg-gradient-to-r from-purple-500 to-blue-500 p-3 rounded-full mr-4">
+                            <i class="fas fa-robot text-white text-xl"></i>
+                        </div>
+                        <h2 class="text-2xl font-bold text-gray-800">AI Predictions & Warnings</h2>
+                    </div>
                     
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         
-                        <div>
-                            <h3 class="font-bold text-lg mb-2 text-gray-700 border-b pb-1">🌧 Rain Forecast</h3>
-                            <div id="rainForecastContent" class="space-y-3 text-medium">
+                        {# Rain Forecast Section #}
+                        <div class="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-4">
+                            <div class="flex items-center mb-4">
+                                <div class="bg-gradient-to-r from-blue-500 to-cyan-500 p-2 rounded-full mr-3">
+                                    <i class="fas fa-cloud-rain text-white"></i>
+                                </div>
+                                <h3 class="text-xl font-bold text-gray-800">Rain Forecast</h3>
+                            </div>
+                            <div id="rainForecastContent" class="space-y-3">
                                 {% if forecast %}
                                     {% for item in forecast %}
                                         {% if item.error %}
@@ -179,19 +253,17 @@
                                                 <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
                                                     <span class="font-medium text-gray-700">⚡ Rain Intensity</span>
                                                     <span class="
-                                                        text-right px-2 py-1 rounded text-white font-medium
-                                                        {% if item.intensity == 'Light' %} bg-green-500
-                                                        {% elif item.intensity == 'Moderate' %} bg-yellow-500
-                                                        {% elif item.intensity == 'Heavy' %} bg-orange-500
-                                                        {% elif item.intensity == 'Intense' %} bg-red-600
-                                                        {% elif item.intensity == 'Torrential' %} bg-purple-700
-                                                        {% else %} bg-gray-400 {% endif %}
-                                                    ">
+                                                         text-right px-2 py-1 rounded text-white font-medium
+                                                         {% if item.intensity == 'Light' %} bg-green-500
+                                                         {% elif item.intensity == 'Moderate' %} bg-yellow-500
+                                                         {% elif item.intensity == 'Heavy' %} bg-orange-500
+                                                         {% elif item.intensity == 'Intense' %} bg-red-600
+                                                         {% elif item.intensity == 'Torrential' %} bg-purple-700
+                                                         {% else %} bg-gray-400 {% endif %}">
                                                         {{ item.intensity }}
                                                     </span>
                                                 </div>
                                                 
-                                                {# 🌟 ADDED THE CREATED AT FIELD HERE 🌟 #}
                                                 <div class="flex justify-between items-center text-sm text-gray-500 pt-1">
                                                     <span class="font-medium">🕒 Last Predicted:</span>
                                                     <span class="font-medium">{{ item.created_at }}</span>
@@ -201,16 +273,22 @@
                                         {% endif %}
                                     {% endfor %}
                                 {% else %}
-                                    <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
-                                        <p>No AI prediction available.</p>
-                                    </div>
+                                <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
+                                    <p>No AI prediction available.</p>
+                                </div>
                                 {% endif %}
                             </div>
                         </div>
 
-                        <div>
-                            <h3 class="font-bold text-lg mb-2 text-gray-700 border-b pb-1">🚨 Flood Warnings by Barangay</h3>
-                            <div id="floodWarningContent" class="space-y-3 text-medium max-h-64 overflow-y-auto">
+                        {# Flood Warnings Section #}
+                        <div class="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-200 rounded-lg p-4">
+                            <div class="flex items-center mb-4">
+                                <div class="bg-gradient-to-r from-orange-500 to-red-500 p-2 rounded-full mr-3">
+                                    <i class="fas fa-exclamation-triangle text-white"></i>
+                                </div>
+                                <h3 class="text-xl font-bold text-gray-800">Flood Warnings</h3>
+                            </div>
+                            <div id="floodWarningContent" class="space-y-3 max-h-64 overflow-y-auto">
                                 {% if flood_warnings %}
                                     {% for warning in flood_warnings %}
                                         <div class="border rounded-lg p-3 {% if warning.risk_level == 'High' %}border-red-300 bg-red-50{% elif warning.risk_level == 'Moderate' %}border-orange-300 bg-orange-50{% else %}border-yellow-300 bg-yellow-50{% endif %}">
@@ -245,18 +323,22 @@
                 </div>
                 
             </div>
-            <hr class="my-4">
-
-            <div class="bg-white p-3 rounded shadow pb-6">
-                <h2 class="text-xl font-semibold mb-2">Temperature Trends</h2>
-                <div class="relative h-64 w-full">
-                    <canvas id="tempChart" class="absolute inset-0"></canvas>
+            <div class="bg-gradient-to-br from-white to-green-50 p-6 rounded-xl shadow-lg border border-green-100 transform transition-all duration-300">
+                <div class="flex items-center mb-6">
+                    <div class="bg-gradient-to-r from-green-500 to-emerald-500 p-3 rounded-full mr-4">
+                        <i class="fas fa-chart-line text-white text-xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-800">Temperature Trends</h2>
+                </div>
+                <div class="bg-white rounded-lg p-4 shadow-sm">
+                    <canvas id="tempChart" height="100"></canvas>
                 </div>
             </div>
 
         </main>
     </div>
 
+    {# Logout Modal #}
     <div id="logoutModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
         <div class="flex items-center justify-center min-h-screen p-4">
             <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" aria-hidden="true"></div>
@@ -278,158 +360,327 @@
         </div>
     </div>
 
+    {# Loading Overlay #}
     <div id="loadingOverlay" class="hidden fixed inset-0 z-50 bg-white bg-opacity-80 flex flex-col items-center justify-center">
         <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
-        <p class="mt-4 text-lg font-medium text-gray-700">Logging out...</p>
+        <p class="mt-4 text-lg font-medium text-gray-700">Loading data...</p>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
-        // Global Chart Instance
+        let intervalId;
         let tempChart;
 
-        document.addEventListener("DOMContentLoaded", () => {
+        // =======================================================
+        // Primary Data Refresh Function (GLOBAL SCOPE)
+        // =======================================================
+        function refreshAllData() {
+            const currentSensorId = document.getElementById('sensorSelect').value;
             const weatherContainer = document.getElementById("weatherDataContainer");
-            const lastUpdatedText = document.querySelector("p.text-gray-600.text-center.mt-4");
-            const rainForecastContent = document.getElementById("rainForecastContent");
-            const floodWarningContent = document.getElementById("floodWarningContent");
-            const alertsContainer = document.getElementById("alerts-list"); // Used for dropdown only now
-            const tempChartCtx = document.getElementById("tempChart").getContext("2d");
+            const lastUpdatedText = document.getElementById("lastUpdatedSection");
+            const rainForecastContent = document.getElementById("rainForecastContent"); // AI Prediction Card
+            const tempChartCanvas = document.getElementById("tempChart"); // Element for the chart
+            const refreshBtn = document.getElementById('refreshBtn');
 
-            // Initialize Chart with the initial data from Django context
-            const initialLabels = JSON.parse('{{ labels|safe }}');
-            const initialData = JSON.parse('{{ data|safe }}');
-            tempChart = new Chart(tempChartCtx, {
-                type: "line",
-                data: {
-                    labels: initialLabels,
-                    datasets: [{
-                        label: "Temperature (°C)",
-                        data: initialData,
-                        borderColor: "rgb(59, 130, 246)",
-                        backgroundColor: "rgba(59, 130, 246, 0.2)",
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: false } }
-                }
-            });
-
-            // --- Primary Data Refresh Function ---
-            function refreshAllData() {
-                const currentSensorId = document.getElementById('sensorSelect').value;
-                
-                // Assuming you have a Django URL named 'latest_dashboard_data' for AJAX data
-                fetch(`{% url 'latest_dashboard_data' %}?sensor_id=${currentSensorId}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        // 1. Update Live Weather Data
-                        const weather = data.weather;
-                        if (weather && weather.error) {
-                            weatherContainer.innerHTML = `<p class="text-red-600">Error: ${weather.error}</p>`;
-                        } else if (weather) {
-                            weatherContainer.innerHTML = `
-                                <ul class="space-y-2 mr-2 list-none text-left">
-                                    <li><i class="fas fa-thermometer-half text-red-700 ml-2"></i> Temperature: ${weather.temperature}°C</li>
-                                    <li><i class="fas fa-tint text-blue-700 ml-2"></i> Humidity: ${weather.humidity}%</li>
-                                    <li><i class="fas fa-tint text-gray-800 ml-2"></i> Dew Point: ${weather.dew_point}°C</li>
-                                    <li><i class="fas fa-wind text-green-700 ml-2"></i> Wind Speed: ${weather.wind_speed ?? "N/A"} km/h</li>
-                                    <li><i class="fas fa-cloud text-indigo-700 ml-2"></i> Barometric Pressure: ${weather.barometric_pressure ?? "N/A"} hPa</li>
-                                    <li><i class="fas fa-mountain text-purple-700 ml-2"></i> Altitude: ${weather.altitude ?? "N/A"} m</li>
-                                    <li><i class="fas fa-cloud-rain text-indigo-700 ml-2"></i> Rain Rate: ${weather.rain_rate ?? "N/A"} mm/h</li>
-                                </ul>
-                            `;
-                            lastUpdatedText.innerHTML = `Last Updated: ${weather.date_time}<br><span class="text-sm text-gray-500">Location: ${weather.location}</span>`;
-                        }
-
-                        // 2. Update AI Rain Prediction
-                        const forecast = data.forecast || [];
-                        const forecastHTML = forecast.length > 0 ?
-                            `${forecast.map(item => item.error ?
-                                `<div class="text-red-600 font-medium p-2 bg-red-100 rounded">⚠️ Prediction Error: ${item.error}</div>` :
-                                item.prediction < 0.1 ?
-                                `<p class="text-gray-600">✅ No significant rain expected in the forecast period.</p>` :
-                                `<div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                                    <span class="font-medium text-gray-700">🌧 Predicted Rainfall</span>
-                                    <span class="text-right text-gray-600 font-semibold">${item.prediction} mm</span>
-                                </div>
-                                <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                                    <span class="font-medium text-gray-700">⏱ Estimated Duration</span>
-                                    <span class="text-right text-gray-600">${item.duration} minutes</span>
-                                </div>
-                                <div class="flex justify-between items-center px-2 py-1 bg-gray-100 rounded">
-                                    <span class="font-medium text-gray-700">⚡ Rain Intensity</span>
-                                    <span class="text-right px-2 py-1 rounded text-white font-medium
-                                        ${item.intensity === 'Light' ? 'bg-green-500' : item.intensity === 'Moderate' ? 'bg-yellow-500' : item.intensity === 'Heavy' ? 'bg-orange-500' : item.intensity === 'Intense' ? 'bg-red-600' : item.intensity === 'Torrential' ? 'bg-purple-700' : 'bg-gray-400'}">
-                                        ${item.intensity}
-                                    </span>
-                                </div>`).join('')}` :
-                            `<p class="text-gray-500 text-medium">No AI prediction available.</p>`;
-                        rainForecastContent.innerHTML = forecastHTML;
-
-                        // 3. Update Flood Warnings by Barangay
-                        const warnings = data.flood_warnings || [];
-                        if (warnings.length === 0) {
-                            floodWarningContent.innerHTML = `
-                                <div class="text-green-600 font-medium p-2 bg-green-100 rounded">
-                                    <p>✅ No active flood warnings for any barangay at this time.</p>
-                                </div>
-                            `;
-                        } else {
-                            const warningsHTML = warnings.map(warning => {
-                                const borderClass = warning.risk_level === 'High' ? 'border-red-300 bg-red-50' : 
-                                                  warning.risk_level === 'Moderate' ? 'border-orange-300 bg-orange-50' : 
-                                                  'border-yellow-300 bg-yellow-50';
-                                const riskClass = warning.risk_level === 'High' ? 'bg-red-600' : 
-                                                warning.risk_level === 'Moderate' ? 'bg-orange-500' : 
-                                                'bg-yellow-500';
-                                
-                                return `
-                                    <div class="border rounded-lg p-3 ${borderClass}">
-                                        <div class="flex justify-between items-center mb-2">
-                                            <span class="font-semibold text-gray-800">
-                                                <i class="fas fa-map-marker-alt mr-1"></i>${warning.area}
-                                            </span>
-                                            <span class="px-2 py-1 rounded text-white text-xs font-bold ${riskClass}">
-                                                ${warning.risk_level}
-                                            </span>
-                                        </div>
-                                        <p class="text-sm text-gray-600 mb-1">${warning.message}</p>
-                                        ${warning.prediction_date ? `
-                                            <p class="text-xs text-gray-500">
-                                                <i class="fas fa-clock mr-1"></i>${warning.prediction_date}
-                                            </p>
-                                        ` : ''}
-                                    </div>
-                                `;
-                            }).join('');
-                            
-                            floodWarningContent.innerHTML = warningsHTML;
-                        }
-
-                        // 4. Update Temperature Chart
-                        if (data.chart_labels && data.chart_data) {
-                            tempChart.data.labels = data.chart_labels;
-                            tempChart.data.datasets[0].data = data.chart_data;
-                            tempChart.update();
-                        }
-                    })
-                    .catch(err => console.error("Data refresh error:", err));
+            // --- Loading Animation for Weather Data Card ---
+            if (weatherContainer && !weatherContainer.querySelector('.animate-spin')) {
+                weatherContainer.innerHTML = `
+                    <div class="flex items-center justify-center py-6">
+                        <div class="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+                        <span class="text-sm text-gray-600 font-medium">Loading weather data...</span>
+                    </div>
+                `;
             }
 
-            // Auto-refresh the main data every 10 seconds
-            setInterval(refreshAllData, 10000);
+            // --- Loading Animation for Refresh Button ---
+            if (refreshBtn && !refreshBtn.classList.contains('animate-pulse')) {
+                refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-sm"></i>'; // Reduced icon size
+                refreshBtn.classList.add('animate-pulse');
+            }
+
+            // --- Loading Animation for AI Prediction Card ---
+            if (rainForecastContent) {
+                rainForecastContent.innerHTML = `
+                    <div class="flex items-center justify-center py-6">
+                        <div class="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+                        <span class="text-sm text-gray-600 font-medium">Loading AI prediction...</span>
+                    </div>
+                `;
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+                console.error("Data refresh timeout: The request took too long (10s) and was aborted.");
+            }, 10000); // 10 second timeout
+
+            // The Django URL tag is kept as this is backend-dependent
+            fetch(`{% url 'latest_dashboard_data' %}?sensor_id=${currentSensorId}`, {
+                signal: controller.signal
+            })
+                .then(res => {
+                    if (!res.ok) {
+                        if (res.statusText === 'abort' || res.status === 0) {
+                            throw new Error("Request timed out or aborted.");
+                        }
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    // =======================================================
+                    // 1. Update Live Weather Data Card
+                    // =======================================================
+                    const weather = data.weather;
+                    if (weather && weatherContainer) {
+                        if (weather.error) {
+                            weatherContainer.innerHTML = `
+                                <div class="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg p-3 text-center">
+                                    <i class="fas fa-exclamation-triangle text-xl text-red-500 mb-1"></i>
+                                    <p class="text-red-700 font-medium text-sm">Error: ${weather.error}</p>
+                                </div>
+                            `;
+                            lastUpdatedText.innerHTML = ''; // Clear last updated on error
+                        } else {
+                            // Weather Data Cards UI
+                            weatherContainer.innerHTML = `
+                                <div class="grid grid-cols-1 gap-2">
+                                    <div class="weather-data-card bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-thermometer-half text-red-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Temperature</span>
+                                        </div>
+                                        <span class="text-base font-bold text-red-600">${weather.temperature}°C</span>
+                                    </div>
+
+                                    <div class="weather-data-card bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-tint text-blue-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Humidity</span>
+                                        </div>
+                                        <span class="text-base font-bold text-blue-600">${weather.humidity}%</span>
+                                    </div>
+
+                                    <div class="weather-data-card bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-eye text-gray-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Dew Point</span>
+                                        </div>
+                                        <span class="text-base font-bold text-gray-600">${weather.dew_point}°C</span>
+                                    </div>
+
+                                    <div class="weather-data-card bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-wind text-green-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Wind Speed</span>
+                                        </div>
+                                        <span class="text-base font-bold text-green-600">${weather.wind_speed ?? "N/A"} m/s</span>
+                                    </div>
+
+                                    <div class="weather-data-card bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-cloud-rain text-indigo-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Rain Rate</span>
+                                        </div>
+                                        <span class="text-base font-bold text-indigo-600">${weather.rain_rate ?? "N/A"} mm/h</span>
+                                    </div>
+
+                                    <div class="weather-data-card bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-tachometer-alt text-orange-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Pressure</span>
+                                        </div>
+                                        <span class="text-base font-bold text-orange-600">${weather.barometric_pressure ?? "N/A"} hPa</span>
+                                    </div>
+
+                                    <div class="weather-data-card bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-2 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-mountain text-purple-500 text-base mr-2"></i>
+                                            <span class="font-medium text-gray-700 text-sm">Altitude</span>
+                                        </div>
+                                        <span class="text-base font-bold text-purple-600">${weather.altitude ?? "N/A"} m</span>
+                                    </div>
+                                </div>
+                            `;
+                            // Last Updated UI
+                            lastUpdatedText.innerHTML = `
+                                <div class="flex items-center justify-center mb-0.5">
+                                    <i class="fas fa-clock text-blue-500 mr-1 text-xs"></i>
+                                    <span class="text-xs font-semibold text-blue-700">Last Updated</span>
+                                </div>
+                                <p class="text-gray-700 text-center font-medium text-xs">${weather.date_time}</p>
+                                <div class="flex items-center justify-center mt-0.5">
+                                    <i class="fas fa-map-marker-alt text-gray-500 mr-1 text-xs"></i>
+                                    <span class="text-xs text-gray-600">${weather.location}</span>
+                                </div>
+                            `;
+                        }
+                    }
+
+                    // =======================================================
+                    // 2. Update AI Rain Prediction Card
+                    // =======================================================
+                    const forecast = data.forecast || [];
+                    if (rainForecastContent) {
+                        const forecastHTML = forecast.length > 0 ?
+                            `${forecast.map(item => item.error ?
+                                `<div class="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg p-4 text-center">
+                                    <i class="fas fa-exclamation-triangle text-red-500 text-2xl mb-2"></i>
+                                    <p class="text-red-700 font-medium">Prediction Error: ${item.error}</p>
+                                </div>` :
+                                item.prediction < 0.1 ?
+                                `<div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 text-center">
+                                    <i class="fas fa-check-circle text-green-500 text-2xl mb-2"></i>
+                                    <p class="text-green-700 font-medium">No significant rain expected in the forecast period.</p>
+                                </div>` :
+                                `<div class="space-y-3">
+                                    <div class="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-cloud-rain text-blue-500 mr-3"></i>
+                                            <span class="font-medium text-gray-700">Predicted Rainfall</span>
+                                        </div>
+                                        <span class="text-xl font-bold text-blue-600">${item.prediction} mm</span>
+                                    </div>
+                                    <div class="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-clock text-gray-500 mr-3"></i>
+                                            <span class="font-medium text-gray-700">Estimated Duration</span>
+                                        </div>
+                                        <span class="text-xl font-bold text-gray-600">${item.duration} minutes</span>
+                                    </div>
+                                    <div class="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-3 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-bolt text-yellow-500 mr-3"></i>
+                                            <span class="font-medium text-gray-700">Rain Intensity</span>
+                                        </div>
+                                        <span class="px-3 py-1 rounded-full text-white font-bold text-sm
+                                            ${item.intensity === 'Light' ? 'bg-green-500' :
+                                            item.intensity === 'Moderate' ? 'bg-yellow-500' :
+                                            item.intensity === 'Heavy' ? 'bg-orange-500' :
+                                            item.intensity === 'Intense' ? 'bg-red-600' :
+                                            item.intensity === 'Torrential' ? 'bg-purple-700' : 'bg-gray-400'}">
+                                            ${item.intensity}
+                                        </span>
+                                    </div>
+                                </div>`).join('')}` :
+                            `<div class="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-lg p-4 text-center">
+                                <i class="fas fa-info-circle text-gray-500 text-2xl mb-2"></i>
+                                <p class="text-gray-600 font-medium">No AI prediction available.</p>
+                            </div>`;
+                        rainForecastContent.innerHTML = forecastHTML;
+                    }
+
+                    // =======================================================
+                    // 3. Update Temperature Chart (No flood warnings or alerts)
+                    // =======================================================
+                    if (data.chart_labels && data.chart_data && tempChart) {
+                        tempChart.data.labels = data.chart_labels;
+                        tempChart.data.datasets[0].data = data.chart_data;
+                        tempChart.update();
+                    }
+
+                })
+                .catch(err => {
+                    console.error("Data refresh error:", err);
+                    // Display error message
+                    const msg = err.message.includes('aborted') || err.message.includes('timed out') ?
+                        "Error: Data request timed out (10 seconds)." :
+                        `Error loading data: ${err.message}`;
+
+                    if (weatherContainer) {
+                        weatherContainer.innerHTML = `
+                            <div class="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg p-4 text-center">
+                                <i class="fas fa-exclamation-triangle text-red-500 text-2xl mb-2"></i>
+                                <p class="text-red-700 font-medium">${msg}</p>
+                            </div>
+                        `;
+                    }
+                })
+                .finally(() => {
+                    clearTimeout(timeoutId); // Clear the timeout
+
+                    // Reset refresh button appearance
+                    if (refreshBtn) {
+                        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+                        refreshBtn.classList.remove('animate-pulse');
+                    }
+
+                    // Restart auto-refresh
+                    if (!intervalId) {
+                        intervalId = setInterval(refreshAllData, 20000);
+                    }
+                });
+        }
+
+        // =======================================================
+        // DOMContentLoaded for Initialization (Chart, Auto-refresh)
+        // =======================================================
+        document.addEventListener("DOMContentLoaded", () => {
+            const tempChartCtx = document.getElementById("tempChart")?.getContext("2d");
+
+            // Initialize Chart with the initial data from Django context
+            if (tempChartCtx) {
+                // Note: You must ensure 'labels' and 'data' are available in the Django context
+                // These context variables ({{ labels|safe }}, {{ data|safe }}) are assumed to exist.
+                const initialLabels = JSON.parse('{{ labels|safe }}');
+                const initialData = JSON.parse('{{ data|safe }}');
+
+                tempChart = new Chart(tempChartCtx, {
+                    type: "line",
+                    data: {
+                        labels: initialLabels,
+                        datasets: [{
+                            label: "Temperature (°C)",
+                            data: initialData,
+                            borderColor: "rgb(59, 130, 246)",
+                            backgroundColor: "rgba(59, 130, 246, 0.2)",
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: false } }
+                    }
+                });
+            }
+
+            // Start auto-refresh the entire dashboard every 20 seconds
+            intervalId = setInterval(refreshAllData, 20000);
+        });
+
+        // =======================================================
+        // DOMContentLoaded for Event Listeners (Sensor Select & Refresh Button)
+        // =======================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            const sensorSelect = document.getElementById('sensorSelect');
+            const refreshBtn = document.getElementById('refreshBtn');
+
+            // Handle sensor dropdown change with AJAX
+            if (sensorSelect) {
+                sensorSelect.addEventListener('change', function() {
+                    // Stop auto-refresh
+                    clearInterval(intervalId);
+                    intervalId = null; 
+
+                    // Trigger AJAX refresh immediately
+                    refreshAllData();
+                });
+            }
             
-            // This ensures a refresh happens immediately after a sensor is selected
-            document.getElementById('sensorSelect').addEventListener('change', refreshAllData);
-            
-            // Initial call
-            refreshAllData();
+            // Add click listener to the refresh button
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function() {
+                    // Stop auto-refresh temporarily
+                    clearInterval(intervalId);
+                    intervalId = null;
+
+                    // Trigger AJAX refresh immediately
+                    refreshAllData();
+                });
+            }
         });
 
 
