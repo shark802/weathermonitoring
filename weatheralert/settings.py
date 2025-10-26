@@ -135,7 +135,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
 # Replace your static files config with:
-STATIC_URL = '/static/'
+STATIC_URL = '/weatherapp/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'weatherapp/static'),
@@ -150,7 +150,7 @@ STATICFILES_FINDERS = [
 ]
 
 # For deployment under a subpath (e.g., /weatherapp)
-FORCE_SCRIPT_NAME = os.environ.get('FORCE_SCRIPT_NAME', None)
+FORCE_SCRIPT_NAME = os.environ.get('FORCE_SCRIPT_NAME', '/weatherapp')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
@@ -172,6 +172,18 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_ENGINE = "django.contrib.sessions.backends.db" 
 SESSION_COOKIE_HTTPONLY = True
 SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_PATH = '/weatherapp'
+CSRF_COOKIE_PATH = '/weatherapp'
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True 
+CSRF_TRUSTED_ORIGINS = [
+    'https://py-server.pagenet.info',
+    'http://py-server.pagenet.info',
+    'http://192.168.3.6',
+    'https://192.168.3.6',
+    'http://localhost',
+    'http://127.0.0.1'
+]
 
 # Media files
 MEDIA_URL = '/media/'
