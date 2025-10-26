@@ -24,9 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-d0a@+xqkrda!+gb$6huxlb6&fngp+j^gs^#hbb5z*^*iny5g2c')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'bccweatherapp.herokuapp.com,bccweatherapp-8fcc2a32c70f.herokuapp.com,localhost,127.0.0.1,192.168.32.107,192.168.3.5,119.93.148.180').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'py-server.pagenet.info,192.168.3.6,localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -44,7 +44,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -52,6 +51,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+if not DEBUG:
+    MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 
 ROOT_URLCONF = 'weatheralert.urls'
 
@@ -88,14 +90,14 @@ else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.mysql',
-            'NAME': 'u520834156_dbweatherApp',
-            'USER': 'u520834156_uWApp2024',
-            'PASSWORD': 'bIxG2Z$In#8',
-            'HOST': '153.92.15.8',
-            'PORT': '3306',
+            'NAME': os.environ.get('DB_NAME', 'u520834156_dbweatherApp'),
+            'USER': os.environ.get('DB_USER', 'u520834156_uWApp2024'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', 'bIxG2Z$In#8'),
+            'HOST': os.environ.get('DB_HOST', '153.92.15.8'),
+            'PORT': os.environ.get('DB_PORT', '3306'),
             'OPTIONS': {
                 'charset': 'utf8mb4',
-            },  
+            },
         }
     }
 
@@ -135,21 +137,23 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
 # Replace your static files config with:
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
 ]
 
 # WhiteNoise configuration
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-WHITENOISE_MANIFEST_STRICT = False
+if not DEBUG:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    WHITENOISE_MANIFEST_STRICT = False
 
 STATICFILES_FINDERS = [
     'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
 ]
 
 # For deployment under a subpath (e.g., /weatherapp)
-FORCE_SCRIPT_NAME = os.environ.get('FORCE_SCRIPT_NAME', '/weatherapp')
+# FORCE_SCRIPT_NAME = os.environ.get('FORCE_SCRIPT_NAME', None)
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
@@ -230,6 +234,6 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_REDIRECT_EXEMPT = []
     # Uncomment when SSL is configured
-    # SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = True
     # SESSION_COOKIE_SECURE = True
     # CSRF_COOKIE_SECURE = True

@@ -1,0 +1,1 @@
+- [ ] Update weatheralert/settings.py to use environment variables for database credentials (NAME, USER, PASSWORD, HOST, PORT)
