@@ -135,10 +135,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
 # Replace your static files config with:
-STATIC_URL = '/weatherapp/static/'
+STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'weatherapp/static'),
 ]
 
 # WhiteNoise configuration
