@@ -1,0 +1,70 @@
+# Core Django Framework
+Django==5.2.6
+djangorestframework==3.16.1
+
+# Database Support
+dj-database-url==2.1.0
+mysql-connector-python==9.4.0
+mysqlclient==2.2.7
+psycopg2==2.9.10
+PyMySQL==1.1.1
+
+# Web Server & Static Files
+gunicorn==23.0.0
+whitenoise==6.9.0
+
+# HTTP Requests & Security
+requests==2.32.4
+certifi==2025.7.14
+urllib3==2.5.0
+PyJWT==2.8.0
+PyNaCl==1.5.0
+cryptography==45.0.5
+
+# Environment & Configuration
+python-dotenv==1.1.1
+django-heroku==0.3.1
+
+# Date/Time Handling
+python-dateutil==2.9.0.post0
+pytz==2025.2
+tzdata==2025.2
+
+# Utilities
+six==1.17.0
+sqlparse==0.5.3
+typing_extensions==4.14.1
+packaging==25.0
+MarkupSafe==3.0.2
+asgiref==3.9.1
+
+# Text Processing & Display
+Markdown==3.9
+markdown-it-py==4.0.0
+mdurl==0.1.2
+Pygments==2.19.2
+rich==14.1.0
+
+# Image Processing (if needed for static files)
+pillow==11.3.0
+
+# Crypto Support
+cffi==1.17.1
+pycparser==2.22
+
+# Network & HTTP
+charset-normalizer==3.4.2
+idna==3.10
+
+# Build Tools (might be needed)
+setuptools==80.9.0
+wheel==0.45.1
+
+# Optional: Keep these only if you plan to use AI/ML features
+# joblib==1.5.2
+# numpy==2.3.3
+# pandas==2.3.2
+# scikit-learn==1.7.2
+# tensorflow_cpu==2.20.0
+# keras==3.11.3
+# h5py==3.14.0
