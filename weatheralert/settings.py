@@ -186,7 +186,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://192.168.3.6',
     'http://localhost',
     'http://127.0.0.1',
-    'https://weatherappsys-7517da4b1dd4.herokuapp.com'
+    'https://weatherappsys-7517da4b1dd4.herokuapp.com',
+    'http://weatherappsys-7517da4b1dd4.herokuapp.com'
 ]
 
 # Media files
