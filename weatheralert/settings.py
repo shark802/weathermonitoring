@@ -242,5 +242,5 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True 
     # SESSION_COOKIE_SECURE and CSRF_COOKIE_SECURE are already defined above this block.
     # It is recommended to only define them here:
-    # SESSION_COOKIE_SECURE = True
-    # CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
