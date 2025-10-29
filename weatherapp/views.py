@@ -10,7 +10,6 @@ from django.utils.timezone import now
 import random
 from django.core.mail import send_mail
 from django.conf import settings
-from .forecast import get_five_day_forecast
 import json
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
