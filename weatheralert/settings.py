@@ -230,12 +230,17 @@ PSA_ED25519_PUBLIC_KEY = os.environ.get('PSA_ED25519_PUBLIC_KEY', '')
 
 # Security settings for production
 if not DEBUG:
+    # ADD THIS CRITICAL LINE FOR HEROKU SSL/HTTPS PROXY
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https') 
+    
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_REDIRECT_EXEMPT = []
-    # Uncomment when SSL is configured
-    SECURE_SSL_REDIRECT = True
+    # Uncommented and corrected SECURE_SSL_REDIRECT
+    SECURE_SSL_REDIRECT = True 
+    # SESSION_COOKIE_SECURE and CSRF_COOKIE_SECURE are already defined above this block.
+    # It is recommended to only define them here:
     # SESSION_COOKIE_SECURE = True
     # CSRF_COOKIE_SECURE = True
