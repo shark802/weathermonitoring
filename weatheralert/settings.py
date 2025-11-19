@@ -11,10 +11,13 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 """
 from pathlib import Path
 import os
+from dotenv import load_dotenv
 import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 
 # Quick-start development settings - unsuitable for production
@@ -90,11 +93,11 @@ else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.mysql',
-            'NAME': os.environ.get('DB_NAME', 'u520834156_dbweatherApp'),
-            'USER': os.environ.get('DB_USER', 'u520834156_uWApp2024'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', 'bIxG2Z$In#8'),
-            'HOST': os.environ.get('DB_HOST', '153.92.15.8'),
-            'PORT': os.environ.get('DB_PORT', '3306'),
+            'NAME': os.environ.get('DB_NAME'),
+            'USER': os.environ.get('DB_USER'),
+            'PASSWORD': os.environ.get('DB_PASSWORD'),
+            'HOST': os.environ.get('DB_HOST'),
+            'PORT': os.environ.get('DB_PORT'),
             'OPTIONS': {
                 'charset': 'utf8mb4',
             },
@@ -162,11 +165,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'rainalertcaps@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'clmz izuz zphx tnrw')
+EMAIL_HOST = os.environ.get('EMAIL_HOST')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS') == 'True'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = f'WeatherAlert <{EMAIL_HOST_USER}>'
 
 LOGIN_URL = 'login'
@@ -194,8 +197,8 @@ CSRF_TRUSTED_ORIGINS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_BROKER_URL = os.environ.get('REDIS_URL')
+CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL')
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
@@ -220,9 +223,9 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # SMS Configuration
-SMS_API_URL = os.environ.get('SMS_API_URL', 'https://sms.pagenet.info/api/v1/sms/send')
-SMS_API_KEY = os.environ.get('SMS_API_KEY', '6PLX3NFL2A2FLQ81RI7X6C4PJP68ANLJNYQ7XAR6')
-SMS_DEVICE_ID = os.environ.get('SMS_DEVICE_ID', '97e8c4360d11fa51')
+SMS_API_URL = os.environ.get('SMS_API_URL')
+SMS_API_KEY = os.environ.get('SMS_API_KEY')
+SMS_DEVICE_ID = os.environ.get('SMS_DEVICE_ID')
 
 # PhilSys QR Verification Keys
 PSA_PUBLIC_KEY = os.environ.get('PSA_PUBLIC_KEY', '')
