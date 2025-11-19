@@ -25,7 +25,6 @@ from decimal import Decimal
 import requests
 import certifi
 import time
-from django.conf import settings
 import jwt
 import base64
 from nacl.signing import VerifyKey
