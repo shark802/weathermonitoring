@@ -1,4 +1,5 @@
 import os
+import logging
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0' 
 import tensorflow as tf
@@ -30,6 +31,7 @@ SCALER_Y_FILE = os.path.join(BASE_DIR, "scaler_y.pkl")
 SEQUENCE_LENGTH = 6
 PREDICTION_INTERVAL_SECONDS = 3600 
 BARANGAY_RISK_DATA = {}
+logger = logging.getLogger(__name__)
 
 # =======================================================
 # Database Function to fetch ALL Barangay Risk Data
@@ -37,7 +39,7 @@ BARANGAY_RISK_DATA = {}
 # =======================================================
 def get_all_barangay_risk_data_from_db():
     global BARANGAY_RISK_DATA
-    print("Fetching all barangay risk data from bago_city_barangay_risk table...")
+    logger.info("Fetching barangay risk data from bago_city_barangay_risk table")
     try:
         # Use connection.cursor() for a fresh cursor inside a block
         with connection.cursor() as cursor:
@@ -49,7 +51,7 @@ def get_all_barangay_risk_data_from_db():
             data = cursor.fetchall()
             
             if not data:
-                print("Error: No risk data found in the database. Using fallback.")
+                logger.warning("No risk data found in the database. Using fallback values.")
                 return {}
 
             for name, land_type, multiplier, description in data:
@@ -58,11 +60,11 @@ def get_all_barangay_risk_data_from_db():
                     "risk_multiplier": float(multiplier),
                     "description": description
                 }
-            print(f"✅ Loaded risk data for {len(BARANGAY_RISK_DATA)} barangays.")
+            logger.info("Loaded risk data for %s barangays", len(BARANGAY_RISK_DATA))
             return BARANGAY_RISK_DATA
 
     except Exception as e:
-        print(f"❌ Error reading database for barangay risk data: {e}")
+        logger.exception("Error reading database for barangay risk data")
         return {}
 
 
@@ -70,7 +72,7 @@ def get_all_barangay_risk_data_from_db():
 # 1. Database Function (Sequence Data)
 # =======================================================
 def get_sequence_data_from_db():
-    print(f"Fetching last {SEQUENCE_LENGTH} time steps of data from database...")
+    logger.info("Fetching last %s time steps of data from database", SEQUENCE_LENGTH)
     try:
         # Use connection.cursor() ensures the block is atomic/safe
         with connection.cursor() as cursor:
@@ -84,7 +86,11 @@ def get_sequence_data_from_db():
             data = cursor.fetchall()
             
             if not data or len(data) < SEQUENCE_LENGTH:
-                print(f"Error: Found only {len(data)} records. {SEQUENCE_LENGTH} required for prediction.")
+                logger.error(
+                    "Insufficient sequence data returned (%s of %s required)",
+                    0 if not data else len(data),
+                    SEQUENCE_LENGTH,
+                )
                 return None
             
             data = list(data)
@@ -101,7 +107,7 @@ def get_sequence_data_from_db():
             return sequence
 
     except Exception as e:
-        print(f"Error reading database for sequence data: {e}")
+        logger.exception("Error reading database for sequence data")
         # When an error occurs, it's safer to discard the connection
         if hasattr(connection, 'close'): connection.close()
         return None
@@ -135,16 +141,16 @@ try:
         model = tf.keras.models.load_model(MODEL_FILE, compile=False)
 
     model.compile(optimizer="adam", loss="mean_squared_error")
-    print("✅ Model loaded successfully.")
+    logger.info("Rain model loaded successfully")
     
     scaler_X = joblib.load(SCALER_X_FILE)
     scaler_y = joblib.load(SCALER_Y_FILE)
-    print("✅ Scalers loaded successfully.")
+    logger.info("Scalers loaded successfully")
 
 except FileNotFoundError as e:
-    print(f"Warning: One of the required files was not found: {e.filename}")
+    logger.warning("One of the required files was not found: %s", e.filename)
 except Exception as e:
-    print(f"Warning: An unexpected error occurred during file loading: {e}")
+    logger.exception("Unexpected error during model/scaler loading")
 
 # =======================================================
 # 3. Helper and Prediction Functions (REMAINS THE SAME)
@@ -187,7 +193,7 @@ def predict_rain(input_features):
     try:
         input_scaled = scaler_X.transform(input_features)
     except ValueError as e:
-        print(f"Error during scaling: {e}")
+        logger.exception("Error during feature scaling")
         return None, None, "Error", None
 
     X_seq = input_scaled.reshape(1, SEQUENCE_LENGTH, -1)
@@ -256,39 +262,43 @@ def assess_flood_risk_by_barangay(rain_rate_mm_h, duration, intensity_label):
 def run_prediction_cycle():
     now_pst = datetime.now(PHILIPPINE_TZ)
     
-    print("\n==================================================")
-    print(f"--- Running Prediction Cycle at {now_pst.strftime('%Y-%m-%d %H:%M:%S PST')} ---")
-    print("==================================================")
+    logger.info("Running prediction cycle at %s PST", now_pst.strftime('%Y-%m-%d %H:%M:%S'))
     
     try:
         # Step 1: Fetch Data (uses connection.cursor() internally)
         sequence_data_list = get_sequence_data_from_db()
         
         if sequence_data_list is None:
-            print("Prediction cycle failed due to insufficient or missing weather data.")
+            logger.warning("Prediction cycle aborted due to insufficient weather data")
             return
 
         input_features_array = np.array(sequence_data_list, dtype=np.float32)
 
         latest_temp, latest_humidity, wind_speed, barometric_pressure, current_hour = input_features_array[-1]
         
-        print("\nData collected from the database (latest entry):")
-        print(f"Temperature: {latest_temp:.2f}°C, Humidity: {latest_humidity:.2f}%")
-        print(f"Wind Speed: {wind_speed:.2f} m/s, Barometric Pressure: {barometric_pressure:.2f} hPa")
-        print(f"Hour of Day: {int(current_hour)}")
+        logger.debug(
+            "Latest weather entry temp=%.2f°C humidity=%.2f%% wind=%.2f m/s pressure=%.2f hPa hour=%s",
+            latest_temp,
+            latest_humidity,
+            wind_speed,
+            barometric_pressure,
+            int(current_hour),
+        )
         
         # Step 2: Run Prediction
         predicted_amount_mm, predicted_duration_minutes, intensity_label, rainfall_rate_mm_h = predict_rain(input_features_array)
         
         if predicted_amount_mm is None:
-            print("Prediction failed during ML model execution.")
+            logger.error("Prediction failed during ML model execution")
             return
 
-        print("\n--- Prediction Results ---")
-        print(f"Predicted Total Rainfall: {predicted_amount_mm:.2f} mm")
-        print(f"Estimated Duration: {predicted_duration_minutes:.2f} minutes")
-        print(f"Calculated Rainfall Rate: {rainfall_rate_mm_h:.2f} mm/h")
-        print(f"Rainfall Intensity: {intensity_label}")
+        logger.info(
+            "Prediction results rainfall=%.2f mm duration=%.2f min rate=%.2f mm/h intensity=%s",
+            predicted_amount_mm,
+            predicted_duration_minutes,
+            rainfall_rate_mm_h,
+            intensity_label,
+        )
 
         # Step 3: Insert Rain Prediction results
         try:
@@ -297,16 +307,16 @@ def run_prediction_cycle():
                     INSERT INTO ai_predictions (predicted_rain, duration, intensity, created_at)
                     VALUES (%s, %s, %s, DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL 8 HOUR)) 
                 """, [rainfall_rate_mm_h, predicted_duration_minutes, intensity_label])
-            print("✅ Rain prediction results successfully inserted into the database.")
+            logger.info("Rain prediction results inserted into the database")
             
             with connection.cursor() as cursor:
                 cursor.execute("SELECT created_at FROM ai_predictions ORDER BY created_at DESC LIMIT 1")
                 db_timestamp_pst = cursor.fetchone()[0]
                 
-                print(f"🕒 Prediction Timestamp (PST): {db_timestamp_pst.strftime('%Y-%m-%d %H:%M:%S PST')}")
+                logger.debug("Prediction timestamp (PST): %s", db_timestamp_pst.strftime('%Y-%m-%d %H:%M:%S PST'))
                 
         except Exception as e:
-            print(f"❌ Error inserting or fetching prediction results: {e}")
+            logger.exception("Error inserting or fetching prediction results")
             if hasattr(connection, 'close'): connection.close()
             return
             
@@ -315,43 +325,48 @@ def run_prediction_cycle():
         
         # Step 5: Insert Flood Warnings
         if flood_warnings:
-            print(f"\n--- FLOOD WARNINGS ISSUED FOR {len(flood_warnings)} BARANGAYS ---")
+            logger.warning("Flood warnings issued for %s barangays", len(flood_warnings))
             try:
                 with connection.cursor() as cursor:
                     # Clear old warnings (optional, but good practice if not done elsewhere)
                     cursor.execute("DELETE FROM flood_warnings WHERE prediction_date >= DATE_SUB(DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL 8 HOUR), INTERVAL 1 HOUR)")
                     
                     for warning in flood_warnings:
-                        print(f"🚨 {warning['risk_level']} Risk for {warning['barangay']} ({warning['land_type']}): {warning['message']}")
+                        logger.warning(
+                            "Flood warning %s risk for %s (%s): %s",
+                            warning['risk_level'],
+                            warning['barangay'],
+                            warning['land_type'],
+                            warning['message'],
+                        )
                         
                         cursor.execute("""
                             INSERT INTO flood_warnings (area, risk_level, message, prediction_date)
                             VALUES (%s, %s, %s, DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL 8 HOUR))
                         """, [warning['area'], warning['risk_level'], warning['message']])
                         
-                    print(f"✅ {len(flood_warnings)} flood warnings successfully inserted into the database.")
+                    logger.info("%s flood warnings inserted into the database", len(flood_warnings))
                     
             except Exception as e:
-                print(f"❌ Error processing or inserting flood warnings: {e}")
+                logger.exception("Error processing or inserting flood warnings")
                 if hasattr(connection, 'close'): connection.close()
                 return
         else:
-            print("\n✅ No flood warnings issued - all barangays are safe from flooding.")
+            logger.info("No flood warnings issued for this cycle")
 
     except Exception as e:
         # Catch any unexpected errors during the cycle
-        print(f"An unexpected error occurred during the cycle: {e}")
+        logger.exception("Unexpected error during prediction cycle")
         if hasattr(connection, 'close'): connection.close()
     finally:
         # CRITICAL FIX: Explicitly close the persistent Django connection
         # This forces a fresh connection on the next cycle, preventing 'Server has gone away'
         if hasattr(connection, 'close'):
             connection.close()
-            # print("DEBUG: Database connection closed.") # Optional debug line
 
 
 def main():
-    print("\n--- Live Rainfall Prediction Service Started ---")
+    logger.info("Live Rainfall Prediction Service started")
     
     try:
         # Initial Django setup
@@ -365,7 +380,7 @@ def main():
         if not BARANGAY_RISK_DATA: return
 
     except Exception as e:
-        print(f"Initial setup error: {e}")
+        logger.exception("Initial setup error for prediction service")
         return
 
     # --- Start the Continuous Loop ---
@@ -375,14 +390,14 @@ def main():
             run_prediction_cycle()
 
             # --- PAUSE BEFORE THE NEXT RUN ---
-            print(f"\nCycle complete. Waiting for {PREDICTION_INTERVAL_SECONDS/60:.0f} minutes...", flush=True) 
+            logger.info("Cycle complete. Waiting for %s minutes", PREDICTION_INTERVAL_SECONDS/60)
             time.sleep(PREDICTION_INTERVAL_SECONDS)
 
         except KeyboardInterrupt:
-            print("\nPrediction loop stopped by user (Ctrl+C). Exiting.")
+            logger.info("Prediction loop stopped by user")
             break
         except Exception as e:
-            print(f"A major, unexpected error occurred in the loop: {e}. Retrying in 60 seconds.")
+            logger.exception("Unexpected error in prediction loop. Retrying in 60 seconds")
             time.sleep(60)
 
 if __name__ == "__main__":

@@ -3,10 +3,13 @@ Targeted SMS Alert System for Barangay-Specific Flood Warnings
 This module handles sending SMS alerts only to users in affected barangays.
 """
 
+import logging
 import requests
 from django.conf import settings
 from django.db import connection
 from weatherapp.ai.predictor import get_users_by_affected_barangays
+
+logger = logging.getLogger(__name__)
 
 
 def send_targeted_sms_alerts(flood_warnings, predicted_rain_rate, predicted_duration, intensity_label):
@@ -44,7 +47,7 @@ def send_targeted_sms_alerts(flood_warnings, predicted_rain_rate, predicted_dura
         total_failed = 0
         results = {}
         
-        print(f"\n--- SENDING TARGETED SMS ALERTS ---")
+        logger.info("Sending targeted SMS alerts")
         
         for barangay, users in affected_users.items():
             # Get the warning for this barangay
@@ -53,7 +56,12 @@ def send_targeted_sms_alerts(flood_warnings, predicted_rain_rate, predicted_dura
             if not barangay_warning or not users:
                 continue
                 
-            print(f"📱 Sending alerts to {len(users)} users in {barangay} ({barangay_warning['risk_level']} risk)")
+            logger.info(
+                "Sending alerts to %s users in %s (%s risk)",
+                len(users),
+                barangay,
+                barangay_warning['risk_level'],
+            )
             
             # Create targeted message for this barangay
             sms_message = create_barangay_sms_message(
@@ -75,16 +83,16 @@ def send_targeted_sms_alerts(flood_warnings, predicted_rain_rate, predicted_dura
                     if success:
                         barangay_sent += 1
                         total_sent += 1
-                        print(f"   ✅ Sent to {user['name']} ({formatted_phone})")
+                        logger.debug("Sent SMS to %s (%s)", user['name'], formatted_phone)
                     else:
                         barangay_failed += 1
                         total_failed += 1
-                        print(f"   ❌ Failed to send to {user['name']} ({formatted_phone})")
+                        logger.warning("Failed to send SMS to %s (%s)", user['name'], formatted_phone)
                         
                 except Exception as e:
                     barangay_failed += 1
                     total_failed += 1
-                    print(f"   ❌ Error sending to {user['name']}: {e}")
+                    logger.exception("Error sending SMS to %s", user['name'])
             
             results[barangay] = {
                 "users_count": len(users),
@@ -92,7 +100,7 @@ def send_targeted_sms_alerts(flood_warnings, predicted_rain_rate, predicted_dura
                 "failed": barangay_failed
             }
         
-        print(f"✅ SMS Alert Summary: {total_sent} sent, {total_failed} failed")
+        logger.info("SMS alert summary: %s sent, %s failed", total_sent, total_failed)
         
         return {
             "success": True,
@@ -103,7 +111,7 @@ def send_targeted_sms_alerts(flood_warnings, predicted_rain_rate, predicted_dura
         }
         
     except Exception as e:
-        print(f"❌ Error in targeted SMS alerts: {e}")
+        logger.exception("Error in targeted SMS alerts")
         return {
             "success": False,
             "error": str(e),
@@ -195,11 +203,11 @@ def send_single_sms(phone_number, message, headers, session):
         if response.status_code == 200:
             return True
         else:
-            print(f"   SMS API Error: {response.status_code} - {response.text}")
+            logger.warning("SMS API error: %s - %s", response.status_code, response.text)
             return False
             
     except Exception as e:
-        print(f"   SMS sending error: {e}")
+        logger.exception("SMS sending error")
         return False
 
 

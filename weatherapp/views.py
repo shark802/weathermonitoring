@@ -33,10 +33,13 @@ import logging
 import sys
 import urllib.parse 
 
+from weatherapp.utils.rate_limit import rate_limit
+
 utc_plus_8 = pytz.timezone('Asia/Manila')
 
 logger = logging.getLogger(__name__)
 
+@rate_limit("register_user", limit=5, window=60, methods=["POST"])
 def register_user(request):
     if request.method != 'POST':
         return JsonResponse({
@@ -131,8 +134,9 @@ def register_user(request):
 
         except jwt.InvalidSignatureError:
             errors['qr_invalid'] = "Invalid PhilSys QR signature"
-        except Exception as e:
-            errors['qr_error'] = f"QR verification failed: {str(e)}"
+        except Exception:
+            logger.exception("QR verification failed during registration")
+            errors['qr_error'] = "QR verification failed. Please try again."
 
     # Email validation
     if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
@@ -212,9 +216,14 @@ def register_user(request):
             }
         })
 
-    except Exception as e:
-        return JsonResponse({'success': False, 'errors': {'database': str(e)}})
+    except Exception:
+        logger.exception("Database error while registering user")
+        return JsonResponse({
+            'success': False,
+            'errors': {'database': "An unexpected error occurred. Please try again later."}
+        })
 
+@rate_limit("check_username", limit=60, window=60, methods=["GET"])
 def check_username(request):
      username = request.GET.get('username')
      if not username:
@@ -226,6 +235,7 @@ def check_username(request):
     
      return JsonResponse({'exists': exists})
  
+@rate_limit("check_name", limit=60, window=60, methods=["GET"])
 def check_name(request):
     first_name = request.GET.get('firstName', '').strip().upper()
     middle_name = request.GET.get('middleName', '').strip().upper()
@@ -243,6 +253,7 @@ def check_name(request):
 
     return JsonResponse({'exists': exists})
  
+@rate_limit("check_phone", limit=60, window=60, methods=["GET"])
 def check_phone(request):
      phone_num = request.GET.get('phone_num')
      if not phone_num:
@@ -254,6 +265,7 @@ def check_phone(request):
     
      return JsonResponse({'exists': exists})
  
+@rate_limit("check_email", limit=60, window=60, methods=["GET"])
 def check_email(request):
      email = request.GET.get('email')
      if not email:
@@ -279,6 +291,7 @@ def set_session_expiry(request, remember_me):
     """Set session expiry based on 'Remember Me' checkbox."""
     request.session.set_expiry(30 * 24 * 60 * 60 if remember_me == 'on' else 0)
 
+@rate_limit("login_view", limit=10, window=60, methods=["POST"])
 def login_view(request):
     if request.method == "POST":
         username = request.POST.get('username')
@@ -335,6 +348,7 @@ def login_view(request):
     return render(request, 'home.html')
 
 
+@rate_limit("forgot_password", limit=5, window=300, methods=["POST"])
 def forgot_password(request):
     if request.method == "POST":
         email = request.POST.get("email")
@@ -370,6 +384,7 @@ def forgot_password(request):
 
     return render(request, "forgot_password.html")
 
+@rate_limit("verify_otp", limit=10, window=300, methods=["POST"])
 def verify_otp(request):
     if request.method == 'POST':
         entered_otp = request.POST.get('otp')
@@ -383,6 +398,7 @@ def verify_otp(request):
 
     return render(request, 'verify_otp.html')
 
+@rate_limit("reset_password", limit=10, window=300, methods=["POST"])
 def reset_password(request):
     if request.method == 'POST':
         new_password = request.POST.get('new_password')
@@ -444,6 +460,7 @@ def get_wind_signal(wind_speed):
     return "No Signal"
 
 
+@rate_limit("latest_dashboard_data", limit=120, window=60, methods=["GET"])
 def latest_dashboard_data(request):
     """
     Returns all dashboard data (weather, charts, alerts, AI forecast)
@@ -609,13 +626,13 @@ def latest_dashboard_data(request):
                 'chart_data': chart_data,
             })
     
-    except Exception as e:
+    except Exception:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Error in latest_dashboard_data: {str(e)}", exc_info=True) 
+        logger.exception("Error in latest_dashboard_data")
         
         return JsonResponse({
-            'error': f'Server error: {str(e)}',
+            'error': 'Failed to fetch dashboard data. Please try again later.',
             'weather': {'error': 'Failed to fetch weather data'},
             'alerts': [],
             'forecast': [],
@@ -1055,6 +1072,7 @@ def user_dashboard(request):
 
 
 # 🔔 AJAX endpoint for auto-refresh alerts
+@rate_limit("get_alerts", limit=180, window=60, methods=["GET"])
 def get_alerts(request):
     try:
         alerts = []
@@ -1156,12 +1174,13 @@ def get_alerts(request):
         })
         
     except Exception as e:
-        print(f"Error in get_alerts: {str(e)}")
+        logger.exception("Error in get_alerts")
         return JsonResponse({
             'alerts': [],
-            'error': str(e)
+            'error': 'Failed to fetch alerts. Please try again later.'
         }, status=500)
 @csrf_exempt
+@rate_limit("mark_alerts_read", limit=60, window=60, methods=["POST"])
 def mark_alerts_read(request):
     if request.method == "POST":
         try:
@@ -1236,11 +1255,11 @@ def mark_alerts_read(request):
                 "marked_at": current_time
             })
             
-        except Exception as e:
-            print(f"Error in mark_alerts_read: {str(e)}")
+        except Exception:
+            logger.exception("Error in mark_alerts_read")
             return JsonResponse({
                 "status": "error",
-                "message": f"Failed to mark alerts as read: {str(e)}"
+                "message": "Failed to mark alerts as read. Please try again later."
             }, status=500)
     
     return JsonResponse({
@@ -1249,6 +1268,7 @@ def mark_alerts_read(request):
     }, status=405)
 
 @csrf_exempt
+@rate_limit("clear_read_alerts", limit=60, window=60, methods=["POST"])
 def clear_read_alerts(request):
     """Clear all read alerts from session"""
     if request.method == "POST":
@@ -1263,11 +1283,11 @@ def clear_read_alerts(request):
                 "message": "Read alerts cleared successfully"
             })
             
-        except Exception as e:
-            print(f"Error in clear_read_alerts: {str(e)}")
+        except Exception:
+            logger.exception("Error in clear_read_alerts")
             return JsonResponse({
                 "status": "error",
-                "message": f"Failed to clear read alerts: {str(e)}"
+                "message": "Failed to clear read alerts. Please try again later."
             }, status=500)
     
     return JsonResponse({
@@ -1338,6 +1358,7 @@ def user_profile(request):
     
     return render(request, 'user_profile.html', context)
 
+@rate_limit("send_otp", limit=5, window=300)
 def send_otp(request, contact_type):
     if 'user_id' not in request.session:
         return redirect('home')
@@ -1409,38 +1430,40 @@ def send_otp(request, contact_type):
                         # If response is not JSON, assume success for 200 status
                         messages.success(request, "OTP has been sent to your phone.")
                 else:
-                    messages.error(request, f"Failed to send SMS: HTTP {response.status_code} - {response.text}")
+                    messages.error(request, "Failed to send SMS. Please try again later.")
                     return redirect("user_profile")
                     
             except requests.exceptions.SSLError as e:
-                print(f"SSL Error in send_otp: {str(e)}")
+                logger.warning("SSL error when sending OTP via SMS: %s", e)
                 # Fallback without SSL verification
                 try:
                     response = requests.post(url, headers=headers, data=parameters, timeout=10, verify=False)
                     if response.status_code == 200:
                         messages.success(request, "OTP has been sent to your phone.")
                     else:
-                        messages.error(request, f"Failed to send SMS (fallback): HTTP {response.status_code} - {response.text}")
+                        messages.error(request, "Failed to send SMS. Please try again later.")
                         return redirect("user_profile")
                 except Exception as fallback_error:
-                    print(f"Fallback SMS Error in send_otp: {str(fallback_error)}")
-                    messages.error(request, f"Failed to send SMS: {str(fallback_error)}")
+                    logger.exception("Fallback SMS error when sending OTP")
+                    messages.error(request, "Failed to send SMS. Please try again later.")
                     return redirect("user_profile")
             except Exception as e:
-                print(f"SMS Error in send_otp: {str(e)}")
-                messages.error(request, f"Failed to send SMS: {str(e)}")
+                logger.exception("Unexpected SMS error when sending OTP")
+                messages.error(request, "Failed to send SMS. Please try again later.")
                 return redirect("user_profile")
 
         else:
             messages.error(request, "Invalid contact type.")
             return redirect("user_profile")
 
-    except Exception as e:
-        messages.error(request, f"Failed to send OTP: {str(e)}")
+    except Exception:
+        logger.exception("Failed to send OTP")
+        messages.error(request, "Failed to send OTP. Please try again later.")
         return redirect("user_profile")
 
     return redirect("userverify_otp")
 
+@rate_limit("userverify_otp", limit=10, window=300, methods=["POST"])
 def userverify_otp(request):
     if request.method == "POST":
         entered_otp = request.POST.get("otp")
@@ -1553,8 +1576,9 @@ def admin_view(request):
 
         return render(request, 'admin.html', context)
 
-    except Exception as e:
-        messages.error(request, f'Database error: {str(e)}')
+    except Exception:
+        logger.exception("Error loading admin view")
+        messages.error(request, "Unable to load admin data. Please try again later.")
         return redirect('admin_dashboard')
 
 def add_admin(request):
@@ -1622,8 +1646,9 @@ def add_admin(request):
                 """, [name, email, phone, username, hashed_password])
 
             request.session['form_adminSuccess'] = "Admin added successfully."
-        except Exception as e:
-            request.session['form_adminError'] = f"Error adding admin: {str(e)}"
+        except Exception:
+            logger.exception("Error adding admin")
+            request.session['form_adminError'] = "An unexpected error occurred while adding the admin."
             request.session['show_addadmin_modal'] = True
             request.session['form_data'] = form_data
 
@@ -1706,8 +1731,9 @@ def update_admin(request):
                     ''', [name, email, phone, username, admin_id])
 
             request.session['form_adminSuccess'] = "Admin updated successfully."
-        except Exception as e:
-            messages.error(request, f'An error occurred: {str(e)}')
+        except Exception:
+            logger.exception("Error updating admin")
+            messages.error(request, "Failed to update admin. Please try again later.")
 
         return redirect('manage_admins')
     
@@ -1718,8 +1744,9 @@ def deactivate_admin(request, admin_id):
             with connection.cursor() as cursor:
                 cursor.execute("UPDATE admin SET status = 'Deactivated' WHERE admin_id = %s", [admin_id])
             request.session['form_adminSuccess'] = "✅ Admin has been successfully deactivated."
-        except Exception as e:
-            request.session['form_adminError'] = f"❌ Deactivation failed: {str(e)}"
+        except Exception:
+            logger.exception("Failed to deactivate admin %s", admin_id)
+            request.session['form_adminError'] = "❌ Unable to deactivate admin. Please try again."
     return redirect('manage_admins')
 
 @csrf_exempt
@@ -1729,8 +1756,9 @@ def activate_admin(request, admin_id):
             with connection.cursor() as cursor:
                 cursor.execute("UPDATE admin SET status = 'Active' WHERE admin_id = %s", [admin_id])
             request.session['form_adminSuccess'] = "✅ Admin activated successfully."
-        except Exception as e:
-            request.session['form_adminError'] = f"❌ Deactivation failed: {str(e)}"
+        except Exception:
+            logger.exception("Failed to activate admin %s", admin_id)
+            request.session['form_adminError'] = "❌ Unable to update admin status. Please try again."
     return redirect('manage_admins')
 
 def change_password(request):
@@ -1814,8 +1842,9 @@ def active_user(request):
             'current_url': 'active_user'
         })
 
-    except Exception as e:
-        messages.error(request, f'Database error: {str(e)}')
+    except Exception:
+        logger.exception("Error loading active users list")
+        messages.error(request, "Unable to load users. Please try again later.")
         return redirect('admin_dashboard')
 
 def delete_user(request, user_id):
@@ -1832,8 +1861,9 @@ def delete_user(request, user_id):
         messages.success(request, 'User deleted successfully')
         return redirect('active_user')
         
-    except Exception as e:
-        messages.error(request, f'Failed to delete user: {str(e)}')
+    except Exception:
+        logger.exception("Failed to delete user %s", user_id)
+        messages.error(request, 'Failed to delete user. Please try again later.')
         return redirect('active_user')
 
 
@@ -1873,8 +1903,9 @@ def sensors(request):
             'show_add_modal': request.session.pop('show_add_modal', False)
         })
 
-    except Exception as e:
-        messages.error(request, f'Database error: {str(e)}')
+    except Exception:
+        logger.exception("Error loading sensors page")
+        messages.error(request, 'Unable to load sensors. Please try again later.')
         return redirect('admin_dashboard')
 
 def add_sensor(request):
@@ -1932,8 +1963,9 @@ def add_sensor(request):
         messages.success(request, 'Sensor added successfully')
         return redirect('sensors')
         
-    except Exception as e:
-        messages.error(request, f'Failed to add sensor: {str(e)}')
+    except Exception:
+        logger.exception("Failed to add sensor")
+        messages.error(request, 'Failed to add sensor. Please try again later.')
         return redirect('sensors')
 
 def update_sensor(request):
@@ -1986,8 +2018,9 @@ def update_sensor(request):
         messages.success(request, 'Sensor updated successfully')
         return redirect('sensors')
 
-    except Exception as e:
-        messages.error(request, f'Failed to update sensor: {str(e)}')
+    except Exception:
+        logger.exception("Failed to update sensor %s", sensor_id)
+        messages.error(request, 'Failed to update sensor. Please try again later.')
         return redirect('sensors')
 
 def delete_sensor(request, sensor_id):
@@ -2004,8 +2037,9 @@ def delete_sensor(request, sensor_id):
         messages.success(request, 'Sensor deleted successfully')
         return redirect('sensors')
         
-    except Exception as e:
-        messages.error(request, f'Failed to delete sensor: {str(e)}')
+    except Exception:
+        logger.exception("Failed to delete sensor %s", sensor_id)
+        messages.error(request, 'Failed to delete sensor. Please try again later.')
         return redirect('sensors')
 
 def is_valid_coordinate(value, coord_type):
@@ -2551,12 +2585,16 @@ def get_rain_intensity(amount):
         return "Torrential"
 
 @csrf_exempt
+@rate_limit("receive_sensor_data", limit=120, window=60, methods=["POST"])
 def receive_sensor_data(request):
-    print("==== Incoming Request ====")
-    print("Method:", request.method)
-    print("Headers:", dict(request.headers))
-    print("Raw body:", request.body)
-    print("==========================")
+    logger.debug(
+        "Incoming sensor data request",
+        extra={
+            "method": request.method,
+            "headers": dict(request.headers),
+            "body_preview": request.body[:1024],
+        },
+    )
 
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method, must be POST"}, status=405)
@@ -2635,8 +2673,9 @@ def receive_sensor_data(request):
 
         return JsonResponse({"status": "success"}, status=201)
 
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=400)
+    except Exception:
+        logger.exception("Error processing sensor data payload")
+        return JsonResponse({"error": "Invalid payload."}, status=400)
 
 LAND_TYPE_FLOOD_RISK = {
     "low_lying": {"risk_multiplier": 1.5, "description": "High flood risk - prone to water accumulation"},
@@ -2684,8 +2723,9 @@ def barangays(request):
             'LAND_RISK_OPTIONS': LAND_TYPE_FLOOD_RISK 
         })
 
-    except Exception as e:
-        messages.error(request, f'Database error loading barangays: {str(e)}')
+    except Exception:
+        logger.exception("Error loading barangay data")
+        messages.error(request, 'Unable to load barangay data. Please try again later.')
         return redirect('admin_dashboard')
     
 def update_barangay(request):
@@ -2726,6 +2766,7 @@ def update_barangay(request):
         messages.success(request, 'Barangay updated successfully')
         return redirect('barangays')
         
-    except Exception as e:
-        messages.error(request, f'Failed to update barangay: {str(e)}')
+    except Exception:
+        logger.exception("Failed to update barangay %s", id)
+        messages.error(request, 'Failed to update barangay. Please try again later.')
         return redirect('barangays') 

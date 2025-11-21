@@ -1,4 +1,5 @@
 import os
+import logging
 from celery import Celery
 from django.conf import settings
 from django.db import connection
@@ -14,6 +15,7 @@ FEATURE_COUNT = 5 # (temp, humid, wind, pressure, hour_of_day)
 
 # Create a Celery instance
 app = Celery('weather_app', broker=settings.CELERY_BROKER_URL)
+logger = logging.getLogger(__name__)
 
 @app.task(bind=True)
 def predict_rain_task(self):
@@ -21,7 +23,7 @@ def predict_rain_task(self):
     Celery task to perform asynchronous rain prediction using only database data.
     This task fetches the latest 6 data points to form the time series input.
     """
-    print("AI prediction task started (Database Only Mode).")
+    logger.info("AI prediction task started (database only mode)")
 
     try:
         # 1. Fetch the last 6 data points from the database
@@ -38,7 +40,11 @@ def predict_rain_task(self):
             data_points = cursor.fetchall()
 
         if len(data_points) < SEQUENCE_LENGTH:
-            print(f"Not enough data points (found {len(data_points)}, need {SEQUENCE_LENGTH}) to run the time-series model. Skipping prediction.")
+            logger.warning(
+                "Not enough data points (found %s, need %s) to run the time-series model. Skipping prediction.",
+                len(data_points),
+                SEQUENCE_LENGTH,
+            )
             return
 
         # 2. Process data: Reverse order (oldest to newest) and build the feature array
@@ -67,7 +73,7 @@ def predict_rain_task(self):
         rain_rate, duration, intensity = predict_rain(input_features)
         
         if rain_rate is None:
-            print("Prediction failed inside the model function.")
+            logger.error("Prediction failed inside the model function")
             return
 
         # 4. Log prediction results to the database
@@ -78,11 +84,13 @@ def predict_rain_task(self):
                 VALUES (%s, %s, %s, NOW())
             """, [rain_rate, duration, intensity])
 
-        print("--- Prediction Results ---")
-        print(f"Predicted Rainfall: {rain_rate:.2f} mm")
-        print(f"Estimated Duration: {duration:.2f} minutes")
-        print(f"Rainfall Intensity: {intensity}")
-        print("✅ Prediction results successfully inserted into the database.")
+        logger.info(
+            "Prediction results rainfall=%.2f mm duration=%.2f min intensity=%s",
+            rain_rate,
+            duration,
+            intensity,
+        )
+        logger.info("Prediction results successfully inserted into the database")
 
     except Exception as e:
-        print(f"Prediction task failed: {str(e)}")
+        logger.exception("Prediction task failed")

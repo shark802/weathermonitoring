@@ -45,6 +45,18 @@ INSTALLED_APPS = [
     'celery',
 ]
 
+# Default cache backend (used by rate limiting and future features)
+CACHES = {
+    'default': {
+        'BACKEND': os.environ.get(
+            'CACHE_BACKEND',
+            'django.core.cache.backends.locmem.LocMemCache'
+        ),
+        'LOCATION': os.environ.get('CACHE_LOCATION', 'weatheralert-cache'),
+        'TIMEOUT': None,  # rely on per-key expiry
+    }
+}
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

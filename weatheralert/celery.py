@@ -1,5 +1,6 @@
 # weather_app/celery.py
 import os
+import logging
 from celery import Celery
 from celery.schedules import crontab
 
@@ -7,6 +8,7 @@ from celery.schedules import crontab
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'weatherapp.settings')
 
 app = Celery('weatherapp')
+logger = logging.getLogger(__name__)
 
 # Using a string here means the worker doesn't have to serialize
 # the configuration object to child processes.
@@ -28,4 +30,4 @@ app.conf.beat_schedule = {
 
 @app.task(bind=True)
 def debug_task(self):
-    print(f'Request: {self.request!r}')
+    logger.debug('Celery debug task request: %r', self.request)

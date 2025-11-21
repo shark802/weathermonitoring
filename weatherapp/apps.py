@@ -1,4 +1,7 @@
+import logging
 from django.apps import AppConfig
+
+logger = logging.getLogger(__name__)
 
 
 class WeatherappConfig(AppConfig):
@@ -7,4 +10,4 @@ class WeatherappConfig(AppConfig):
 
     def ready(self):
         from . import signals
-        print("WeatherAppConfig is ready to load signals...")
+        logger.info("WeatherAppConfig loaded signals")
