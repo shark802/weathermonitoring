@@ -568,13 +568,28 @@
 {% endif %}
 
 {% if form_logoutSuccess %}
-  <div class="alert-message success">
+  <div class="alert-message success" id="logoutSuccessAlert">
     <div class="alert-content">
       <button class="alert-close" onclick="this.parentElement.parentElement.remove()">&times;</button>
       <i class="alert-icon fas fa-check-circle"></i>
       <span class="alert-text">{{ form_logoutSuccess }}</span>
     </div>
   </div>
+  <script>
+    // Auto-hide logout success message after 5 seconds
+    document.addEventListener('DOMContentLoaded', function() {
+      const logoutAlert = document.getElementById('logoutSuccessAlert');
+      if (logoutAlert) {
+        setTimeout(function() {
+          logoutAlert.style.transition = 'opacity 0.5s ease-out';
+          logoutAlert.style.opacity = '0';
+          setTimeout(function() {
+            logoutAlert.remove();
+          }, 500);
+        }, 5000); // 5 second timeout
+      }
+    });
+  </script>
 {% endif %}
 
   {% if show_register_modal %}
