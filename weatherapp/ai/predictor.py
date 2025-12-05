@@ -172,10 +172,35 @@ def get_rain_intensity(rate_mm_h):
         return "Torrential"
 
 def predict_rain(input_features):
+    """
+    Predict rainfall using LSTM neural network model or fallback heuristics.
+    
+    This function implements a two-tier prediction system:
+    1. Primary: Uses trained LSTM model for time-series rainfall prediction
+    2. Fallback: Uses rule-based heuristics if model/scalers unavailable
+    
+    The model expects a sequence of 6 time steps, each with 5 features:
+    [temperature, humidity, wind_speed, barometric_pressure, hour_of_day]
+    
+    Args:
+        input_features: NumPy array of shape (6, 5) - sequence of weather measurements
+        
+    Returns:
+        tuple: (predicted_amount_mm, duration_minutes, intensity_label, rate_mm_h)
+            - predicted_amount_mm: Total predicted rainfall in millimeters
+            - duration_minutes: Expected duration of rainfall in minutes
+            - intensity_label: PAGASA intensity classification
+            - rate_mm_h: Calculated rainfall rate in mm/hour
+    """
     latest_data = input_features[-1]
     latest_temp, latest_humidity, _, _, _ = latest_data
 
     # --- Fallback Logic ---
+    # Use simple heuristics if ML model/scalers not loaded
+    # Based on humidity and temperature patterns:
+    # - High humidity (>80%) + low temp (<30°C) = higher rain probability
+    # - Moderate humidity (>70%) = moderate rain probability
+    # - Otherwise = light rain probability
     if model is None or scaler_X is None or scaler_y is None:
         if latest_humidity > 80 and latest_temp < 30:
             predicted_amount_mm, duration_min = 5.0, 30.0
@@ -184,27 +209,42 @@ def predict_rain(input_features):
         else:
             predicted_amount_mm, duration_min = 0.5, 5.0
         
+        # Calculate rainfall rate: (total_mm / duration_min) * 60 = mm/hour
         rate_mm_h = (predicted_amount_mm / duration_min) * 60 if duration_min > 0 else 0.0
         intensity = get_rain_intensity(rate_mm_h)
         
         return predicted_amount_mm, duration_min, intensity, rate_mm_h
     
     # --- ML Model Prediction Logic ---
+    # Step 1: Scale input features using the same scaler used during training
+    # This ensures features are in the same range (typically 0-1 or standardized)
     try:
         input_scaled = scaler_X.transform(input_features)
-    except ValueError as e:
-        logger.exception("Error during feature scaling")
+    except ValueError:
+        logger.exception("Error during feature scaling - input shape mismatch")
         return None, None, "Error", None
 
+    # Step 2: Reshape for LSTM input format
+    # LSTM expects: (batch_size, sequence_length, features_per_timestep)
+    # Shape: (1, 6, 5) = 1 sample, 6 time steps, 5 features per step
     X_seq = input_scaled.reshape(1, SEQUENCE_LENGTH, -1)
+    
+    # Step 3: Run prediction through the LSTM model
+    # Model outputs scaled predictions (normalized during training)
     y_pred_scaled = model.predict(X_seq, verbose=0)
+    
+    # Step 4: Inverse transform to get actual values (mm and minutes)
     y_pred = scaler_y.inverse_transform(y_pred_scaled)
     
+    # Step 5: Extract and validate predictions
+    # Ensure non-negative values (rainfall can't be negative)
     predicted_amount_mm = max(0, float(y_pred[0][0]))
     predicted_duration_minutes = max(0, float(y_pred[0][1]))
     
+    # Step 6: Calculate rainfall rate in mm/hour
+    # Formula: (total_mm / duration_minutes) * 60 minutes/hour
     rainfall_rate_mm_h = 0.0
-    if predicted_duration_minutes > 0.01: 
+    if predicted_duration_minutes > 0.01:  # Avoid division by zero
         rainfall_rate_mm_h = (predicted_amount_mm / predicted_duration_minutes) * 60
     
     intensity_label = get_rain_intensity(rainfall_rate_mm_h)

@@ -34,6 +34,10 @@ import sys
 import urllib.parse 
 
 from weatherapp.utils.rate_limit import rate_limit
+from weatherapp.utils.cache import cached_result, get_cache_key
+from weatherapp.utils.pagination import paginate_sql_results
+from weatherapp.utils.monitoring import track_performance, log_database_query
+from django.core.cache import cache
 
 utc_plus_8 = pytz.timezone('Asia/Manila')
 
@@ -433,39 +437,99 @@ def fetch_as_dict(cursor):
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 def get_rain_intensity(rain_rate):
-    """Placeholder for rain intensity logic."""
-    if rain_rate is None: return "None"
-    if rain_rate >= 50.0: return "Torrential"
-    if rain_rate >= 30.0: return "Intense"
-    if rain_rate >= 7.6: return "Heavy"
-    if rain_rate >= 2.5: return "Moderate"
-    if rain_rate > 0.0: return "Light"
+    """
+    Classify rainfall intensity based on PAGASA standards (mm/hr).
+    
+    Classification thresholds:
+    - Torrential: >= 50.0 mm/hr (extreme rainfall, severe flooding risk)
+    - Intense: 30.0-49.9 mm/hr (heavy rainfall, significant flooding risk)
+    - Heavy: 7.6-29.9 mm/hr (moderate to heavy rainfall, some flooding risk)
+    - Moderate: 2.5-7.5 mm/hr (steady rainfall, minimal flooding risk)
+    - Light: 0.1-2.4 mm/hr (light rainfall, no significant impact)
+    - None: 0.0 mm/hr (no rainfall)
+    
+    Args:
+        rain_rate: Rainfall rate in mm/hr
+        
+    Returns:
+        str: Intensity classification
+    """
+    if rain_rate is None: 
+        return "None"
+    if rain_rate >= 50.0: 
+        return "Torrential"
+    if rain_rate >= 30.0: 
+        return "Intense"
+    if rain_rate >= 7.6: 
+        return "Heavy"
+    if rain_rate >= 2.5: 
+        return "Moderate"
+    if rain_rate > 0.0: 
+        return "Light"
     return "None"
 
 def get_wind_signal(wind_speed):
-    """Placeholder for PAGASA wind signal logic (m/s approximation)."""
-    if wind_speed is None: return "No Signal"
+    """
+    Classify wind speed using PAGASA Tropical Cyclone Wind Signal (TCWS) system.
+    
+    PAGASA TCWS Classification (based on sustained wind speed):
+    - Signal 5: >= 171 km/h (Super Typhoon - catastrophic damage expected)
+    - Signal 4: 121-170 km/h (Typhoon - very destructive winds)
+    - Signal 3: 89-120 km/h (Severe Tropical Storm - significant damage)
+    - Signal 2: 62-88 km/h (Tropical Storm - moderate damage)
+    - Signal 1: 30-61 km/h (Tropical Depression - minimal to minor damage)
+    - No Signal: < 30 km/h (normal conditions)
+    
+    Note: Input is in m/s, converted to km/h for classification.
+    
+    Args:
+        wind_speed: Wind speed in meters per second (m/s)
+        
+    Returns:
+        str: PAGASA wind signal classification
+    """
+    if wind_speed is None: 
+        return "No Signal"
 
-    # FIX: Convert Decimal to float for calculation
+    # Convert Decimal to float for calculation (handles database Decimal types)
     wind_speed_float = float(wind_speed) 
     
-    # Simplified approximation based on PAGASA tropical cyclone wind signals
-    wind_speed_kmh = wind_speed_float * 3.6  # Multiplication now works
+    # Convert m/s to km/h (multiply by 3.6)
+    wind_speed_kmh = wind_speed_float * 3.6
     
-    if wind_speed_kmh >= 171: return "Signal 5"
-    if wind_speed_kmh >= 121: return "Signal 4"
-    if wind_speed_kmh >= 89: return "Signal 3"
-    if wind_speed_kmh >= 62: return "Signal 2"
-    if wind_speed_kmh >= 30: return "Signal 1"
+    # Classify based on PAGASA thresholds
+    if wind_speed_kmh >= 171: 
+        return "Signal 5"
+    if wind_speed_kmh >= 121: 
+        return "Signal 4"
+    if wind_speed_kmh >= 89: 
+        return "Signal 3"
+    if wind_speed_kmh >= 62: 
+        return "Signal 2"
+    if wind_speed_kmh >= 30: 
+        return "Signal 1"
     return "No Signal"
 
 
 @rate_limit("latest_dashboard_data", limit=120, window=60, methods=["GET"])
+@track_performance('latest_dashboard_data')
 def latest_dashboard_data(request):
     """
     Returns all dashboard data (weather, charts, alerts, AI forecast)
     as a single JSON response for AJAX auto-refresh.
+    
+    This endpoint is heavily cached (30 seconds) to reduce database load
+    since it's called frequently by auto-refresh mechanisms.
     """
+    # Check cache first (30 second TTL for dashboard data)
+    selected_sensor_id = request.GET.get('sensor_id')
+    cache_key = get_cache_key('dashboard_data', sensor_id=selected_sensor_id)
+    cached_data = cache.get(cache_key)
+    
+    if cached_data is not None:
+        logger.debug("Serving cached dashboard data")
+        return JsonResponse(cached_data)
+    
     try:
         selected_sensor_id = request.GET.get('sensor_id')
         
@@ -615,8 +679,8 @@ def latest_dashboard_data(request):
                             'type': 'wind', 'intensity': wind_signal.replace(" ", "_").lower(), 'sensor_id': sensor_id
                         })
             
-            # Return all data as a single JSON response
-            return JsonResponse({
+            # Prepare response data
+            response_data = {
                 'weather': weather,
                 'alerts': alerts,
                 'forecast': [forecast] if forecast.get('error') is None else [],
@@ -624,7 +688,12 @@ def latest_dashboard_data(request):
                 'flood_warnings': flood_warnings,
                 'chart_labels': chart_labels,
                 'chart_data': chart_data,
-            })
+            }
+            
+            # Cache the response for 30 seconds to reduce database load
+            cache.set(cache_key, response_data, timeout=30)
+            
+            return JsonResponse(response_data)
     
     except Exception:
         import logging
@@ -1810,34 +1879,53 @@ def change_password(request):
     return redirect('admin_profile')
 
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
+@track_performance('active_user')
 def active_user(request):
+    """
+    Display paginated list of all users for admin management.
+    
+    Implements pagination to handle large user lists efficiently.
+    """
     if 'admin_id' not in request.session:
         messages.error(request, 'Please login to access this page')
         return redirect('home')
     
     try:
+        # Get pagination parameters
+        page_number = int(request.GET.get('page', 1))
+        per_page = int(request.GET.get('per_page', 20))
+        
         with connection.cursor() as cursor:
             # Get admin info
             cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [request.session['admin_id']])
             row = cursor.fetchone()
             admin_name = row[0] if row else 'Admin'
 
+            # Fetch all users (we'll paginate in Python for now)
+            # In production, consider using LIMIT/OFFSET in SQL for better performance
             cursor.execute("""
                 SELECT user_id, name, address, email, phone_num, username 
                 FROM user 
                 ORDER BY name
             """)
-            users = [{
+            all_users = cursor.fetchall()
+            
+            # Convert to list of dicts
+            users_list = [{
                 'id': row[0],
                 'name': row[1],
                 'address': row[2],
                 'email': row[3],
                 'phone_num': row[4],
                 'username': row[5],
-            } for row in cursor.fetchall()]
+            } for row in all_users]
+            
+            # Paginate results
+            paginated = paginate_sql_results(users_list, page_number, per_page)
 
         return render(request, 'manageActive_user.html', {
-            'users': users,
+            'users': paginated['items'],
+            'pagination': paginated,
             'admin': {'name': admin_name},
             'current_url': 'active_user'
         })
@@ -2053,26 +2141,47 @@ def is_valid_coordinate(value, coord_type):
 
 
 @cache_control(no_cache=True, must_revalidate=True, no_store=True)
+@track_performance('weather_reports')
 def weather_reports(request):
+    """
+    Display paginated weather reports with filtering options.
+    
+    Supports filtering by:
+    - Date range (start_date, end_date)
+    - Sensor ID
+    - Intensity level
+    
+    Results are paginated to handle large datasets efficiently.
+    """
     # Authentication check
     if 'admin_id' not in request.session:
         return redirect('home')
     
     admin_id = request.session['admin_id']
     
-    # Get admin name
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [admin_id])
-        row = cursor.fetchone()
-        admin_name = row[0] if row else 'Admin'
-
+    # Get admin name (cached for 5 minutes)
+    cache_key_admin = get_cache_key('admin_name', admin_id=admin_id)
+    admin_name = cache.get(cache_key_admin)
+    
+    if admin_name is None:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [admin_id])
+            row = cursor.fetchone()
+            admin_name = row[0] if row else 'Admin'
+            cache.set(cache_key_admin, admin_name, timeout=300)
+    
     # Get filter parameters
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     sensor_id = request.GET.get('sensor_id')
     intensity_id = request.GET.get('intensity_id')
+    
+    # Get pagination parameters
+    page_number = int(request.GET.get('page', 1))
+    per_page = int(request.GET.get('per_page', 50))  # 50 reports per page
 
-    # Base query
+    # Base query - fetch all matching records (pagination done in Python)
+    # Note: For very large datasets, consider using SQL LIMIT/OFFSET
     query = """
         SELECT  
             s.name AS name, 
@@ -2113,13 +2222,14 @@ def weather_reports(request):
     query += " ORDER BY wr.date_time DESC"
     
     # Execute report query
+    start_time = time.time()
     with connection.cursor() as cursor:
         cursor.execute(query, params)
         columns = [col[0] for col in cursor.description]
-        reports = []
+        all_reports = []
         for row in cursor.fetchall():
             report = dict(zip(columns, row))
-            # Convert datetime to ISO format
+            # Convert datetime to ISO format for JSON serialization
             if 'date_time' in report and report['date_time']:
                 if isinstance(report['date_time'], str):
                     try:
@@ -2128,10 +2238,27 @@ def weather_reports(request):
                         report['date_time'] = None
                 elif isinstance(report['date_time'], datetime):
                     report['date_time'] = report['date_time'].isoformat()
-            reports.append(report)
+            all_reports.append(report)
+        
+        query_time = time.time() - start_time
+        log_database_query('SELECT', 'weather_reports', query_time)
     
-    # Get summary statistics
-    summary_query = """
+    # Paginate results
+    paginated = paginate_sql_results(all_reports, page_number, per_page)
+    reports = paginated['items']
+    
+    # Get summary statistics (cached for 3 minutes since they're expensive to compute)
+    summary_cache_key = get_cache_key(
+        'weather_summary',
+        start_date=start_date,
+        end_date=end_date,
+        sensor_id=sensor_id,
+        intensity_id=intensity_id
+    )
+    summary_stats = cache.get(summary_cache_key)
+    
+    if summary_stats is None:
+        summary_query = """
         SELECT
             MIN(wr.temperature) AS min_temp,
             (SELECT wr2.date_time 
@@ -2195,33 +2322,36 @@ def weather_reports(request):
         summary_conditions.append("wr.intensity_id = %s")
         summary_params.append(intensity_id)
     
-    if summary_conditions:
-        summary_query += " WHERE " + " AND ".join(summary_conditions)
-    
-    with connection.cursor() as cursor:
-        cursor.execute(summary_query, summary_params)
-        summary_row = cursor.fetchone()
-        summary_stats = {
-            'min_temp': summary_row[0],
-            'min_temp_date': summary_row[1],
-            'max_temp': summary_row[2],
-            'max_temp_date': summary_row[3],
-            
-            'min_wind': summary_row[4],
-            'min_wind_date': summary_row[5],
-            'max_wind': summary_row[6],
-            'max_wind_date': summary_row[7],
+        if summary_conditions:
+            summary_query += " WHERE " + " AND ".join(summary_conditions)
+        
+        with connection.cursor() as cursor:
+            cursor.execute(summary_query, summary_params)
+            summary_row = cursor.fetchone()
+            summary_stats = {
+                'min_temp': summary_row[0],
+                'min_temp_date': summary_row[1],
+                'max_temp': summary_row[2],
+                'max_temp_date': summary_row[3],
+                
+                'min_wind': summary_row[4],
+                'min_wind_date': summary_row[5],
+                'max_wind': summary_row[6],
+                'max_wind_date': summary_row[7],
 
-            'min_humidity': summary_row[8],
-            'min_humidity_date': summary_row[9],
-            'max_humidity': summary_row[10],
-            'max_humidity_date': summary_row[11],
+                'min_humidity': summary_row[8],
+                'min_humidity_date': summary_row[9],
+                'max_humidity': summary_row[10],
+                'max_humidity_date': summary_row[11],
 
-            'min_rain': summary_row[12],
-            'min_rain_date': summary_row[13],
-            'max_rain': summary_row[14],
-            'max_rain_date': summary_row[15],
-        }
+                'min_rain': summary_row[12],
+                'min_rain_date': summary_row[13],
+                'max_rain': summary_row[14],
+                'max_rain_date': summary_row[15],
+            }
+        
+        # Cache summary stats for 3 minutes
+        cache.set(summary_cache_key, summary_stats, timeout=180)
 
     # Get all sensors and intensities for filters
     with connection.cursor() as cursor:
@@ -2231,8 +2361,27 @@ def weather_reports(request):
         cursor.execute("SELECT intensity_id, intensity FROM intensity ORDER BY intensity")
         intensities = [{'intensity_id': row[0], 'intensity': row[1]} for row in cursor.fetchall()]
 
+    # Cache sensor and intensity lists (change infrequently)
+    sensors_cache_key = 'sensor_list'
+    intensities_cache_key = 'intensity_list'
+    sensors = cache.get(sensors_cache_key)
+    intensities = cache.get(intensities_cache_key)
+    
+    if sensors is None or intensities is None:
+        with connection.cursor() as cursor:
+            if sensors is None:
+                cursor.execute("SELECT sensor_id, name FROM sensor ORDER BY name")
+                sensors = [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
+                cache.set(sensors_cache_key, sensors, timeout=300)  # 5 minutes
+            
+            if intensities is None:
+                cursor.execute("SELECT intensity_id, intensity FROM intensity ORDER BY intensity")
+                intensities = [{'intensity_id': row[0], 'intensity': row[1]} for row in cursor.fetchall()]
+                cache.set(intensities_cache_key, intensities, timeout=300)  # 5 minutes
+
     context = {
         'reports': reports,
+        'pagination': paginated,  # Add pagination info to context
         'summary_stats': summary_stats,
         'sensors': sensors,
         'intensities': intensities,

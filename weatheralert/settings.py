@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 """
 from pathlib import Path
 import os
+import logging
 from dotenv import load_dotenv
 import dj_database_url
 
@@ -45,17 +46,49 @@ INSTALLED_APPS = [
     'celery',
 ]
 
-# Default cache backend (used by rate limiting and future features)
-CACHES = {
-    'default': {
-        'BACKEND': os.environ.get(
-            'CACHE_BACKEND',
-            'django.core.cache.backends.locmem.LocMemCache'
-        ),
-        'LOCATION': os.environ.get('CACHE_LOCATION', 'weatheralert-cache'),
-        'TIMEOUT': None,  # rely on per-key expiry
+# Cache configuration - Use Redis if available, fallback to local memory
+REDIS_URL = os.environ.get('REDIS_URL')
+if REDIS_URL:
+    # Use Redis for caching (shared across instances)
+    # Parse Redis URL to extract host, port, db
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(REDIS_URL)
+        redis_host = parsed.hostname or 'localhost'
+        redis_port = parsed.port or 6379
+        redis_db = parsed.path.lstrip('/') if parsed.path else '0'
+        
+        CACHES = {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+                'LOCATION': f'redis://{redis_host}:{redis_port}/{redis_db}',
+                'KEY_PREFIX': 'weatheralert',
+                'TIMEOUT': 300,  # Default timeout (5 minutes)
+            }
+        }
+    except Exception as e:
+        # Fallback if Redis URL parsing fails
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to parse REDIS_URL, using local cache: {e}")
+        CACHES = {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+                'LOCATION': 'weatheralert-cache',
+                'TIMEOUT': 300,
+            }
+        }
+else:
+    # Fallback to local memory cache (for development)
+    CACHES = {
+        'default': {
+            'BACKEND': os.environ.get(
+                'CACHE_BACKEND',
+                'django.core.cache.backends.locmem.LocMemCache'
+            ),
+            'LOCATION': os.environ.get('CACHE_LOCATION', 'weatheralert-cache'),
+            'TIMEOUT': 300,  # Default timeout (5 minutes)
+        }
     }
-}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
