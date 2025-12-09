@@ -328,30 +328,34 @@ def login_view(request):
                         set_session_expiry(request, remember_me)
                         return redirect('user_dashboard')
                     else:
-                        form_loginError = "Invalid username or password."
+                        # Password incorrect for user, return error immediately
+                        return render(request, 'home.html', {
+                            'show_login_modal': True,
+                            'login_username': username,
+                            'form_loginError': "Invalid username or password."
+                        })
                 
-                else:
-                    # Try admin login
-                    with connection.cursor() as cursor:
-                        cursor.execute(
-                            "SELECT admin_id, username, password, status FROM admin WHERE username = %s",
-                            [username]
-                        )
-                        admin_data = cursor.fetchone()
+                # User not found, try admin login
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT admin_id, username, password, status FROM admin WHERE username = %s",
+                        [username]
+                    )
+                    admin_data = cursor.fetchone()
 
-                    if admin_data:
-                        admin_id, db_username, db_hashed_password, status = admin_data
-                        if status != 'Active':
-                            form_loginError = "Account has been deactivated."
-                        elif check_password(password, db_hashed_password):
-                            request.session['admin_id'] = admin_id
-                            request.session['username'] = db_username
-                            set_session_expiry(request, remember_me)
-                            return redirect('admin_dashboard')
-                        else:
-                            form_loginError = "Invalid username or password."
+                if admin_data:
+                    admin_id, db_username, db_hashed_password, status = admin_data
+                    if status != 'Active':
+                        form_loginError = "Account has been deactivated."
+                    elif check_password(password, db_hashed_password):
+                        request.session['admin_id'] = admin_id
+                        request.session['username'] = db_username
+                        set_session_expiry(request, remember_me)
+                        return redirect('admin_dashboard')
                     else:
                         form_loginError = "Invalid username or password."
+                else:
+                    form_loginError = "Invalid username or password."
 
                 # If we get here, login failed
                 return render(request, 'home.html', {

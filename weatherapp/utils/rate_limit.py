@@ -1,9 +1,12 @@
 import time
+import logging
 from functools import wraps
 from typing import Callable, Iterable, Optional
 
 from django.core.cache import cache
 from django.http import HttpRequest, JsonResponse
+
+logger = logging.getLogger(__name__)
 
 
 def _default_identifier(request: HttpRequest) -> str:
@@ -58,36 +61,51 @@ def rate_limit(
             if methods_set and request.method.upper() not in methods_set:
                 return view_func(request, *args, **kwargs)
 
-            client_id = identifier(request)
-            cache_key = f"rl:{key_prefix}:{client_id}"
-            now = time.time()
+            try:
+                client_id = identifier(request)
+                cache_key = f"rl:{key_prefix}:{client_id}"
+                now = time.time()
 
-            entry = cache.get(cache_key)
-            if entry:
-                count, start_time = entry
-            else:
-                count, start_time = 0, now
+                try:
+                    entry = cache.get(cache_key)
+                    if entry:
+                        count, start_time = entry
+                    else:
+                        count, start_time = 0, now
+                except Exception as e:
+                    # If cache fails, log and allow request through (graceful degradation)
+                    logger.warning(f"Cache error in rate_limit for {key_prefix}: {e}")
+                    return view_func(request, *args, **kwargs)
 
-            elapsed = now - start_time
-            if elapsed >= window:
-                count, start_time = 0, now
-                elapsed = 0
+                elapsed = now - start_time
+                if elapsed >= window:
+                    count, start_time = 0, now
+                    elapsed = 0
 
-            if count >= limit:
-                retry_after = max(1, int(window - elapsed))
-                response = JsonResponse(
-                    {
-                        "detail": error_message
-                        or "Too many requests. Please slow down and try again.",
-                        "retry_after": retry_after,
-                    },
-                    status=429,
-                )
-                response["Retry-After"] = str(retry_after)
-                return response
+                if count >= limit:
+                    retry_after = max(1, int(window - elapsed))
+                    response = JsonResponse(
+                        {
+                            "detail": error_message
+                            or "Too many requests. Please slow down and try again.",
+                            "retry_after": retry_after,
+                        },
+                        status=429,
+                    )
+                    response["Retry-After"] = str(retry_after)
+                    return response
 
-            cache.set(cache_key, (count + 1, start_time), timeout=window)
-            return view_func(request, *args, **kwargs)
+                try:
+                    cache.set(cache_key, (count + 1, start_time), timeout=window)
+                except Exception as e:
+                    # If cache set fails, log but allow request through
+                    logger.warning(f"Cache set error in rate_limit for {key_prefix}: {e}")
+
+                return view_func(request, *args, **kwargs)
+            except Exception as e:
+                # If identifier or any other operation fails, log and allow request through
+                logger.error(f"Unexpected error in rate_limit decorator for {key_prefix}: {e}", exc_info=True)
+                return view_func(request, *args, **kwargs)
 
         return _wrapped
 
