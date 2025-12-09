@@ -31,7 +31,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY') or 'django-insecure-temp-for-collectst
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'py-server.pagenet.info,192.168.3.6,localhost,127.0.0.1,weatherappsys-7517da4b1dd4.herokuapp.com').split(',')
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'py-server.pagenet.info,192.168.3.6,localhost,127.0.0.1,weatherappsys-7517da4b1dd4.herokuapp.com,bccweatherapp-3c39c8a6c270.herokuapp.com').split(',')
 
 
 # Application definition
@@ -236,7 +236,9 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost',
     'http://127.0.0.1',
     'https://weatherappsys-7517da4b1dd4.herokuapp.com',
-    'http://weatherappsys-7517da4b1dd4.herokuapp.com'
+    'http://weatherappsys-7517da4b1dd4.herokuapp.com',
+    'https://bccweatherapp-3c39c8a6c270.herokuapp.com/',
+    'http://bccweatherapp-3c39c8a6c270.herokuapp.com/'
 ]
 
 # Media files
