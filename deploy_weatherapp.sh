@@ -200,30 +200,51 @@ fi
 # 3. Environment Configuration
 # =============================================================================
 log "Setting up environment variables..."
-cat > "${APP_ROOT}/.env" << 'EOF'
+
+# Check if .env file already exists
+if [[ -f "${APP_ROOT}/.env" ]]; then
+    warning ".env file already exists. Skipping creation."
+    warning "Please ensure all required environment variables are set in ${APP_ROOT}/.env"
+else
+    # Check if .env.example exists and use it as template
+    if [[ -f "${APP_ROOT}/.env.example" ]]; then
+        log "Copying .env.example to .env..."
+        cp "${APP_ROOT}/.env.example" "${APP_ROOT}/.env"
+        warning "Created .env from .env.example template."
+    else
+        log "Creating .env template file..."
+        cat > "${APP_ROOT}/.env" << 'EOF'
 # Django Settings
+# IMPORTANT: Generate a new secret key: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 SECRET_KEY=your-secret-key-change-this-in-production
 DEBUG=False
 ALLOWED_HOSTS=119.93.148.180,192.168.3.5,localhost,127.0.0.1
 
 # Database (MySQL)
-DB_NAME=u520834156_dbweatherApp
-DB_USER=u520834156_uWApp2024
-DB_PASSWORD=bIxG2Z$In#8
-DB_HOST=153.92.15.8
+# IMPORTANT: Set these values from environment variables or secure configuration
+DB_NAME=your-database-name
+DB_USER=your-database-user
+DB_PASSWORD=your-database-password
+DB_HOST=your-database-host
 DB_PORT=3306
 
-# Email
+# Email Configuration
+# IMPORTANT: Set email credentials from environment variables
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USE_TLS=True
-EMAIL_HOST_USER=rainalertcaps@gmail.com
-EMAIL_HOST_PASSWORD=clmz izuz zphx tnrw
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=your-app-password
 
-# SMS
+# SMS API Configuration
+# IMPORTANT: Set SMS API credentials from environment variables
 SMS_API_URL=https://sms.pagenet.info/api/v1/sms/send
-SMS_API_KEY=6PLX3NFL2A2FLQ81RI7X6C4PJP68ANLJNYQ7XAR6
-SMS_DEVICE_ID=97e8c4360d11fa51
+SMS_API_KEY=your-sms-api-key
+SMS_DEVICE_ID=your-sms-device-id
+
+# PhilSys QR Verification Keys (Optional)
+# PSA_PUBLIC_KEY=your-psa-public-key
+# PSA_ED25519_PUBLIC_KEY=your-psa-ed25519-public-key
 
 # Subpath hosting
 FORCE_SCRIPT_NAME=/weatherapp
@@ -232,10 +253,24 @@ MEDIA_URL=/weatherapp/media/
 SESSION_COOKIE_PATH=/weatherapp
 CSRF_COOKIE_PATH=/weatherapp
 
-# Celery
+# Celery (Redis)
+REDIS_URL=redis://localhost:6379/0
 CELERY_BROKER_URL=redis://localhost:6379/0
 CELERY_RESULT_BACKEND=redis://localhost:6379/0
 EOF
+    fi
+    
+    warning ""
+    warning "⚠️  SECURITY: .env file created with placeholder values."
+    warning "Please update ${APP_ROOT}/.env with your actual credentials:"
+    warning "  - Database credentials (DB_NAME, DB_USER, DB_PASSWORD, DB_HOST)"
+    warning "  - Email credentials (EMAIL_HOST_USER, EMAIL_HOST_PASSWORD)"
+    warning "  - SMS API credentials (SMS_API_KEY, SMS_DEVICE_ID)"
+    warning "  - SECRET_KEY (generate a new one for production)"
+    warning ""
+    warning "You can also set these via environment variables before running this script."
+    warning "The .env file is gitignored and will not be committed to version control."
+fi
 
 # =============================================================================
 # 3.5. Pre-Deployment Checks (Optional but Recommended)
