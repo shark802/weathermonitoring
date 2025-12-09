@@ -1,8 +1,33 @@
 import os
 import logging
+
+# Configure TensorFlow for minimal memory usage BEFORE importing tensorflow
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0' 
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+# Limit TensorFlow memory growth to prevent OOM
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+
 import tensorflow as tf
+
+# Configure TensorFlow to use minimal memory
+# This must be done before any model loading
+try:
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        # Limit GPU memory growth
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+except RuntimeError:
+    # GPU config must be done before TensorFlow operations
+    pass
+
+# Limit CPU memory usage - reduce parallelism to save memory
+try:
+    tf.config.threading.set_inter_op_parallelism_threads(1)
+    tf.config.threading.set_intra_op_parallelism_threads(1)
+except RuntimeError:
+    # Threading config must be done before TensorFlow operations
+    pass
 import time
 import sys
 import django
@@ -113,12 +138,14 @@ def get_sequence_data_from_db():
         return None
 
 # =======================================================
-# 2. Model and Scalers Loading (REMAINS THE SAME)
+# 2. Model and Scalers Loading (LAZY LOADING)
 # =======================================================
 model = None
 scaler_X = None
 scaler_y = None
 FEATURE_COUNT = 5
+_model_loaded = False
+_model_lock = None
 
 class FixedInputLayer(tf.keras.layers.InputLayer):
     def __init__(self, **kwargs):
@@ -135,22 +162,43 @@ class DTypePolicy:
     @property
     def variable_dtype(self): return tf.float32 
 
-try:
-    custom_objects = {'InputLayer': FixedInputLayer, 'DTypePolicy': DTypePolicy}
-    with tf.keras.utils.custom_object_scope(custom_objects):
-        model = tf.keras.models.load_model(MODEL_FILE, compile=False)
-
-    model.compile(optimizer="adam", loss="mean_squared_error")
-    logger.info("Rain model loaded successfully")
+def _load_model():
+    """Lazy load the model only when needed. Thread-safe."""
+    global model, scaler_X, scaler_y, _model_loaded, _model_lock
     
-    scaler_X = joblib.load(SCALER_X_FILE)
-    scaler_y = joblib.load(SCALER_Y_FILE)
-    logger.info("Scalers loaded successfully")
-
-except FileNotFoundError as e:
-    logger.warning("One of the required files was not found: %s", e.filename)
-except Exception as e:
-    logger.exception("Unexpected error during model/scaler loading")
+    if _model_loaded:
+        return
+    
+    # Use threading lock for thread safety
+    import threading
+    if _model_lock is None:
+        _model_lock = threading.Lock()
+    
+    with _model_lock:
+        # Double-check after acquiring lock
+        if _model_loaded:
+            return
+        
+        try:
+            logger.info("Loading TensorFlow model (lazy loading)...")
+            custom_objects = {'InputLayer': FixedInputLayer, 'DTypePolicy': DTypePolicy}
+            with tf.keras.utils.custom_object_scope(custom_objects):
+                model = tf.keras.models.load_model(MODEL_FILE, compile=False)
+            
+            # Use minimal memory configuration for model
+            model.compile(optimizer="adam", loss="mean_squared_error")
+            logger.info("Rain model loaded successfully")
+            
+            scaler_X = joblib.load(SCALER_X_FILE)
+            scaler_y = joblib.load(SCALER_Y_FILE)
+            logger.info("Scalers loaded successfully")
+            
+            _model_loaded = True
+            
+        except FileNotFoundError as e:
+            logger.warning("One of the required files was not found: %s", e.filename)
+        except Exception as e:
+            logger.exception("Unexpected error during model/scaler loading")
 
 # =======================================================
 # 3. Helper and Prediction Functions (REMAINS THE SAME)
@@ -216,6 +264,23 @@ def predict_rain(input_features):
         return predicted_amount_mm, duration_min, intensity, rate_mm_h
     
     # --- ML Model Prediction Logic ---
+    # Lazy load model if not already loaded
+    _load_model()
+    
+    if model is None or scaler_X is None or scaler_y is None:
+        # Fallback if model still not loaded
+        logger.warning("Model not available, using fallback prediction")
+        if latest_humidity > 80 and latest_temp < 30:
+            predicted_amount_mm, duration_min = 5.0, 30.0
+        elif latest_humidity > 70:
+            predicted_amount_mm, duration_min = 2.0, 15.0
+        else:
+            predicted_amount_mm, duration_min = 0.5, 5.0
+        
+        rate_mm_h = (predicted_amount_mm / duration_min) * 60 if duration_min > 0 else 0.0
+        intensity = get_rain_intensity(rate_mm_h)
+        return predicted_amount_mm, duration_min, intensity, rate_mm_h
+    
     # Step 1: Scale input features using the same scaler used during training
     # This ensures features are in the same range (typically 0-1 or standardized)
     try:
@@ -231,7 +296,8 @@ def predict_rain(input_features):
     
     # Step 3: Run prediction through the LSTM model
     # Model outputs scaled predictions (normalized during training)
-    y_pred_scaled = model.predict(X_seq, verbose=0)
+    # Use minimal batch size and disable verbose to save memory
+    y_pred_scaled = model.predict(X_seq, verbose=0, batch_size=1)
     
     # Step 4: Inverse transform to get actual values (mm and minutes)
     y_pred = scaler_y.inverse_transform(y_pred_scaled)
