@@ -237,8 +237,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1',
     'https://weatherappsys-7517da4b1dd4.herokuapp.com',
     'http://weatherappsys-7517da4b1dd4.herokuapp.com',
-    'https://bccweatherapp-3c39c8a6c270.herokuapp.com/',
-    'http://bccweatherapp-3c39c8a6c270.herokuapp.com/'
+    'https://bccweatherapp-3c39c8a6c270.herokuapp.com',
+    'http://bccweatherapp-3c39c8a6c270.herokuapp.com'
 ]
 
 # Media files
