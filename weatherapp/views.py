@@ -1248,7 +1248,7 @@ def get_alerts(request):
             'alerts': [],
             'error': 'Failed to fetch alerts. Please try again later.'
         }, status=500)
-@csrf_exempt
+
 @rate_limit("mark_alerts_read", limit=60, window=60, methods=["POST"])
 def mark_alerts_read(request):
     if request.method == "POST":
@@ -1336,7 +1336,7 @@ def mark_alerts_read(request):
         "message": "Invalid request method. POST required."
     }, status=405)
 
-@csrf_exempt
+
 @rate_limit("clear_read_alerts", limit=60, window=60, methods=["POST"])
 def clear_read_alerts(request):
     """Clear all read alerts from session"""
@@ -1806,7 +1806,7 @@ def update_admin(request):
 
         return redirect('manage_admins')
     
-@csrf_exempt
+
 def deactivate_admin(request, admin_id):
     if request.method == "POST":
         try:
@@ -1818,7 +1818,6 @@ def deactivate_admin(request, admin_id):
             request.session['form_adminError'] = "❌ Unable to deactivate admin. Please try again."
     return redirect('manage_admins')
 
-@csrf_exempt
 def activate_admin(request, admin_id):
     if request.method == "POST":
         try:
@@ -2733,7 +2732,6 @@ def get_rain_intensity(amount):
     else:
         return "Torrential"
 
-@csrf_exempt
 @rate_limit("receive_sensor_data", limit=120, window=60, methods=["POST"])
 def receive_sensor_data(request):
     logger.debug(

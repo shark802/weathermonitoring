@@ -1,0 +1,22 @@
+[MASTER]
+ignore=migrations
+load-plugins=pylint_django
+
+[MESSAGES CONTROL]
+disable=
+    C0111,  # missing-docstring
+    C0103,  # invalid-name
+    R0903,  # too-few-public-methods
+    R0913,  # too-many-arguments
+    W0212,  # protected-access
+    C0301,  # line-too-long (handled by black)
+
+[FORMAT]
+max-line-length=100
+
+[BASIC]
+good-names=i,j,k,ex,Run,_,id,pk,db
+
+[TYPECHECK]
+ignored-classes=optparse.Values,thread._local,_thread._local
+

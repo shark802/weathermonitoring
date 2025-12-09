@@ -1,0 +1,22 @@
+[flake8]
+max-line-length = 100
+exclude =
+    .git,
+    __pycache__,
+    */migrations/*,
+    */venv/*,
+    */env/*,
+    */node_modules/*,
+    manage.py,
+    */settings.py,
+    */wsgi.py,
+    */asgi.py
+ignore =
+    E203,  # whitespace before ':'
+    E501,  # line too long (handled by black)
+    W503,  # line break before binary operator
+    F401,  # imported but unused (handled by isort)
+per-file-ignores =
+    __init__.py:F401
+max-complexity = 15
+

@@ -1,3 +1,14 @@
+"""
+Test suite for WeatherAlert application.
+
+This module contains unit tests for utility functions and basic functionality.
+For comprehensive tests, see:
+- test_authentication.py - Authentication tests
+- test_registration.py - Registration tests
+- test_database_operations.py - Database integration tests
+- test_api_endpoints.py - API endpoint tests
+- test_e2e_flows.py - End-to-end user flow tests
+"""
 import json
 
 from django.core.cache import cache

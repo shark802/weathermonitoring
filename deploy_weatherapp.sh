@@ -238,6 +238,27 @@ CELERY_RESULT_BACKEND=redis://localhost:6379/0
 EOF
 
 # =============================================================================
+# 3.5. Pre-Deployment Checks (Optional but Recommended)
+# =============================================================================
+if [[ "${SKIP_PRE_DEPLOYMENT_CHECKS:-0}" != "1" ]]; then
+    log "Running pre-deployment security and quality checks..."
+    
+    # Check if pre-deployment script exists
+    if [[ -f "${APP_ROOT}/scripts/pre_deployment_check.sh" ]]; then
+        if bash "${APP_ROOT}/scripts/pre_deployment_check.sh"; then
+            success "Pre-deployment checks passed"
+        else
+            warning "Pre-deployment checks failed. Continuing deployment anyway..."
+            warning "To skip checks, set SKIP_PRE_DEPLOYMENT_CHECKS=1"
+        fi
+    else
+        warning "Pre-deployment check script not found. Skipping checks."
+    fi
+else
+    warning "Skipping pre-deployment checks (SKIP_PRE_DEPLOYMENT_CHECKS=1)"
+fi
+
+# =============================================================================
 # 4. Django Configuration
 # =============================================================================
 log "Configuring Django application..."

@@ -9,8 +9,30 @@ __pycache__/
 
 .env
 
+deploy_weatherapp.sh
+
 .DS_Store
 .idea/
 *.swp
 
 rainfall_dataset.csv
+
+# Testing
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Code quality
+.ropeproject/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Reports
+audit-report.json
+safety-report.json
+django-security-check.log
+*.log
