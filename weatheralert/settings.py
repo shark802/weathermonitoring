@@ -25,7 +25,8 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY')
+# Default only for collectstatic/build phase - ensure SECRET_KEY is set in production
+SECRET_KEY = os.environ.get('SECRET_KEY') or 'django-insecure-temp-for-collectstatic-only'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG') == 'True'
@@ -210,12 +211,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT'))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS') == 'True'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = f'WeatherAlert <{EMAIL_HOST_USER}>'
+EMAIL_HOST = os.environ.get('EMAIL_HOST') or 'smtp.gmail.com'
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT') or '587')  # Default for collectstatic
+EMAIL_USE_TLS = (os.environ.get('EMAIL_USE_TLS') or 'True') == 'True'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or ''
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') or ''
+DEFAULT_FROM_EMAIL = f'WeatherAlert <{EMAIL_HOST_USER}>' if EMAIL_HOST_USER else 'WeatherAlert <noreply@weatherapp.com>'
 
 LOGIN_URL = 'login'
 LOGOUT_REDIRECT_URL = '/'
