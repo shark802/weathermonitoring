@@ -49,8 +49,9 @@ def track_performance(func_name):
                     cache_key = f"metrics:{func_name}:execution_time"
                     # Store last 10 execution times (simplified - use proper time series in production)
                     cache.set(cache_key, execution_time, timeout=3600)
-                except Exception:
-                    pass  # Don't fail if metrics storage fails
+                except Exception as e:
+                    logger.debug("Failed to cache metrics for %s: %s", func_name, e)
+                    # Don't fail if metrics storage fails
                 
                 return result
             except Exception as e:

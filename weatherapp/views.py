@@ -34,7 +34,7 @@ import sys
 import urllib.parse 
 
 from weatherapp.utils.rate_limit import rate_limit
-from weatherapp.utils.cache import cached_result, get_cache_key
+from weatherapp.utils.cache import cached_result, get_cache_key, safe_cache_get, safe_cache_set
 from weatherapp.utils.pagination import paginate_sql_results
 from weatherapp.utils.monitoring import track_performance, log_database_query
 from django.core.cache import cache
@@ -554,7 +554,7 @@ def latest_dashboard_data(request):
     # Check cache first (30 second TTL for dashboard data)
     selected_sensor_id = request.GET.get('sensor_id')
     cache_key = get_cache_key('dashboard_data', sensor_id=selected_sensor_id)
-    cached_data = cache.get(cache_key)
+    cached_data = safe_cache_get(cache_key)
     
     if cached_data is not None:
         logger.debug("Serving cached dashboard data")
@@ -721,7 +721,7 @@ def latest_dashboard_data(request):
             }
             
             # Cache the response for 30 seconds to reduce database load
-            cache.set(cache_key, response_data, timeout=30)
+            safe_cache_set(cache_key, response_data, timeout=30)
             
             return JsonResponse(response_data)
     
@@ -2190,14 +2190,14 @@ def weather_reports(request):
     
     # Get admin name (cached for 5 minutes)
     cache_key_admin = get_cache_key('admin_name', admin_id=admin_id)
-    admin_name = cache.get(cache_key_admin)
+    admin_name = safe_cache_get(cache_key_admin)
     
     if admin_name is None:
         with connection.cursor() as cursor:
             cursor.execute("SELECT name FROM admin WHERE admin_id = %s", [admin_id])
             row = cursor.fetchone()
             admin_name = row[0] if row else 'Admin'
-            cache.set(cache_key_admin, admin_name, timeout=300)
+            safe_cache_set(cache_key_admin, admin_name, timeout=300)
     
     # Get filter parameters
     start_date = request.GET.get('start_date')
@@ -2284,7 +2284,7 @@ def weather_reports(request):
         sensor_id=sensor_id,
         intensity_id=intensity_id
     )
-    summary_stats = cache.get(summary_cache_key)
+    summary_stats = safe_cache_get(summary_cache_key)
     
     if summary_stats is None:
         summary_query = """
@@ -2380,7 +2380,7 @@ def weather_reports(request):
             }
         
         # Cache summary stats for 3 minutes
-        cache.set(summary_cache_key, summary_stats, timeout=180)
+        safe_cache_set(summary_cache_key, summary_stats, timeout=180)
 
     # Get all sensors and intensities for filters
     with connection.cursor() as cursor:
@@ -2393,20 +2393,20 @@ def weather_reports(request):
     # Cache sensor and intensity lists (change infrequently)
     sensors_cache_key = 'sensor_list'
     intensities_cache_key = 'intensity_list'
-    sensors = cache.get(sensors_cache_key)
-    intensities = cache.get(intensities_cache_key)
+    sensors = safe_cache_get(sensors_cache_key)
+    intensities = safe_cache_get(intensities_cache_key)
     
     if sensors is None or intensities is None:
         with connection.cursor() as cursor:
             if sensors is None:
                 cursor.execute("SELECT sensor_id, name FROM sensor ORDER BY name")
                 sensors = [{'sensor_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
-                cache.set(sensors_cache_key, sensors, timeout=300)  # 5 minutes
+                safe_cache_set(sensors_cache_key, sensors, timeout=300)  # 5 minutes
             
             if intensities is None:
                 cursor.execute("SELECT intensity_id, intensity FROM intensity ORDER BY intensity")
                 intensities = [{'intensity_id': row[0], 'intensity': row[1]} for row in cursor.fetchall()]
-                cache.set(intensities_cache_key, intensities, timeout=300)  # 5 minutes
+                safe_cache_set(intensities_cache_key, intensities, timeout=300)  # 5 minutes
 
     context = {
         'reports': reports,

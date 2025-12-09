@@ -11,6 +11,39 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def safe_cache_get(key, default=None):
+    """
+    Safely get a value from cache, returning default if cache is unavailable.
+    
+    Args:
+        key: Cache key
+        default: Default value to return if cache fails or key not found
+        
+    Returns:
+        Cached value or default
+    """
+    try:
+        return cache.get(key, default)
+    except Exception as e:
+        logger.warning("Cache get error for key %s: %s", key, e)
+        return default
+
+
+def safe_cache_set(key, value, timeout=None):
+    """
+    Safely set a value in cache, logging warning if cache is unavailable.
+    
+    Args:
+        key: Cache key
+        value: Value to cache
+        timeout: Cache timeout in seconds
+    """
+    try:
+        cache.set(key, value, timeout)
+    except Exception as e:
+        logger.warning("Cache set error for key %s: %s", key, e)
+
 # Cache timeouts (in seconds)
 CACHE_TIMEOUTS = {
     'weather_data': 60,  # 1 minute - weather data updates frequently
@@ -85,7 +118,7 @@ def cached_result(cache_type, timeout=None):
             cache_timeout = timeout or CACHE_TIMEOUTS.get(cache_type, 60)
             
             # Try to get from cache
-            cached_value = cache.get(cache_key)
+            cached_value = safe_cache_get(cache_key)
             if cached_value is not None:
                 logger.debug("Cache hit for %s", cache_key)
                 return cached_value
@@ -95,10 +128,7 @@ def cached_result(cache_type, timeout=None):
             result = func(*args, **kwargs)
             
             # Store in cache
-            try:
-                cache.set(cache_key, result, cache_timeout)
-            except Exception as e:
-                logger.warning("Failed to cache result for %s: %s", cache_key, e)
+            safe_cache_set(cache_key, result, cache_timeout)
             
             return result
         
@@ -142,12 +172,12 @@ def cache_weather_data(sensor_id=None, timeout=None):
             )
             cache_timeout = timeout or CACHE_TIMEOUTS['weather_data']
             
-            cached = cache.get(cache_key)
+            cached = safe_cache_get(cache_key)
             if cached is not None:
                 return cached
             
             result = func(*args, **kwargs)
-            cache.set(cache_key, result, cache_timeout)
+            safe_cache_set(cache_key, result, cache_timeout)
             return result
         
         return wrapper
